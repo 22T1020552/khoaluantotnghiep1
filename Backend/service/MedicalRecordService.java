@@ -1,0 +1,766 @@
+package com.example.demo.service;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import com.example.demo.dto.AddPrescriptionDetailRequest;
+import com.example.demo.dto.CreateMedicalRecordRequest;
+import com.example.demo.dto.DoctorPatientHistoryDetailResponse;
+import com.example.demo.dto.DoctorPatientHistoryResponse;
+import com.example.demo.dto.DoctorPatientHistoryRowResponse;
+import com.example.demo.dto.DoctorPatientPrescriptionItemResponse;
+import com.example.demo.dto.DoctorPatientServiceItemResponse;
+import com.example.demo.dto.PrescriptionAutosaveResponse;
+import com.example.demo.dto.PrescriptionCatalogMedicineResponse;
+import com.example.demo.dto.PrescriptionLineResponse;
+import com.example.demo.dto.PrescriptionMedicineCatalogResponse;
+import com.example.demo.dto.PrescriptionWorkspaceResponse;
+import com.example.demo.dto.UpdatePrescriptionDetailRequest;
+import com.example.demo.dto.UpsertMedicalRecordServiceResultRequest;
+import com.example.demo.entity.Appointment;
+import com.example.demo.entity.MedicalRecord;
+import com.example.demo.entity.MedicalRecordServiceDetail;
+import com.example.demo.entity.MedicalRecordServiceId;
+import com.example.demo.entity.MedicalService;
+import com.example.demo.entity.Medicine;
+import com.example.demo.entity.Patient;
+import com.example.demo.entity.PrescriptionDetail;
+import com.example.demo.entity.PrescriptionDetailId;
+import com.example.demo.entity.Role;
+import com.example.demo.entity.User;
+import com.example.demo.repository.AppointmentRepository;
+import com.example.demo.repository.MedicalRecordRepository;
+import com.example.demo.repository.MedicalRecordServiceDetailRepository;
+import com.example.demo.repository.MedicalServiceRepository;
+import com.example.demo.repository.MedicineRepository;
+import com.example.demo.repository.PrescriptionDetailRepository;
+import com.example.demo.repository.RoomRepository;
+import com.example.demo.repository.UserRepository;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class MedicalRecordService {
+
+    private static final String STATUS_WAITING = "WAITING";
+    private static final String STATUS_COMPLETED = "COMPLETED";
+
+    private static final String GROUP_ALL = "Tat ca";
+    private static final String GROUP_ANTIBIOTIC = "Khang sinh";
+    private static final String GROUP_PAIN_FEVER = "Giam dau ha sot";
+    private static final String GROUP_COUGH = "Thuoc ho";
+    private static final String GROUP_ALLERGY = "Chong di ung";
+    private static final String GROUP_DIGESTIVE = "Tieu hoa";
+    private static final String GROUP_OTHER = "Khac";
+
+    private static final String DEFAULT_USAGE_PLACEHOLDER = "Chua cap nhat";
+
+    private static final Pattern CONCENTRATION_PATTERN = Pattern.compile(
+            "(\\d+(?:[\\.,]\\d+)?\\s?(?:mg|g|mcg|ug|ml|iu|%))",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private final MedicalRecordRepository medicalRecordRepository;
+    private final AppointmentRepository appointmentRepository;
+    private final UserRepository userRepository;
+    private final MedicineRepository medicineRepository;
+    private final MedicalServiceRepository medicalServiceRepository;
+    private final PrescriptionDetailRepository prescriptionDetailRepository;
+    private final MedicalRecordServiceDetailRepository medicalRecordServiceDetailRepository;
+    private final RoomRepository roomRepository;
+    private final PatientService patientService;
+    private final InvoiceService invoiceService;
+
+    // Chức năng: xử lý get all.
+    public List<MedicalRecord> getAll() {
+        return medicalRecordRepository.findAll();
+    }
+
+        // Chức năng: xử lý upsert medical record service result from assigned doctor room.
+        public MedicalRecordServiceDetail upsertMedicalRecordServiceResult(
+            String username,
+            Long medicalRecordId,
+            UpsertMedicalRecordServiceResultRequest request) {
+        User doctor = userRepository.findByUsernameAndRole(username, Role.DOCTOR)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor account not found"));
+
+        MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medical record not found"));
+
+        ensureDoctorCanUpdateCrossRoomServiceResult(doctor, medicalRecord);
+
+        MedicalService medicalService = medicalServiceRepository.findById(request.getServiceId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medical service not found"));
+
+        MedicalRecordServiceId id = new MedicalRecordServiceId();
+        id.setMedicalRecordId(medicalRecordId);
+        id.setServiceId(request.getServiceId());
+
+        MedicalRecordServiceDetail detail = medicalRecordServiceDetailRepository.findById(id)
+            .orElseGet(MedicalRecordServiceDetail::new);
+
+        detail.setId(id);
+        detail.setMedicalRecord(medicalRecord);
+        detail.setService(medicalService);
+        detail.setQuantity(request.getQuantity());
+        detail.setActualPrice(request.getActualPrice());
+        detail.setResultNote(normalizeOptionalResultNote(request.getResultNote()));
+
+        invoiceService.aggregateInvoiceAmount(medicalRecordId);
+        return medicalRecordServiceDetailRepository.save(detail);
+        }
+
+    // Chức năng: xử lý get by id.
+    public MedicalRecord getById(Long id) {
+        return medicalRecordRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medical record not found"));
+    }
+
+    // Chức năng: xử lý get by appointment id.
+    public MedicalRecord getByAppointmentId(Long appointmentId) {
+        return medicalRecordRepository.findByAppointment_Id(appointmentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medical record not found for appointment"));
+    }
+
+    // Chức năng: xử lý create.
+    public MedicalRecord create(Long appointmentId, MedicalRecord request) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found"));
+
+        if (medicalRecordRepository.existsByAppointment_Id(appointmentId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Appointment already has a medical record");
+        }
+
+        MedicalRecord record = new MedicalRecord();
+        record.setAppointment(appointment);
+        record.setDiagnosis(request.getDiagnosis());
+        record.setDoctorAdvice(request.getDoctorAdvice());
+        record.setCreatedAt(LocalDateTime.now());
+
+        return medicalRecordRepository.save(record);
+    }
+
+    // Chức năng: xử lý create by doctor.
+    public MedicalRecord createByDoctor(String username, CreateMedicalRecordRequest request) {
+        User doctor = userRepository.findByUsernameAndRole(username, Role.DOCTOR)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor account not found"));
+
+        Appointment appointment = appointmentRepository.findById(request.getAppointmentId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found"));
+
+        if (appointment.getDoctor() == null || !doctor.getId().equals(appointment.getDoctor().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not assigned to this appointment");
+        }
+
+        if (!STATUS_WAITING.equalsIgnoreCase(appointment.getStatus())
+                && !"IN_PROGRESS".equalsIgnoreCase(appointment.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only WAITING or IN_PROGRESS appointment can create medical record");
+        }
+
+        if (medicalRecordRepository.existsByAppointment_Id(request.getAppointmentId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Appointment already has a medical record");
+        }
+
+        MedicalRecord record = new MedicalRecord();
+        record.setAppointment(appointment);
+        record.setDiagnosis(request.getDiagnosis().trim());
+        record.setDoctorAdvice(request.getDoctorAdvice().trim());
+        record.setCreatedAt(LocalDateTime.now());
+
+        appointment.setStatus("IN_PROGRESS");
+        appointmentRepository.save(appointment);
+
+        return medicalRecordRepository.save(record);
+    }
+
+    // Chức năng: xử lý update.
+    public MedicalRecord update(Long id, MedicalRecord request) {
+        MedicalRecord existing = getById(id);
+
+        existing.setDiagnosis(request.getDiagnosis());
+        existing.setDoctorAdvice(request.getDoctorAdvice());
+
+        return medicalRecordRepository.save(existing);
+    }
+
+    // Chức năng: xử lý add medicine to current medical record.
+    public PrescriptionDetail addMedicineToCurrentMedicalRecord(
+            String username,
+            Long medicalRecordId,
+            AddPrescriptionDetailRequest request) {
+        MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+        ensurePrescriptionEditable(medicalRecord);
+
+        Medicine medicine = medicineRepository.findById(request.getMedicineId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medicine not found"));
+
+        if (Boolean.FALSE.equals(medicine.getIsActive())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Medicine is not active");
+        }
+
+        Integer stockQuantity = medicine.getStockQuantity();
+        if (stockQuantity == null || stockQuantity < request.getQuantity()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Not enough stock for this medicine");
+        }
+
+        PrescriptionDetailId id = new PrescriptionDetailId();
+        id.setMedicalRecordId(medicalRecord.getId());
+        id.setMedicineId(medicine.getId());
+
+        PrescriptionDetail detail = prescriptionDetailRepository.findById(id).orElseGet(PrescriptionDetail::new);
+        detail.setMedicalRecord(medicalRecord);
+        detail.setMedicine(medicine);
+
+        int currentQuantity = java.util.Objects.requireNonNullElse(detail.getQuantity(), 0);
+        int updatedQuantity = currentQuantity + request.getQuantity();
+        if (stockQuantity < updatedQuantity) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Not enough stock for this medicine");
+        }
+
+        detail.setQuantity(updatedQuantity);
+        detail.setUsageInstructions(request.getUsageInstructions().trim());
+
+        return prescriptionDetailRepository.save(detail);
+    }
+
+    // Chức năng: xử lý get prescription details by medical record.
+    public List<PrescriptionDetail> getPrescriptionDetailsByMedicalRecord(String username, Long medicalRecordId) {
+        MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+        return prescriptionDetailRepository.findByMedicalRecord_Id(medicalRecord.getId());
+    }
+
+    // Chức năng: xử lý get prescription workspace.
+    public PrescriptionWorkspaceResponse getPrescriptionWorkspace(String username, Long medicalRecordId) {
+        MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+
+        List<PrescriptionLineResponse> prescribedMedicines = prescriptionDetailRepository
+                .findByMedicalRecord_Id(medicalRecordId)
+                .stream()
+                .map(this::toPrescriptionLineResponse)
+                .toList();
+
+        List<PrescriptionCatalogMedicineResponse> medicineCatalog = mapToMedicineCards(
+                medicineRepository.findByIsActiveTrueOrderByMedicineNameAsc()
+        );
+
+        BigDecimal totalAmount = prescribedMedicines.stream()
+                .map(PrescriptionLineResponse::getLineTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return new PrescriptionWorkspaceResponse(
+                medicalRecord.getId(),
+                prescribedMedicines,
+                medicineCatalog,
+                totalAmount
+        );
+    }
+
+    // Chức năng: xử lý get medicine catalog for prescription by group.
+    public PrescriptionMedicineCatalogResponse getMedicineCatalogForPrescription(
+            String username,
+            Long medicalRecordId,
+            String group) {
+        MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+        ensurePrescriptionEditable(medicalRecord);
+
+        List<PrescriptionCatalogMedicineResponse> allCards = mapToMedicineCards(
+                medicineRepository.findByIsActiveTrueOrderByMedicineNameAsc()
+        );
+
+        List<String> availableGroups = allCards.stream()
+                .map(PrescriptionCatalogMedicineResponse::getPharmacologyGroup)
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted()
+                .toList();
+
+        String normalizedSelectedGroup = normalizeSelectedGroup(group, availableGroups);
+
+        List<PrescriptionCatalogMedicineResponse> filteredCards = allCards;
+        if (!GROUP_ALL.equalsIgnoreCase(normalizedSelectedGroup)) {
+            filteredCards = allCards.stream()
+                    .filter(card -> normalizedSelectedGroup.equalsIgnoreCase(card.getPharmacologyGroup()))
+                    .toList();
+        }
+
+        List<String> groupsForResponse = new ArrayList<>(availableGroups);
+        groupsForResponse.add(0, GROUP_ALL);
+
+        return new PrescriptionMedicineCatalogResponse(
+                normalizedSelectedGroup,
+                groupsForResponse,
+                filteredCards
+        );
+    }
+
+    // Chức năng: xử lý quick add medicine to prescription.
+    public PrescriptionWorkspaceResponse quickAddMedicineToPrescription(
+            String username,
+            Long medicalRecordId,
+            Long medicineId) {
+        MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+        ensurePrescriptionEditable(medicalRecord);
+
+        Medicine medicine = medicineRepository.findById(medicineId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medicine not found"));
+
+        if (Boolean.FALSE.equals(medicine.getIsActive())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Medicine is not active");
+        }
+
+        Integer stockQuantity = medicine.getStockQuantity();
+        if (stockQuantity == null || stockQuantity <= 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Thuoc da het trong kho");
+        }
+
+        PrescriptionDetailId id = new PrescriptionDetailId();
+        id.setMedicalRecordId(medicalRecordId);
+        id.setMedicineId(medicineId);
+
+        PrescriptionDetail existingDetail = prescriptionDetailRepository.findById(id).orElse(null);
+        if (existingDetail == null) {
+            PrescriptionDetail detail = new PrescriptionDetail();
+            detail.setId(id);
+            detail.setMedicalRecord(medicalRecord);
+            detail.setMedicine(medicine);
+            detail.setQuantity(1);
+            detail.setUsageInstructions(DEFAULT_USAGE_PLACEHOLDER);
+            prescriptionDetailRepository.save(detail);
+        }
+
+        return getPrescriptionWorkspace(username, medicalRecordId);
+    }
+
+    // Chức năng: xử lý update prescription detail.
+    public PrescriptionDetail updatePrescriptionDetail(
+            String username,
+            Long medicalRecordId,
+            Long medicineId,
+            UpdatePrescriptionDetailRequest request) {
+        MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+        ensurePrescriptionEditable(medicalRecord);
+
+        PrescriptionDetailId id = new PrescriptionDetailId();
+        id.setMedicalRecordId(medicalRecordId);
+        id.setMedicineId(medicineId);
+
+        PrescriptionDetail detail = prescriptionDetailRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Prescription detail not found"));
+
+        Medicine medicine = detail.getMedicine();
+        if (medicine == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Medicine data is missing in prescription detail");
+        }
+
+        int newQuantity = request.getQuantity();
+
+        Integer currentStock = java.util.Objects.requireNonNullElse(medicine.getStockQuantity(), 0);
+        if (newQuantity > currentStock) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "So luong vuot qua ton kho hien tai. Ton con lai: " + currentStock
+            );
+        }
+
+        detail.setQuantity(newQuantity);
+        detail.setUsageInstructions(request.getUsageInstructions().trim());
+
+        return prescriptionDetailRepository.save(detail);
+    }
+
+    // Chức năng: xử lý autosave prescription detail.
+    public PrescriptionAutosaveResponse autosavePrescriptionDetail(
+            String username,
+            Long medicalRecordId,
+            Long medicineId,
+            UpdatePrescriptionDetailRequest request) {
+        PrescriptionDetail savedDetail = updatePrescriptionDetail(username, medicalRecordId, medicineId, request);
+
+        PrescriptionLineResponse line = toPrescriptionLineResponse(savedDetail);
+        BigDecimal totalAmount = calculatePrescriptionTotal(medicalRecordId);
+        Integer remainingStock = null;
+        if (savedDetail.getMedicine() != null) {
+            Integer currentStock = java.util.Objects.requireNonNullElse(savedDetail.getMedicine().getStockQuantity(), 0);
+            Integer prescribedQuantity = java.util.Objects.requireNonNullElse(savedDetail.getQuantity(), 0);
+            remainingStock = Math.max(0, currentStock - prescribedQuantity);
+        }
+
+        return new PrescriptionAutosaveResponse(
+                medicalRecordId,
+                medicineId,
+                savedDetail.getQuantity(),
+                savedDetail.getUsageInstructions(),
+                line.getLineTotal(),
+                totalAmount,
+                remainingStock
+        );
+    }
+
+    // Chức năng: xử lý remove prescription detail.
+    public PrescriptionWorkspaceResponse removePrescriptionDetail(
+            String username,
+            Long medicalRecordId,
+            Long medicineId) {
+        MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+        ensurePrescriptionEditable(medicalRecord);
+
+        PrescriptionDetailId id = new PrescriptionDetailId();
+        id.setMedicalRecordId(medicalRecordId);
+        id.setMedicineId(medicineId);
+
+        PrescriptionDetail detail = prescriptionDetailRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Prescription detail not found"));
+
+        prescriptionDetailRepository.delete(detail);
+        return getPrescriptionWorkspace(username, medicalRecordId);
+    }
+
+    // Chức năng: xử lý lưu đơn thuốc và đồng bộ hóa với thu ngân.
+    public PrescriptionWorkspaceResponse savePrescription(String username, Long medicalRecordId) {
+        MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+        ensurePrescriptionEditable(medicalRecord);
+
+        List<PrescriptionDetail> details = prescriptionDetailRepository.findByMedicalRecord_Id(medicalRecordId);
+        if (details.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Prescription is empty");
+        }
+
+        invoiceService.aggregateInvoiceAmount(medicalRecordId);
+        return getPrescriptionWorkspace(username, medicalRecordId);
+    }
+
+    // Chức năng: xử lý hoàn thành bệnh án.
+    public MedicalRecord completeMedicalRecord(String username, Long medicalRecordId) {
+        MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+        return medicalRecord;
+    }
+
+    // Chức năng: xử lý delete.
+    public void delete(Long id) {
+        MedicalRecord existing = getById(id);
+        medicalRecordRepository.delete(existing);
+    }
+
+    // Chức năng: xử lý lấy các bệnh án của tôi.
+    public List<MedicalRecord> getMyMedicalRecords(String username) {
+        Patient patient = patientService.getPatientFromUsername(username);
+        return medicalRecordRepository.findByAppointment_Patient_Id(patient.getId());
+    }
+
+    // Chức năng: xử lý lấy tóm tắt lịch sử bệnh án cho bác sĩ.
+    public DoctorPatientHistoryResponse getPatientHistorySummaryForDoctor(String username, Long appointmentId) {
+        Appointment currentAppointment = getAuthorizedDoctorAppointment(username, appointmentId);
+        Patient patient = currentAppointment.getPatient();
+
+        List<MedicalRecord> previousRecords = medicalRecordRepository.findByAppointment_Patient_Id(patient.getId()).stream()
+                .filter(record -> record.getAppointment() != null
+                        && !record.getAppointment().getId().equals(currentAppointment.getId()))
+                .sorted(Comparator.comparing(
+                        (MedicalRecord record) -> record.getAppointment().getAppointmentTime(),
+                        Comparator.nullsLast(Comparator.reverseOrder())
+                ))
+                .toList();
+
+        if (previousRecords.isEmpty()) {
+            return new DoctorPatientHistoryResponse(
+                    patient.getId(),
+                    patient.getFullName(),
+                    "Chua co lich su kham benh",
+                    List.of()
+            );
+        }
+
+        List<DoctorPatientHistoryRowResponse> histories = previousRecords.stream()
+                .map(this::toHistoryRowResponse)
+                .toList();
+
+        return new DoctorPatientHistoryResponse(
+                patient.getId(),
+                patient.getFullName(),
+                "OK",
+                histories
+        );
+    }
+
+    // Chức năng: xử lý lấy chi tiết lịch sử bệnh án cho bác sĩ.
+    public DoctorPatientHistoryDetailResponse getPatientHistoryDetailForDoctor(
+            String username,
+            Long appointmentId,
+            Long medicalRecordId) {
+        Appointment currentAppointment = getAuthorizedDoctorAppointment(username, appointmentId);
+
+        MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medical record not found"));
+
+        if (medicalRecord.getAppointment() == null
+                || medicalRecord.getAppointment().getPatient() == null
+                || currentAppointment.getPatient() == null
+                || !medicalRecord.getAppointment().getPatient().getId().equals(currentAppointment.getPatient().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Medical record does not belong to this patient");
+        }
+
+        List<DoctorPatientPrescriptionItemResponse> prescriptions = prescriptionDetailRepository
+                .findByMedicalRecord_Id(medicalRecordId)
+                .stream()
+                .map(detail -> new DoctorPatientPrescriptionItemResponse(
+                        detail.getMedicine() == null ? null : detail.getMedicine().getId(),
+                        detail.getMedicine() == null ? null : detail.getMedicine().getMedicineName(),
+                        detail.getQuantity(),
+                        detail.getUsageInstructions()
+                ))
+                .toList();
+
+        List<DoctorPatientServiceItemResponse> services = medicalRecordServiceDetailRepository
+                .findByMedicalRecord_Id(medicalRecordId)
+                .stream()
+                .map(this::toServiceItemResponse)
+                .toList();
+
+        Appointment oldAppointment = medicalRecord.getAppointment();
+        return new DoctorPatientHistoryDetailResponse(
+                medicalRecord.getId(),
+                oldAppointment.getId(),
+                oldAppointment.getAppointmentTime(),
+                oldAppointment.getDoctor() == null ? null : oldAppointment.getDoctor().getUsername(),
+                medicalRecord.getDiagnosis(),
+                medicalRecord.getDoctorAdvice(),
+                oldAppointment.getSymptoms(),
+                prescriptions,
+                services
+        );
+    }
+
+    // Chức năng: xử lý lấy cuộc hẹn bác sĩ được ủy quyền.
+    private Appointment getAuthorizedDoctorAppointment(String username, Long appointmentId) {
+        User doctor = userRepository.findByUsernameAndRole(username, Role.DOCTOR)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor account not found"));
+
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found"));
+
+        if (appointment.getPatient() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Appointment is not linked to patient");
+        }
+
+        if (appointment.getDoctor() == null || !doctor.getId().equals(appointment.getDoctor().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not assigned to this appointment");
+        }
+
+        return appointment;
+    }
+
+    // Chức năng: xử lý ánh xạ tới phản hồi lịch sử.
+    private DoctorPatientHistoryRowResponse toHistoryRowResponse(MedicalRecord medicalRecord) {
+        Appointment appointment = medicalRecord.getAppointment();
+        List<String> usedMedicines = prescriptionDetailRepository.findByMedicalRecord_Id(medicalRecord.getId())
+                .stream()
+                .map(detail -> detail.getMedicine() == null ? null : detail.getMedicine().getMedicineName())
+                .filter(name -> name != null && !name.isBlank())
+                .distinct()
+                .toList();
+
+        return new DoctorPatientHistoryRowResponse(
+                medicalRecord.getId(),
+                appointment.getId(),
+                appointment.getAppointmentTime(),
+                appointment.getDoctor() == null ? null : appointment.getDoctor().getUsername(),
+                medicalRecord.getDiagnosis(),
+                usedMedicines
+        );
+    }
+
+    // Chức năng: xử lý ánh xạ tới phản hồi mục dịch vụ.
+    private DoctorPatientServiceItemResponse toServiceItemResponse(MedicalRecordServiceDetail detail) {
+        return new DoctorPatientServiceItemResponse(
+                detail.getService() == null ? null : detail.getService().getId(),
+                detail.getService() == null ? null : detail.getService().getServiceName(),
+                detail.getQuantity(),
+                detail.getActualPrice(),
+                detail.getResultNote()
+        );
+    }
+
+    // Chức năng: xử lý thông tin chi tiết về đơn thuốc tương ứng với phản hồi theo dòng.
+    private PrescriptionLineResponse toPrescriptionLineResponse(PrescriptionDetail detail) {
+        BigDecimal price = BigDecimal.ZERO;
+        if (detail.getMedicine() != null && detail.getMedicine().getSellingPrice() != null) {
+            price = detail.getMedicine().getSellingPrice();
+        }
+
+        Integer quantity = java.util.Objects.requireNonNullElse(detail.getQuantity(), 0);
+        BigDecimal lineTotal = price.multiply(BigDecimal.valueOf(quantity.longValue()));
+
+        return new PrescriptionLineResponse(
+                detail.getMedicine() == null ? null : detail.getMedicine().getId(),
+                detail.getMedicine() == null ? null : detail.getMedicine().getMedicineName(),
+                detail.getMedicine() == null ? null : detail.getMedicine().getUnit(),
+                detail.getQuantity(),
+                detail.getUsageInstructions(),
+                price,
+                lineTotal
+        );
+    }
+
+    // Chức năng: xử lý đảm bảo bác sĩ có thể cập nhật kết quả dịch vụ từ phòng gốc hoặc phòng hỗ trợ được chỉ định.
+    private void ensureDoctorCanUpdateCrossRoomServiceResult(User doctor, MedicalRecord medicalRecord) {
+        Appointment appointment = medicalRecord.getAppointment();
+        if (appointment == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Medical record is not linked to appointment");
+        }
+
+        boolean isOriginalDoctor = appointment.getDoctor() != null
+                && doctor.getId().equals(appointment.getDoctor().getId());
+        boolean isDoctorAssignedToAnyRoom = !roomRepository.findByCurrentDoctor_Id(doctor.getId()).isEmpty();
+
+        if (!isOriginalDoctor && !isDoctorAssignedToAnyRoom) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "You are not authorized to update cross-room service result"
+            );
+        }
+    }
+
+    // Chức năng: xử lý chuẩn hóa ghi chú kết quả tùy chọn.
+    private String normalizeOptionalResultNote(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    // Chức năng: xử lý chuẩn hóa danh sách thuốc thành các thẻ đơn thuốc.
+    private List<PrescriptionCatalogMedicineResponse> mapToMedicineCards(List<Medicine> medicines) {
+        return medicines.stream()
+                .map(medicine -> {
+                    Integer stock = medicine.getStockQuantity();
+                    boolean inStock = stock != null && stock > 0;
+                    return new PrescriptionCatalogMedicineResponse(
+                            medicine.getId(),
+                            medicine.getMedicineName(),
+                            classifyPharmacologyGroup(medicine.getMedicineName()),
+                            extractConcentration(medicine.getMedicineName()),
+                            medicine.getUnit(),
+                            medicine.getSellingPrice(),
+                            stock,
+                            inStock,
+                            inStock ? null : "Thuoc da het trong kho"
+                    );
+                })
+                .toList();
+    }
+
+    // Chức năng: xử lý chuẩn hóa nhóm đã chọn.
+    private String normalizeSelectedGroup(String group, List<String> availableGroups) {
+        if (group == null || group.isBlank()) {
+            return GROUP_ALL;
+        }
+
+        String selected = group.trim();
+        if (GROUP_ALL.equalsIgnoreCase(selected)) {
+            return GROUP_ALL;
+        }
+
+        return availableGroups.stream()
+                .filter(item -> item.equalsIgnoreCase(selected))
+                .findFirst()
+                .orElse(GROUP_ALL);
+    }
+
+    // Chức năng: xử lý phân loại nhóm dược lý.
+    private String classifyPharmacologyGroup(String medicineName) {
+        if (medicineName == null || medicineName.isBlank()) {
+            return GROUP_OTHER;
+        }
+
+        String lowerName = medicineName.toLowerCase(Locale.ROOT);
+
+        if (containsAny(lowerName, "cillin", "cef", "mycin", "floxacin", "doxy", "amox", "khang sinh")) {
+            return GROUP_ANTIBIOTIC;
+        }
+        if (containsAny(lowerName, "paracetamol", "ibuprofen", "diclofenac", "acetaminophen", "ha sot", "giam dau")) {
+            return GROUP_PAIN_FEVER;
+        }
+        if (containsAny(lowerName, "ambroxol", "acetylcysteine", "dextromethorphan", "bromhexine", "thuoc ho")) {
+            return GROUP_COUGH;
+        }
+        if (containsAny(lowerName, "loratadin", "cetirizin", "fexofenadin", "khang histamin", "di ung")) {
+            return GROUP_ALLERGY;
+        }
+        if (containsAny(lowerName, "omeprazole", "pantoprazole", "smecta", "men tieu hoa", "tieu hoa")) {
+            return GROUP_DIGESTIVE;
+        }
+
+        return GROUP_OTHER;
+    }
+
+    // Chức năng: xử lý trích xuất nồng độ từ tên thuốc.
+    private String extractConcentration(String medicineName) {
+        if (medicineName == null || medicineName.isBlank()) {
+            return "N/A";
+        }
+
+        Matcher matcher = CONCENTRATION_PATTERN.matcher(medicineName);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+
+        return "N/A";
+    }
+
+    // Chức năng: xử lý kiểm tra xem văn bản có chứa bất kỳ từ khóa nào không.
+    private boolean containsAny(String text, String... keywords) {
+        for (String keyword : keywords) {
+            if (text.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Chức năng: xử lý tính tổng đơn thuốc.
+    private BigDecimal calculatePrescriptionTotal(Long medicalRecordId) {
+        return prescriptionDetailRepository.findByMedicalRecord_Id(medicalRecordId)
+                .stream()
+                .map(this::toPrescriptionLineResponse)
+                .map(PrescriptionLineResponse::getLineTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    // Chức năng: xử lý lấy bệnh án được ủy quyền.
+    private MedicalRecord getAuthorizedMedicalRecord(String username, Long medicalRecordId) {
+        User doctor = userRepository.findByUsernameAndRole(username, Role.DOCTOR)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor account not found"));
+
+        MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medical record not found"));
+
+        if (medicalRecord.getAppointment() == null
+                || medicalRecord.getAppointment().getDoctor() == null
+                || !doctor.getId().equals(medicalRecord.getAppointment().getDoctor().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not assigned to this medical record");
+        }
+
+        return medicalRecord;
+    }
+
+    // Chức năng: xử lý đảm bảo đơn thuốc có thể chỉnh sửa được.
+    private void ensurePrescriptionEditable(MedicalRecord medicalRecord) {
+        if (STATUS_COMPLETED.equalsIgnoreCase(medicalRecord.getAppointment().getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot edit prescription for completed appointment");
+        }
+    }
+}
+
