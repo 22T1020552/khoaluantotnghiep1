@@ -44,6 +44,9 @@ public class NotificationService {
     @Value("${spring.mail.username:}")
     private String senderEmail;
 
+    @Value("${spring.mail.host:}")
+    private String mailHost;
+
     @PostConstruct
     public void logMailConfigurationAtStartup() {
         String from = senderEmail == null ? "" : senderEmail.trim();
@@ -252,6 +255,11 @@ public class NotificationService {
         String from = senderEmail == null ? "" : senderEmail.trim();
         if (from.isBlank()) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Mail sender is not configured");
+        }
+
+        String host = mailHost == null ? "" : mailHost.trim();
+        if (host.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Mail host is not configured");
         }
 
         SimpleMailMessage message = new SimpleMailMessage();
