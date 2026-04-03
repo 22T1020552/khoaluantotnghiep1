@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from "react";
-import Link from "next/link";
-import { LayoutDashboard, LogOut, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { Prescription } from "@/types/pharmacy.type";
 import PharmacyStats from "./components/pharmacy-stats";
@@ -11,14 +9,8 @@ import DispensedPrescriptions from "./components/dispensed-prescriptions";
 import PaymentDialog from "./components/payment-dialog";
 import { initialPrescriptions } from "./mock-data";
 import styles from "@/styles/common.module.css";
-import { useRouter } from "next/navigation";
 
-interface PharmacyDashboardProps {
-  routeView?: "payment" | "history";
-}
-
-export function PharmacyDashboard({ routeView = "payment" }: PharmacyDashboardProps) {
-  const router = useRouter();
+export function PharmacyDashboard() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>(initialPrescriptions);
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -51,14 +43,6 @@ export function PharmacyDashboard({ routeView = "payment" }: PharmacyDashboardPr
     setPaymentData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleLogout = () => {
-    // TODO sau này: Xóa localStorage, cookies hoặc token ở đây
-    // localStorage.removeItem('token');
-    
-    toast.success("Đăng xuất thành công");
-    router.push("/"); // Chuyển hướng về trang chủ
-  };
-
   const handlePayment = () => {
     if (!selectedPrescription) return;
 
@@ -80,46 +64,6 @@ export function PharmacyDashboard({ routeView = "payment" }: PharmacyDashboardPr
   };
 
   return (
-    <div className={styles.pageLayout}>
-      <aside className={styles.sidebar}>
-        <div className={styles.logoContainer}>
-          <div className={styles.logoIcon}>+</div>
-          <span className={styles.logoText}>MEDICARE</span>
-        </div>
-
-        <nav className={styles.nav}>
-          <Link
-            href="/cashier"
-            className={`${styles.navItem} ${routeView === "payment" ? styles.active : ""}`}
-          >
-            <LayoutDashboard size={20} /> Thanh toán
-          </Link>
-          <Link
-            href="/cashier/history"
-            className={`${styles.navItem} ${routeView === "history" ? styles.active : ""}`}
-          >
-            <Receipt size={20} /> Lịch sử giao dịch
-          </Link>
-        </nav>
-
-        <div className={styles.sidebarFooter}>
-          <div className={styles.userInfo}>
-            <img src="https://github.com/shadcn.png" alt="Avatar" className={styles.avatar} />
-            <div>
-              <div className={styles.userName}>Thu ngân trực</div>
-              <div className={styles.userRole}>Quầy thanh toán</div>
-            </div>
-          </div>
-            <button 
-                className={`${styles.navItem} ${styles.logoutButton}`} 
-                type="button"
-                onClick={handleLogout}
-            >
-                <LogOut size={20} /> Đăng xuất
-            </button>
-        </div>
-      </aside>
-
       <main className={styles.mainArea}>
         <div className={styles.container}>
           <div className={styles.header}>
@@ -152,6 +96,5 @@ export function PharmacyDashboard({ routeView = "payment" }: PharmacyDashboardPr
           />
         </div>
       </main>
-    </div>
   );
 }

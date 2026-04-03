@@ -2,14 +2,8 @@
 
 import { useState } from "react";
 import {
-  Calendar,
   CheckCircle,
   Clock,
-  FileText,
-  LayoutDashboard,
-  LogOut,
-  Receipt,
-  Settings,
   Stethoscope,
   Users,
 } from "lucide-react";
@@ -18,10 +12,8 @@ import { ExaminationModal } from "./components/examination-modal";
 import { mockAppointments, mockMedicines } from "./mock-data";
 import type { Appointment, MedicalRecordInput, Medicine, PrescriptionItem } from "./types";
 import styles from "@/styles/common.module.css";
-import { useRouter } from "next/navigation";
 
 export function DoctorQueue() {
-  const router = useRouter();
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [activeTab, setActiveTab] = useState<"waiting" | "completed">("waiting");
@@ -80,14 +72,6 @@ export function DoctorQueue() {
   const getTotalMedicineCost = () => {
     return prescriptions.reduce((sum, p) => sum + (p.medicine?.selling_price || 0) * p.quantity, 0);
   };
-  const handleLogout = () => {
-    // TODO sau này: Xóa localStorage, cookies hoặc token ở đây
-    // localStorage.removeItem('token');
-    
-    toast.success("Đăng xuất thành công");
-    router.push("/"); // Chuyển hướng về trang chủ
-  };
-
   const handleCompleteExam = () => {
     if (!selectedAppointment) {
       return;
@@ -140,49 +124,6 @@ export function DoctorQueue() {
   };
 
   return (
-    <div className={styles.pageLayout}>
-      <aside className={styles.sidebar}>
-        <div className={styles.logoContainer}>
-          <div className={styles.logoIcon}>+</div>
-          <span className={styles.logoText}>MEDICARE</span>
-        </div>
-
-        <nav className={styles.nav}>
-          <a href="#" className={`${styles.navItem} ${styles.active}`}>
-            <LayoutDashboard size={20} /> Tổng quan
-          </a>
-          {/* <a href="#" className={styles.navItem}>
-            <Calendar size={20} /> Lịch hẹn
-          </a>
-          <a href="#" className={styles.navItem}>
-            <FileText size={20} /> Hồ sơ bệnh án
-          </a>
-          <a href="#" className={styles.navItem}>
-            <Receipt size={20} /> Hóa đơn
-          </a>
-          <a href="#" className={`${styles.navItem} ${styles.settingsLink}`}>
-            <Settings size={20} /> Cài đặt
-          </a> */}
-        </nav>
-
-        <div className={styles.sidebarFooter}>
-          <div className={styles.userInfo}>
-            <img src="https://github.com/shadcn.png" alt="Avatar" className={styles.avatar} />
-            <div>
-              <div className={styles.userName}>Bác sĩ trực</div>
-              <div className={styles.userRole}>Khoa khám bệnh</div>
-            </div>
-          </div>
-          <button 
-            className={`${styles.navItem} ${styles.logoutButton}`} 
-            type="button"
-            onClick={handleLogout}
-          >
-            <LogOut size={20} /> Đăng xuất
-          </button>
-        </div>
-      </aside>
-
       <main className={styles.mainArea}>
         <div className={styles.container}>
           <div className={styles.header}>
@@ -356,6 +297,5 @@ export function DoctorQueue() {
           )}
         </div>
       </main>
-    </div>
   );
 }

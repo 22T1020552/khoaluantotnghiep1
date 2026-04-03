@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type ChangeEvent } from "react";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,9 +9,6 @@ import {
   Calendar,
   DollarSign,
   Download,
-  LayoutDashboard,
-  LogOut,
-  Receipt,
   Search,
   User,
 } from "lucide-react";
@@ -84,36 +80,6 @@ export function InvoicesHistory() {
   };
 
   return (
-    <div className={styles.pageLayout}>
-      <aside className={styles.sidebar}>
-        <div className={styles.logoContainer}>
-          <div className={styles.logoIcon}>+</div>
-          <span className={styles.logoText}>MEDICARE</span>
-        </div>
-
-        <nav className={styles.nav}>
-          <Link href="/cashier" className={styles.navItem}>
-            <LayoutDashboard size={20} /> Thanh toán
-          </Link>
-          <Link href="/cashier/history" className={`${styles.navItem} ${styles.active}`}>
-            <Receipt size={20} /> Lịch sử giao dịch
-          </Link>
-        </nav>
-
-        <div className={styles.sidebarFooter}>
-          <div className={styles.userInfo}>
-            <img src="https://github.com/shadcn.png" alt="Avatar" className={styles.avatar} />
-            <div>
-              <div className={styles.userName}>Thu ngân trực</div>
-              <div className={styles.userRole}>Quầy thanh toán</div>
-            </div>
-          </div>
-          <button className={`${styles.navItem} ${styles.logoutButton}`} type="button">
-            <LogOut size={20} /> Đăng xuất
-          </button>
-        </div>
-      </aside>
-
       <main className={styles.mainArea}>
         <div className={styles.container}>
           <div className={styles.header}>
@@ -245,6 +211,5 @@ export function InvoicesHistory() {
           </div>
         </div>
       </main>
-    </div>
   );
 }

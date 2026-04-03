@@ -4,69 +4,14 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './dashboard.module.css';
 import { 
-  Search, Bell, LayoutDashboard, Calendar, FileText, 
-  Receipt, Settings, LogOut, Plus, Clock, User, MapPin, Download 
+  Search, Bell, Calendar, Plus, Clock, User, MapPin, Download 
 } from 'lucide-react';
-import { toast } from "sonner";
 
 export default function PatientDashboard() {
   const router = useRouter();
-  const handleLogout = () => {
-    // TODO sau này: Xóa localStorage, cookies hoặc token ở đây
-    // localStorage.removeItem('token');
-    
-    toast.success("Đăng xuất thành công");
-    router.push("/"); // Chuyển hướng về trang chủ
-  };
 
   return (
-    <div className={styles.container}>
-      
-      {/* SIDEBAR */}
-      <aside className={styles.sidebar}>
-        <div className={styles.logoContainer}>
-          <div className={styles.logoIcon}>+</div>
-          <span className={styles.logoText}>MEDICARE</span>
-        </div>
-
-        <nav className={styles.nav}>
-          <a href="#" className={`${styles.navItem} ${styles.active}`}>
-            <LayoutDashboard size={20} /> Tổng quan
-          </a>
-          <a href="#" className={styles.navItem}>
-            <Calendar size={20} /> Lịch hẹn
-          </a>
-          <a href="#" className={styles.navItem}>
-            <FileText size={20} /> Hồ sơ bệnh án
-          </a>
-          <a href="#" className={styles.navItem}>
-            <Receipt size={20} /> Hóa đơn
-          </a>
-          <a href="#" className={`${styles.navItem} ${styles.settingsLink}`}>
-            <Settings size={20} /> Cài đặt
-          </a>
-        </nav>
-
-        <div className={styles.sidebarFooter}>
-          <div className={styles.userInfo}>
-            <img src="https://github.com/shadcn.png" alt="Avatar" className={styles.avatar} />
-            <div>
-              <div className={styles.userName}>Nguyễn Văn A</div>
-              <div className={styles.userRole}>Bệnh nhân</div>
-            </div>
-          </div>
-          <button 
-            className={`${styles.navItem} ${styles.logoutButton}`} 
-            type="button"
-            onClick={handleLogout}
-          >
-            <LogOut size={20} /> Đăng xuất
-          </button>
-        </div>
-      </aside>
-
-      {/* MAIN CONTENT */}
-      <main className={styles.main}>
+    <main className={styles.main}>
         
         {/* HEADER */}
         <header className={styles.header}>
@@ -152,7 +97,12 @@ export default function PatientDashboard() {
                   <td>BS. Trần Văn C</td>
                   <td>Viêm họng cấp</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className={styles.btnAction}>Xem lại</button>
+                    <button 
+                      className={styles.btnAction}
+                      onClick={() => router.push('/patient-history')}
+                    >
+                      Xem lại
+                    </button>
                   </td>
                 </tr>
                 <tr>
@@ -160,7 +110,12 @@ export default function PatientDashboard() {
                   <td>BS. Nguyễn Văn D</td>
                   <td>Kiểm tra sức khỏe định kỳ</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className={styles.btnAction}>Xem lại</button>
+                    <button 
+                      className={styles.btnAction}
+                      onClick={() => router.push('/patient-history')}
+                    >
+                      Xem lại
+                    </button>
                   </td>
                 </tr>
               </tbody>
@@ -169,6 +124,5 @@ export default function PatientDashboard() {
 
         </div>
       </main>
-    </div>
   );
 }
