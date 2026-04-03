@@ -2,62 +2,115 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Activity, Mail, CheckCircle, KeyRound, Lock } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { getApiErrorMessage } from "@/services/api";
+
+import { Activity, CheckCircle, KeyRound, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 import styles from "./forgotpassword.module.css";
 
 export function ForgotPassword() {
-  // Quản lý các bước: 1 (Email) -> 2 (OTP) -> 3 (New Password) -> 4 (Success)
+  const { sendForgotPasswordOtp, verifyForgotPasswordOtp, resetPasswordWithOtp } = useAuth();
+
   const [step, setStep] = useState(1);
-  
-  // Lưu trữ dữ liệu form
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResendingOtp, setIsResendingOtp] = useState(false);
 
-  // BƯỚC 1: Xử lý gửi Email lấy OTP
-  const handleSendEmail = (e: React.FormEvent) => {
+  const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
+
+    if (!email.trim()) {
       toast.error("Vui lòng nhập địa chỉ email");
       return;
     }
-    // TODO: Gọi API gửi OTP vào email ở đây
-    toast.success("Mã OTP đã được gửi đến email của bạn");
-    setStep(2); // Chuyển sang form nhập OTP
+
+    setIsSubmitting(true);
+    try {
+      await sendForgotPasswordOtp({ email: email.trim().toLowerCase() });
+      toast.success("Mã OTP đã được gửi đến email của bạn");
+      setStep(2);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể gửi OTP"));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // BƯỚC 2: Xử lý xác thực OTP
-  const handleVerifyOTP = (e: React.FormEvent) => {
+  const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (otp.length < 6) {
       toast.error("Mã OTP phải bao gồm 6 chữ số");
       return;
     }
-    // TODO: Gọi API kiểm tra OTP hợp lệ không
-    toast.success("Xác thực OTP thành công");
-    setStep(3); // Chuyển sang form đặt mật khẩu mới
+
+    setIsSubmitting(true);
+    try {
+      await verifyForgotPasswordOtp({
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(),
+      });
+      toast.success("Xác thực OTP thành công");
+      setStep(3);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "OTP không hợp lệ hoặc đã hết hạn"));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // BƯỚC 3: Xử lý lưu mật khẩu mới
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (password.length < 6) {
       toast.error("Mật khẩu phải có ít nhất 6 ký tự");
       return;
     }
+
     if (password !== confirmPassword) {
       toast.error("Mật khẩu xác nhận không khớp");
       return;
     }
-    // TODO: Gọi API cập nhật mật khẩu mới xuống Database
-    toast.success("Cài đặt mật khẩu mới thành công");
-    setStep(4); // Chuyển sang màn hình Thành công
+
+    setIsSubmitting(true);
+    try {
+      await resetPasswordWithOtp({
+        email: email.trim().toLowerCase(),
+        newPassword: password,
+      });
+      toast.success("Cài đặt mật khẩu mới thành công");
+      setStep(4);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể cập nhật mật khẩu"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!email.trim()) {
+      toast.error("Vui lòng nhập địa chỉ email");
+      return;
+    }
+
+    setIsResendingOtp(true);
+    try {
+      await sendForgotPasswordOtp({ email: email.trim().toLowerCase() });
+      toast.success("Đã gửi lại mã OTP");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể gửi lại OTP"));
+    } finally {
+      setIsResendingOtp(false);
+    }
   };
 
   return (
@@ -100,8 +153,8 @@ export function ForgotPassword() {
                   />
                 </div>
               </div>
-              <Button type="submit" className={styles.submitBtn}>
-                Gửi mã xác thực
+              <Button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
+                {isSubmitting ? "Đang gửi..." : "Gửi mã xác thực"}
               </Button>
               <div className={styles.backLinkWrap}>
                 <Link href="/signin" className={styles.link}>← Quay lại đăng nhập</Link>
@@ -136,11 +189,11 @@ export function ForgotPassword() {
                   />
                 </div>
               </div>
-              <Button type="submit" className={styles.submitBtn}>
-                Xác nhận
+              <Button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
+                {isSubmitting ? "Đang xác nhận..." : "Xác nhận"}
               </Button>
               <p className={styles.otpText}>
-                Chưa nhận được mã? <button type="button" className={styles.resendLink} onClick={() => toast.success("Đã gửi lại OTP")}>Gửi lại</button>
+                Chưa nhận được mã? <button type="button" className={styles.resendLink} onClick={handleResendOtp} disabled={isResendingOtp || isSubmitting}>{isResendingOtp ? "Đang gửi..." : "Gửi lại"}</button>
               </p>
               <div className={styles.backLinkWrap}>
                 <button type="button" onClick={() => setStep(1)} className={styles.link} style={{ background: 'none', border: 'none', padding: 0 }}>
@@ -190,8 +243,8 @@ export function ForgotPassword() {
                   />
                 </div>
               </div>
-              <Button type="submit" className={styles.submitBtn}>
-                Cập nhật mật khẩu
+              <Button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
+                {isSubmitting ? "Đang cập nhật..." : "Cập nhật mật khẩu"}
               </Button>
             </form>
           </Card>

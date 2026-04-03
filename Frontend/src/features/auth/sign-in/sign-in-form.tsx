@@ -4,17 +4,27 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/hooks/useAuth";
+import { getApiErrorMessage } from "@/services/api";
 
 import styles from "./sign-in-form.module.css";
 
 type Notice = {
   type: "success" | "error";
   message: string;
+};
+
+const ROLE_ROUTES: Record<string, string> = {
+  ADMIN: "/admin",
+  DOCTOR: "/doctor",
+  RECEPTIONIST: "/receptionist",
+  CASHIER: "/cashier",
+  PATIENT: "/dashboard",
 };
 
 const STAFF_ROLES = [
@@ -25,50 +35,59 @@ const STAFF_ROLES = [
 
 export function Login() {
   const router = useRouter();
+  const { login } = useAuth();
   const [activeTab, setActiveTab] = useState("patient");
-  const [staffRole, setStaffRole] = useState<(typeof STAFF_ROLES)[number]["value"]>(
-    "doctor",
-  );
+  const [staffRole, setStaffRole] = useState<(typeof STAFF_ROLES)[number]["value"]>("doctor");
   const [loginData, setLoginData] = useState({
-    email: "",
+    username: "",
     password: "",
   });
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = (e: FormEvent, role: string) => {
+  const handleLogin = async (e: FormEvent, selectedTab: string) => {
     e.preventDefault();
 
-    if (!loginData.email || !loginData.password) {
+    if (!loginData.username.trim() || !loginData.password) {
       setNotice({ type: "error", message: "Vui lòng điền đầy đủ thông tin." });
       return;
     }
 
-    setNotice({ type: "success", message: `Đăng nhập thành công với vai trò ${role}.` });
+    setIsSubmitting(true);
+    try {
+      const auth = await login({
+        username: loginData.username.trim(),
+        password: loginData.password,
+      });
 
-    setTimeout(() => {
-      switch (role) {
-        case "admin":
-          router.push("/admin");
-          break;
-        case "doctor":
-          router.push("/doctor");
-          break;
-        case "receptionist":
-          router.push("/receptionist");
-          break;
-        case "cashier":
-          router.push("/cashier");
-          break;
-        case "patient":
-          router.push("/dashboard");
-          break;
-        default:
-          router.push("/");
-      }
-    }, 500);
+      const nextRole = String(auth.role).toUpperCase();
+      const nextPath = ROLE_ROUTES[nextRole] ?? "/";
+      const selectedLabel =
+        selectedTab === "staff"
+          ? STAFF_ROLES.find((role) => role.value === staffRole)?.label ?? "Nhân viên"
+          : selectedTab === "admin"
+            ? "Quản trị viên"
+            : "Bệnh nhân";
+
+      setNotice({
+        type: "success",
+        message: `Đăng nhập thành công cho ${selectedLabel}.`,
+      });
+
+      window.setTimeout(() => {
+        router.push(nextPath);
+      }, 400);
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(error, "Đăng nhập thất bại. Kiểm tra lại username và mật khẩu."),
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const updateField = (field: "email" | "password", value: string) => {
+  const updateField = (field: "username" | "password", value: string) => {
     setLoginData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -102,16 +121,16 @@ export function Login() {
             <TabsContent value="patient">
               <form onSubmit={(e) => handleLogin(e, "patient")} className={styles.form}>
                 <div className={styles.field}>
-                  <Label htmlFor="patient-email">Email hoac Số điện thoại</Label>
+                  <Label htmlFor="patient-username">Tên đăng nhập</Label>
                   <div className={styles.inputWrap}>
                     <span className={styles.inputIcon}>@</span>
                     <Input
-                      id="patient-email"
+                      id="patient-username"
                       type="text"
-                      placeholder="email@example.com hoac 0123456789"
+                      placeholder="nguyenvana"
                       className={styles.inputPad}
-                      value={loginData.email}
-                      onChange={(e) => updateField("email", e.target.value)}
+                      value={loginData.username}
+                      onChange={(e) => updateField("username", e.target.value)}
                     />
                   </div>
                 </div>
@@ -136,18 +155,18 @@ export function Login() {
                     <input type="checkbox" className={styles.checkbox} />
                     <span>Ghi nhớ đăng nhập</span>
                   </label>
-                  <Link href="/forgot-password" className={styles.link}>
+                  <Link href="/forgotpassword" className={styles.link}>
                     Quên mật khẩu?
                   </Link>
                 </div>
 
-                <Button type="submit" className={styles.submitButton}>
-                  Đăng nhập
+                <Button type="submit" className={styles.submitButton} disabled={isSubmitting}>
+                  {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
                 </Button>
 
                 <div className={styles.centerText}>
                   <span>Chưa có tài khoản? </span>
-                  <Link href="/register" className={styles.link}>
+                  <Link href="/signup" className={styles.link}>
                     Đăng ký ngay
                   </Link>
                 </div>
@@ -155,7 +174,7 @@ export function Login() {
             </TabsContent>
 
             <TabsContent value="staff">
-              <form onSubmit={(e) => handleLogin(e, staffRole)} className={styles.form}>
+              <form onSubmit={(e) => handleLogin(e, "staff")} className={styles.form}>
                 <div className={styles.field}>
                   <Label>Chọn vai trò</Label>
                   <div className={styles.roleGrid}>
@@ -175,16 +194,16 @@ export function Login() {
                 </div>
 
                 <div className={styles.field}>
-                  <Label htmlFor="staff-email">Mã nhân viên hoặc Email</Label>
+                  <Label htmlFor="staff-username">Tên đăng nhập</Label>
                   <div className={styles.inputWrap}>
                     <span className={styles.inputIcon}>#</span>
                     <Input
-                      id="staff-email"
+                      id="staff-username"
                       type="text"
-                      placeholder="NV001 hoặc email@phongkham.vn"
+                      placeholder="nv001"
                       className={styles.inputPad}
-                      value={loginData.email}
-                      onChange={(e) => updateField("email", e.target.value)}
+                      value={loginData.username}
+                      onChange={(e) => updateField("username", e.target.value)}
                     />
                   </div>
                 </div>
@@ -204,8 +223,8 @@ export function Login() {
                   </div>
                 </div>
 
-                <Button type="submit" className={styles.submitButton}>
-                  Đăng nhập
+                <Button type="submit" className={styles.submitButton} disabled={isSubmitting}>
+                  {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
                 </Button>
               </form>
             </TabsContent>
@@ -213,16 +232,16 @@ export function Login() {
             <TabsContent value="admin">
               <form onSubmit={(e) => handleLogin(e, "admin")} className={styles.form}>
                 <div className={styles.field}>
-                  <Label htmlFor="admin-email">Email quản trị</Label>
+                  <Label htmlFor="admin-username">Tên đăng nhập quản trị</Label>
                   <div className={styles.inputWrap}>
                     <span className={styles.inputIcon}>@</span>
                     <Input
-                      id="admin-email"
-                      type="email"
-                      placeholder="admin@phongkham.vn"
+                      id="admin-username"
+                      type="text"
+                      placeholder="admin01"
                       className={styles.inputPad}
-                      value={loginData.email}
-                      onChange={(e) => updateField("email", e.target.value)}
+                      value={loginData.username}
+                      onChange={(e) => updateField("username", e.target.value)}
                     />
                   </div>
                 </div>
@@ -242,8 +261,8 @@ export function Login() {
                   </div>
                 </div>
 
-                <Button type="submit" className={styles.submitButton}>
-                  Đăng nhập
+                <Button type="submit" className={styles.submitButton} disabled={isSubmitting}>
+                  {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
                 </Button>
               </form>
             </TabsContent>

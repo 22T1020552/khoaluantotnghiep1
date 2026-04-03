@@ -4,11 +4,14 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Mail, Lock, Phone, Calendar } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { getApiErrorMessage } from "@/services/api";
+
+import { Lock, Mail, Phone, User } from "lucide-react";
 
 import styles from "../sign-in/sign-in-form.module.css";
 
@@ -19,27 +22,22 @@ type Notice = {
 
 export function Register() {
   const router = useRouter();
+  const { registerPatient } = useAuth();
   const [formData, setFormData] = useState({
+    username: "",
     fullName: "",
-    dateOfBirth: "",
-    phone: "",
-    email: "",
+    phoneNumber: "",
+    gmail: "",
     password: "",
     confirmPassword: "",
   });
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleRegister = (e: FormEvent) => {
+  const handleRegister = async (e: FormEvent) => {
     e.preventDefault();
 
-    // Validation
-    if (
-      !formData.fullName ||
-      !formData.dateOfBirth ||
-      !formData.phone ||
-      !formData.email ||
-      !formData.password
-    ) {
+    if (!formData.username.trim() || !formData.fullName.trim() || !formData.phoneNumber.trim() || !formData.gmail.trim() || !formData.password) {
       setNotice({ type: "error", message: "Vui lòng điền đầy đủ thông tin." });
       return;
     }
@@ -54,12 +52,28 @@ export function Register() {
       return;
     }
 
-    // Mock registration
-    setNotice({ type: "success", message: "Đăng ký tài khoản thành công!" });
-    
-    setTimeout(() => {
-      router.push("/signin");
-    }, 1000);
+    setIsSubmitting(true);
+    try {
+      await registerPatient({
+        username: formData.username.trim(),
+        password: formData.password,
+        fullName: formData.fullName.trim(),
+        phoneNumber: formData.phoneNumber.trim(),
+        gmail: formData.gmail.trim().toLowerCase(),
+      });
+
+      setNotice({ type: "success", message: "Đăng ký tài khoản thành công!" });
+      window.setTimeout(() => {
+        router.push("/signin");
+      }, 900);
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(error, "Đăng ký thất bại. Kiểm tra lại dữ liệu nhập vào."),
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const updateField = (field: keyof typeof formData, value: string) => {
@@ -81,7 +95,23 @@ export function Register() {
 
         <Card className={styles.card}>
           <form onSubmit={handleRegister} className={styles.form}>
-            
+            <div className={styles.field}>
+              <Label htmlFor="username">
+                Tên đăng nhập <span className="text-red-500">*</span>
+              </Label>
+              <div className={styles.inputWrap}>
+                <User className={styles.inputIcon} size={18} />
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="nguyenvana"
+                  className={styles.inputPad}
+                  value={formData.username}
+                  onChange={(e) => updateField("username", e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className={styles.field}>
               <Label htmlFor="fullName">
                 Họ và tên <span className="text-red-500">*</span>
@@ -100,51 +130,35 @@ export function Register() {
             </div>
 
             <div className={styles.field}>
-              <Label htmlFor="dateOfBirth">
-                Ngày sinh <span className="text-red-500">*</span>
-              </Label>
-              <div className={styles.inputWrap}>
-                <Calendar className={styles.inputIcon} size={18} />
-                <Input
-                  id="dateOfBirth"
-                  type="date"
-                  className={styles.inputPad}
-                  value={formData.dateOfBirth}
-                  onChange={(e) => updateField("dateOfBirth", e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className={styles.field}>
-              <Label htmlFor="phone">
+              <Label htmlFor="phoneNumber">
                 Số điện thoại <span className="text-red-500">*</span>
               </Label>
               <div className={styles.inputWrap}>
                 <Phone className={styles.inputIcon} size={18} />
                 <Input
-                  id="phone"
+                  id="phoneNumber"
                   type="tel"
                   placeholder="0123456789"
                   className={styles.inputPad}
-                  value={formData.phone}
-                  onChange={(e) => updateField("phone", e.target.value)}
+                  value={formData.phoneNumber}
+                  onChange={(e) => updateField("phoneNumber", e.target.value)}
                 />
               </div>
             </div>
 
             <div className={styles.field}>
-              <Label htmlFor="email">
+              <Label htmlFor="gmail">
                 Email <span className="text-red-500">*</span>
               </Label>
               <div className={styles.inputWrap}>
                 <Mail className={styles.inputIcon} size={18} />
                 <Input
-                  id="email"
+                  id="gmail"
                   type="email"
                   placeholder="email@example.com"
                   className={styles.inputPad}
-                  value={formData.email}
-                  onChange={(e) => updateField("email", e.target.value)}
+                  value={formData.gmail}
+                  onChange={(e) => updateField("gmail", e.target.value)}
                 />
               </div>
             </div>
@@ -195,13 +209,13 @@ export function Register() {
               </p>
             )}
 
-            <Button type="submit" className={styles.submitButton}>
-              Đăng ký
+            <Button type="submit" className={styles.submitButton} disabled={isSubmitting}>
+              {isSubmitting ? "Đang đăng ký..." : "Đăng ký"}
             </Button>
 
             <div className={styles.centerText}>
               <span>Đã có tài khoản? </span>
-              <Link href="/login" className={styles.link}>
+              <Link href="/signin" className={styles.link}>
                 Đăng nhập ngay
               </Link>
             </div>
