@@ -1,0 +1,59 @@
+{
+  "properties": [
+    {
+      "name": "ai.gemini.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable or disable Gemini integration."
+    },
+    {
+      "name": "ai.gemini.api-key",
+      "type": "java.lang.String",
+      "description": "Gemini API key used for authentication."
+    },
+    {
+      "name": "ai.gemini.model",
+      "type": "java.lang.String",
+      "description": "Gemini model identifier."
+    },
+    {
+      "name": "ai.gemini.endpoint",
+      "type": "java.lang.String",
+      "description": "Base endpoint for Gemini API requests."
+    },
+    {
+      "name": "ai.gemini.timeout-seconds",
+      "type": "java.lang.Integer",
+      "description": "Timeout in seconds for Gemini API calls."
+    },
+    {
+      "name": "clinic.notification.receptionist.emails",
+      "type": "java.lang.String",
+      "description": "Comma-separated receptionist email addresses for new booking notifications."
+    },
+    {
+      "name": "auth.forgot-password.otp.ttl-minutes",
+      "type": "java.lang.Long",
+      "description": "Time to live in minutes for forgot-password OTP values."
+    },
+    {
+      "name": "auth.forgot-password.otp.cooldown-seconds",
+      "type": "java.lang.Long",
+      "description": "Cooldown in seconds between two OTP send requests."
+    },
+    {
+      "name": "auth.forgot-password.otp.send-limit-window-minutes",
+      "type": "java.lang.Long",
+      "description": "Window length in minutes for counting OTP send attempts."
+    },
+    {
+      "name": "auth.forgot-password.otp.max-send-attempts",
+      "type": "java.lang.Integer",
+      "description": "Maximum OTP send attempts allowed in one send-limit window."
+    },
+    {
+      "name": "auth.forgot-password.otp.max-invalid-attempts",
+      "type": "java.lang.Integer",
+      "description": "Maximum invalid OTP verification attempts before forcing a new OTP."
+    }
+  ]
+}
