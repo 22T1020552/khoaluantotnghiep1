@@ -25,35 +25,35 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Tag(
     name = "Appointment",
-    description = "Quan ly lich hen chung: tao lich, xem danh sach lich va phan cong bac si cho lich cho xu ly."
+    description = "Quản lý lịch hẹn chung: tạo lịch, xem danh sách lịch và phân công bác sĩ cho lịch chờ xử lý."
 )
 public class AppointmentController {
 
     private final AppointmentService appointmentService;
 
     @GetMapping
-    @Operation(summary = "Danh sach lich hen")
+    @Operation(summary = "Danh sách lịch hẹn")
     // Chức năng: xử lý lấy danh sách tất cả các lịch hẹn.
     public List<Appointment> getAll() {
         return appointmentService.getAllAppointments();
     }
 
     @GetMapping("/waiting-assignment")
-    @Operation(summary = "Lich hen cho phan cong")
+    @Operation(summary = "Lịch hẹn chờ phân công")
     // Chức năng: xử lý lấy danh sách lịch hẹn chờ phân công.
     public List<Appointment> getWaitingAssignment() {
         return appointmentService.getWaitingAssignmentAppointments();
     }
 
     @PostMapping
-    @Operation(summary = "Tao lich hen")
+    @Operation(summary = "Tạo lịch hẹn")
     // Chức năng: xử lý create.
     public Appointment create(@Valid @RequestBody AppointmentRequest request) {
         return appointmentService.createAppointment(request);
     }
 
     @PutMapping("/{appointmentId}/assign-doctor")
-    @Operation(summary = "Phan cong bac si")
+    @Operation(summary = "Phân công bác sĩ")
     // Chức năng: xử lý phân công bác sĩ.
     public Appointment assignDoctor(
             @PathVariable Long appointmentId,

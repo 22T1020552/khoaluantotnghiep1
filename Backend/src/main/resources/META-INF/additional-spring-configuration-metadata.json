@@ -54,6 +54,26 @@
       "name": "auth.forgot-password.otp.max-invalid-attempts",
       "type": "java.lang.Integer",
       "description": "Maximum invalid OTP verification attempts before forcing a new OTP."
+    },
+    {
+      "name": "auth.jwt.access-token.secret",
+      "type": "java.lang.String",
+      "description": "Secret key used to sign and verify access tokens."
+    },
+    {
+      "name": "auth.jwt.refresh-token.secret",
+      "type": "java.lang.String",
+      "description": "Secret key used to sign and verify refresh tokens."
+    },
+    {
+      "name": "auth.jwt.access-token.ttl-seconds",
+      "type": "java.lang.Long",
+      "description": "Access token time-to-live in seconds."
+    },
+    {
+      "name": "auth.jwt.refresh-token.ttl-days",
+      "type": "java.lang.Long",
+      "description": "Refresh token time-to-live in days."
     }
   ]
 }

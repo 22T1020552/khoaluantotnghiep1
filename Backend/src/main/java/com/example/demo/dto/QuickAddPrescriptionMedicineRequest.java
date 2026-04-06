@@ -6,6 +6,6 @@ import lombok.Data;
 @Data
 public class QuickAddPrescriptionMedicineRequest {
 
-    @NotNull(message = "medicineId is required")
+    @NotNull(message = "medicineId là bắt buộc")
     private Long medicineId;
 }

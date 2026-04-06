@@ -44,6 +44,9 @@ public class NotificationService {
     @Value("${spring.mail.username:}")
     private String senderEmail;
 
+    @Value("${spring.mail.host:}")
+    private String mailHost;
+
     @PostConstruct
     public void logMailConfigurationAtStartup() {
         String from = senderEmail == null ? "" : senderEmail.trim();
@@ -61,7 +64,7 @@ public class NotificationService {
         String recipient = patient == null || patient.getGmail() == null ? "" : patient.getGmail().trim();
         if (!isValidEmail(recipient)) {
             LOGGER.warn(
-                    "Skip clinic-cancelled appointment email because patient email is missing/invalid: appointmentId={}",
+                    "Bỏ qua gửi email hủy lịch do phòng khám vì email bệnh nhân thiếu/không hợp lệ: appointmentId={}",
                     appointment.getId());
             return;
         }
@@ -76,7 +79,7 @@ public class NotificationService {
                 ? "Quy khach"
                 : patient.getFullName().trim();
         String appointmentTime = appointment.getAppointmentTime() == null
-                ? "N/A"
+                ? "Không có"
                 : appointment.getAppointmentTime().format(APPOINTMENT_TIME_FORMAT);
         String reason = (cancellationReason == null || cancellationReason.isBlank())
                 ? "Phong kham can dieu chinh lich tiep nhan"
@@ -121,7 +124,7 @@ public class NotificationService {
         Patient patient = appointment.getPatient();
         String recipient = patient == null || patient.getGmail() == null ? "" : patient.getGmail().trim();
         if (!isValidEmail(recipient)) {
-            LOGGER.warn("Skip approved appointment email because patient email is missing/invalid: appointmentId={}",
+            LOGGER.warn("Bỏ qua gửi email duyệt lịch vì email bệnh nhân thiếu/không hợp lệ: appointmentId={}",
                     appointment.getId());
             return;
         }
@@ -136,11 +139,11 @@ public class NotificationService {
                 ? "Quy khach"
                 : patient.getFullName().trim();
         String appointmentTime = appointment.getAppointmentTime() == null
-                ? "N/A"
+                ? "Không có"
                 : appointment.getAppointmentTime().format(APPOINTMENT_TIME_FORMAT);
         User doctor = appointment.getDoctor();
         String doctorName = doctor == null || doctor.getUsername() == null || doctor.getUsername().isBlank()
-                ? "N/A"
+                ? "Không có"
                 : doctor.getUsername().trim();
         String roomName = resolveRoomName(doctor == null ? null : doctor.getId());
 
@@ -199,13 +202,14 @@ public class NotificationService {
         }
 
         String appointmentTime = appointment.getAppointmentTime() == null
-                ? "N/A"
+                ? "Không có"
                 : appointment.getAppointmentTime().format(APPOINTMENT_TIME_FORMAT);
         Patient patient = appointment.getPatient();
-        String patientName = patient == null || patient.getFullName() == null ? "N/A" : patient.getFullName();
-        String patientPhone = patient == null || patient.getPhoneNumber() == null ? "N/A" : patient.getPhoneNumber();
+        String patientName = patient == null || patient.getFullName() == null ? "Không có" : patient.getFullName();
+        String patientPhone = patient == null || patient.getPhoneNumber() == null ? "Không có"
+                : patient.getPhoneNumber();
         String symptoms = appointment.getSymptoms() == null || appointment.getSymptoms().isBlank()
-                ? "N/A"
+                ? "Không có"
                 : appointment.getSymptoms().trim();
 
         SimpleMailMessage message = new SimpleMailMessage();
@@ -246,33 +250,38 @@ public class NotificationService {
     public void sendForgotPasswordOtp(String recipientEmail, String otp) {
         String to = recipientEmail == null ? "" : recipientEmail.trim();
         if (to.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email là bắt buộc");
         }
 
         String from = senderEmail == null ? "" : senderEmail.trim();
         if (from.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Mail sender is not configured");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Chưa cấu hình địa chỉ gửi mail");
+        }
+
+        String host = mailHost == null ? "" : mailHost.trim();
+        if (host.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Chưa cấu hình máy chủ mail");
         }
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(from);
         message.setTo(to);
-        message.setSubject("[Phong kham] Ma OTP dat lai mat khau");
+        message.setSubject("[Phòng khám] Mã OTP đặt lại mật khẩu");
         message.setText("""
-                Xin chao,
+                Xin chào,
 
-                Ma OTP de dat lai mat khau cua ban la: %s
-                Ma nay co hieu luc trong 10 phut.
+                Mã OTP để đặt lại mật khẩu của bạn là: %s
+                Mã này có hiệu lực trong 10 phút.
 
-                Neu ban khong yeu cau dat lai mat khau, vui long bo qua email nay.
-                """.formatted(otp));
+                Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
+                    """.formatted(otp));
 
         try {
             mailSender.send(message);
             LOGGER.info("Sent forgot-password OTP email: recipient={}", to);
         } catch (MailException ex) {
             LOGGER.error("Failed to send forgot-password OTP email: recipient={}, error={}", to, ex.getMessage(), ex);
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Unable to send OTP email at the moment");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Hiện không thể gửi email OTP");
         }
     }
 
@@ -323,15 +332,15 @@ public class NotificationService {
 
     private String resolveRoomName(Long doctorUserId) {
         if (doctorUserId == null) {
-            return "N/A";
+            return "Không có";
         }
 
         List<Room> rooms = roomRepository.findByCurrentDoctor_Id(doctorUserId);
         if (rooms.isEmpty()) {
-            return "N/A";
+            return "Không có";
         }
 
         String roomName = rooms.get(0).getRoomName();
-        return roomName == null || roomName.isBlank() ? "N/A" : roomName.trim();
+        return roomName == null || roomName.isBlank() ? "Không có" : roomName.trim();
     }
 }

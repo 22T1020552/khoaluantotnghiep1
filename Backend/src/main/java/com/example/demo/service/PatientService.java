@@ -37,10 +37,10 @@ public class PatientService {
     public Patient getPatientFromUsername(String username) {
 
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
 
         return patientRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy bệnh nhân"));
     }
 
         // Chức năng: xử lý lấy lịch sử bệnh án của bệnh nhân đăng nhập.
@@ -58,12 +58,12 @@ public class PatientService {
         Patient patient = getPatientFromUsername(username);
 
         MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medical record not found"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
 
         Appointment appointment = medicalRecord.getAppointment();
         if (appointment == null || appointment.getPatient() == null
             || !patient.getId().equals(appointment.getPatient().getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to access this medical record");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập bệnh án này");
         }
 
         List<PatientPrescriptionHistoryItemResponse> prescriptionItems = prescriptionDetailRepository

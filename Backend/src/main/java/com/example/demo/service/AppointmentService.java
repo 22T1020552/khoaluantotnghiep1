@@ -92,14 +92,14 @@ public class AppointmentService {
         validateTimeSlotRange(request.getTimeSlot());
 
         if (request.getPatientId() == null || request.getDoctorId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "patientId and doctorId are required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "patientId và doctorId là bắt buộc");
         }
 
         Patient patient = patientRepository.findById(request.getPatientId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh nhân"));
 
         User doctor = userRepository.findByIdAndRole(request.getDoctorId(), Role.DOCTOR)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bác sĩ"));
 
         LocalDateTime appointmentTime = combineDateAndStartTime(request.getAppointmentDate(), request.getTimeSlot());
 
@@ -108,7 +108,7 @@ public class AppointmentService {
                 appointmentTime,
                 RELEASED_SLOT_STATUSES);
         if (exists) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Doctor already has appointment at this time");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ đã có lịch hẹn vào thời điểm này");
         }
 
         Appointment appointment = new Appointment();
@@ -125,10 +125,10 @@ public class AppointmentService {
     // Chức năng: xử lý chỉ định bác sĩ đến cuộc hẹn.
     public Appointment assignDoctorToAppointment(Long appointmentId, Long doctorId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
         User doctor = userRepository.findByIdAndRole(doctorId, Role.DOCTOR)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bác sĩ"));
 
         ensureDoctorIsAvailable(doctor.getId(), appointment.getAppointmentTime(), appointment.getId());
 
@@ -146,7 +146,7 @@ public class AppointmentService {
                 appointmentId,
                 RELEASED_SLOT_STATUSES);
         if (exists) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Doctor already has appointment at this time");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ đã có lịch hẹn vào thời điểm này");
         }
     }
 
@@ -161,7 +161,7 @@ public class AppointmentService {
             return combineDateAndStartTime(request.getAppointmentDate(), request.getTimeSlot());
         }
 
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "appointmentTime is required");
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "appointmentTime là bắt buộc");
     }
 
     // Chức năng: xử lý giải quyết các triệu chứng.
@@ -174,7 +174,7 @@ public class AppointmentService {
             return request.getNotes().trim();
         }
 
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "symptoms is required");
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Triệu chứng là bắt buộc");
     }
 
     // Chức năng: xử lý kết hợp ngày và giờ bắt đầu.
@@ -188,17 +188,17 @@ public class AppointmentService {
     private void validateTimeSlotRange(String timeSlot) {
         String[] parts = timeSlot.split("-");
         if (parts.length != 2) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid timeSlot format");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Định dạng timeSlot không hợp lệ");
         }
 
         try {
             LocalTime start = LocalTime.parse(parts[0]);
             LocalTime end = LocalTime.parse(parts[1]);
             if (!end.isAfter(start)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "timeSlot end must be after start");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thời gian kết thúc của timeSlot phải sau thời gian bắt đầu");
             }
         } catch (DateTimeParseException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid timeSlot value");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Giá trị timeSlot không hợp lệ");
         }
     }
 
@@ -206,18 +206,18 @@ public class AppointmentService {
     private Patient resolvePatient(Long patientId) {
         if (patientId != null) {
             return patientRepository.findById(patientId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh nhân"));
         }
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || authentication.getName() == null
                 || "anonymousUser".equals(authentication.getName())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "patientId is required when user is not authenticated");
+                    "patientId là bắt buộc khi người dùng chưa xác thực");
         }
 
         User user = userRepository.findByUsername(authentication.getName())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng"));
 
         if (user.getPatient() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -238,26 +238,26 @@ public class AppointmentService {
     // Chức năng: xử lý bệnh nhân hủy cuộc hẹn.
     public Appointment cancelMyAppointment(Long appointmentId, String username) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
         Patient patient = patientService.getPatientFromUsername(username);
         if (appointment.getPatient() == null || !appointment.getPatient().getId().equals(patient.getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only cancel your own appointment");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn chỉ có thể hủy lịch hẹn của chính mình");
         }
 
         String normalizedStatus = normalizeStatus(appointment.getStatus());
         if (STATUS_CANCELLED.equals(normalizedStatus) || STATUS_CANCELLED_BY_CLINIC.equals(normalizedStatus)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Appointment is already cancelled");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn đã được hủy");
         }
 
         if (STATUS_IN_PROGRESS.equals(normalizedStatus)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Khong the huy do lich dang duoc thuc hien");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Không thể hủy vì lịch đang được thực hiện");
         }
 
         if (STATUS_COMPLETED.equals(normalizedStatus)
                 || (appointment.getAppointmentTime() != null
                         && !appointment.getAppointmentTime().isAfter(LocalDateTime.now()))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Khong the huy do da qua gio hen");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Không thể hủy vì đã quá giờ hẹn");
         }
 
         appointment.setStatus(STATUS_CANCELLED);

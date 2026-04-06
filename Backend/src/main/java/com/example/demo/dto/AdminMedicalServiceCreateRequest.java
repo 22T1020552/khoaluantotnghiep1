@@ -11,12 +11,12 @@ import lombok.Data;
 @Data
 public class AdminMedicalServiceCreateRequest {
 
-    @NotBlank(message = "serviceName is required")
-    @Size(max = 100, message = "serviceName must be at most 100 characters")
+    @NotBlank(message = "Tên dịch vụ là bắt buộc")
+    @Size(max = 100, message = "Tên dịch vụ tối đa 100 ký tự")
     private String serviceName;
 
-    @NotNull(message = "currentPrice is required")
-    @DecimalMin(value = "0", message = "currentPrice must be greater than or equal to 0")
+    @NotNull(message = "Giá hiện tại là bắt buộc")
+    @DecimalMin(value = "0", message = "Giá hiện tại phải lớn hơn hoặc bằng 0")
     private BigDecimal currentPrice;
 
     private Boolean isActive;

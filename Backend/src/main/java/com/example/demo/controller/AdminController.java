@@ -42,21 +42,21 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Tag(
     name = "Admin",
-    description = "Quan tri he thong: dashboard, bao cao doanh thu, nguoi dung, phong kham, thuoc va dich vu."
+    description = "Quản trị hệ thống: dashboard, báo cáo doanh thu, người dùng, phòng khám, thuốc và dịch vụ."
 )
 public class AdminController {
 
     private final AdminService adminService;
 
     @GetMapping("/dashboard")
-    @Operation(summary = "Dashboard tong quan", description = "Lay so lieu tong hop cho trang quan tri.")
+    @Operation(summary = "Dashboard tổng quan", description = "Lấy số liệu tổng hợp cho trang quản trị.")
     // Chức năng: xử lý lấy số liệu thống kê.
     public DashboardResponse getDashboard() {
         return adminService.getDashboard();
     }
 
     @GetMapping("/revenue-report")
-    @Operation(summary = "Bao cao doanh thu", description = "Lay bao cao doanh thu co bo loc thoi gian, dich vu, thuoc va kieu gom nhom.")
+    @Operation(summary = "Báo cáo doanh thu", description = "Lấy báo cáo doanh thu có bộ lọc thời gian, dịch vụ, thuốc và kiểu gom nhóm.")
     // Chức năng: xử lý lấy báo cáo doanh thu và biểu đồ.
     public AdminRevenueReportResponse getRevenueReport(
             @RequestParam(required = false) java.time.LocalDateTime startTime,
@@ -68,7 +68,7 @@ public class AdminController {
     }
 
     @GetMapping("/revenue-report/export")
-    @Operation(summary = "Xuat bao cao doanh thu", description = "Xuat bao cao doanh thu sang CSV hoac PDF.")
+    @Operation(summary = "Xuất báo cáo doanh thu", description = "Xuất báo cáo doanh thu sang CSV hoac PDF.")
     // Chức năng: xử lý xuất báo cáo sang dạng CSV/PDF.
     public ResponseEntity<byte[]> exportRevenueReport(
             @RequestParam(required = false) java.time.LocalDateTime startTime,
@@ -90,21 +90,21 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    @Operation(summary = "Danh sach nguoi dung", description = "Lay toan bo nguoi dung trong he thong.")
+    @Operation(summary = "Danh sách người dùng", description = "Lấy toàn bộ người dùng trong hệ thống.")
     // Chức năng: xử lý lấy danh sách người dùng.
     public List<AdminUserResponse> getAllUsers() {
         return adminService.getAllUsers();
     }
 
     @PostMapping("/users")
-    @Operation(summary = "Tao nguoi dung", description = "Tao moi user voi role tuong ung trong he thong.")
+    @Operation(summary = "Tạo người dùng", description = "Tạo mới user với role tương ứng trong hệ thống.")
     // Chức năng: xử lý tạo người dùng.
     public AdminUserResponse createUser(@Valid @RequestBody AdminCreateUserRequest request) {
         return adminService.createUser(request);
     }
 
     @PutMapping("/users/{userId}")
-    @Operation(summary = "Cap nhat nguoi dung", description = "Cap nhat thong tin va trang thai user theo userId.")
+    @Operation(summary = "Cập nhật người dùng", description = "Cập nhật thông tin và trạng thái user theo userId.")
     // Chức năng: xử lý cập nhật người dùng.
     public AdminUserResponse updateUser(
             @PathVariable Long userId,
@@ -113,28 +113,28 @@ public class AdminController {
     }
 
     @DeleteMapping("/users/{userId}")
-    @Operation(summary = "Xoa nguoi dung", description = "Vo hieu hoa hoac xoa user theo userId.")
+    @Operation(summary = "Xóa người dùng", description = "Vô hiệu hóa hoặc xóa user theo userId.")
     // Chức năng: xử lý xóa user.
     public void deleteUser(@PathVariable Long userId) {
         adminService.deleteUser(userId);
     }
 
     @GetMapping("/rooms")
-    @Operation(summary = "Danh sach phong", description = "Lay danh sach phong kham hien co.")
+    @Operation(summary = "Danh sách phòng", description = "Lấy danh sách phòng khám hiện có.")
     // Chức năng: xử lý lấy tất cả phòng khám.
     public List<AdminRoomResponse> getAllRooms() {
         return adminService.getAllRooms();
     }
 
     @PostMapping("/rooms")
-    @Operation(summary = "Tao phong", description = "Tao phong kham moi.")
+    @Operation(summary = "Tạo phòng", description = "Tạo phòng kham moi.")
     // Chức năng: xử lý tạo phòng khám.
     public AdminRoomResponse createRoom(@Valid @RequestBody AdminRoomCreateRequest request) {
         return adminService.createRoom(request.getRoomName());
     }
 
     @PutMapping("/rooms/{roomId}")
-    @Operation(summary = "Cap nhat phong", description = "Cap nhat ten phong kham.")
+    @Operation(summary = "Cập nhật phòng", description = "Cập nhật tên phòng khám.")
     // Chức năng: xử lý cập nhật thông tin phòng khám.
     public AdminRoomResponse updateRoom(
             @PathVariable Long roomId,
@@ -143,7 +143,7 @@ public class AdminController {
     }
 
     @PutMapping("/rooms/{roomId}/assign-doctor")
-    @Operation(summary = "Gan bac si vao phong", description = "Phan cong bac si phu trach phong kham.")
+    @Operation(summary = "Gán bác sĩ vào phòng", description = "Phân công bác sĩ phụ trách phòng khám.")
     // Chức năng: xử lý phân bác sĩ vào phòng khám.
     public AdminRoomResponse assignDoctorToRoom(
             @PathVariable Long roomId,
@@ -152,21 +152,21 @@ public class AdminController {
     }
 
     @GetMapping("/medicines")
-    @Operation(summary = "Danh sach thuoc", description = "Lay danh muc thuoc cho quan tri.")
+    @Operation(summary = "Danh sách thuốc", description = "Lấy danh mục thuốc cho quản trị.")
     // Chức năng: xử lý lấy danh sách thuốc.
     public List<AdminMedicineResponse> getAllMedicines() {
         return adminService.getAllMedicines();
     }
 
     @PostMapping("/medicines")
-    @Operation(summary = "Tao thuoc", description = "Them thuoc moi vao danh muc.")
+    @Operation(summary = "Tạo thuốc", description = "Thêm thuốc mới vào danh mục.")
     // Chức năng: xử lý thêm thuốc mới.
     public AdminMedicineResponse createMedicine(@Valid @RequestBody AdminMedicineCreateRequest request) {
         return adminService.createMedicine(request);
     }
 
     @PutMapping("/medicines/{medicineId}")
-    @Operation(summary = "Cap nhat thuoc", description = "Cap nhat thong tin thuoc theo medicineId.")
+    @Operation(summary = "Cập nhật thuốc", description = "Cập nhật thông tin thuốc theo medicineId.")
     // Chức năng: xử lý cập nhật thông tin thuốc.
     public AdminMedicineResponse updateMedicine(
             @PathVariable Long medicineId,
@@ -175,21 +175,21 @@ public class AdminController {
     }
 
     @DeleteMapping("/medicines/{medicineId}")
-    @Operation(summary = "Ngung su dung thuoc", description = "Vo hieu hoa thuoc trong danh muc.")
+    @Operation(summary = "Ngừng sử dụng thuốc", description = "Vô hiệu hóa thuốc trong danh mục.")
     // Chức năng: xử lý vô hiệu hóa thuốc.
     public void deactivateMedicine(@PathVariable Long medicineId) {
         adminService.deactivateMedicine(medicineId);
     }
 
     @GetMapping("/services")
-    @Operation(summary = "Danh sach dich vu", description = "Lay danh muc dich vu y te.")
+    @Operation(summary = "Danh sách dịch vụ", description = "Lấy danh mục dịch vụ y tế.")
     // Chức năng: xử lý lấy tất cả dịch vụ.
     public List<AdminMedicalServiceResponse> getAllMedicalServices() {
         return adminService.getAllMedicalServices();
     }
 
     @PostMapping("/services")
-    @Operation(summary = "Tao dich vu", description = "Them dich vu y te moi.")
+    @Operation(summary = "Tạo dịch vụ", description = "Thêm dịch vụ y tế mới.")
     // Chức năng: xử lý thêm dịch vụ mới.
     public AdminMedicalServiceResponse createMedicalService(
             @Valid @RequestBody AdminMedicalServiceCreateRequest request) {
@@ -197,7 +197,7 @@ public class AdminController {
     }
 
     @PutMapping("/services/{serviceId}/price")
-    @Operation(summary = "Cap nhat gia dich vu", description = "Cap nhat gia hien hanh cua dich vu.")
+    @Operation(summary = "Cập nhật giá dịch vụ", description = "Cập nhật giá hiện hành của dịch vụ.")
     // Chức năng: xử lý cập nhật giá dịch vụ.
     public AdminMedicalServiceResponse updateMedicalServicePrice(
             @PathVariable Long serviceId,
@@ -206,7 +206,7 @@ public class AdminController {
     }
 
     @DeleteMapping("/services/{serviceId}")
-    @Operation(summary = "Ngung su dung dich vu", description = "Vo hieu hoa dich vu y te trong danh muc.")
+    @Operation(summary = "Ngừng sử dụng dịch vụ", description = "Vô hiệu hóa dịch vụ y tế trong danh mục.")
     // Chức năng: xử lý vô hiệu hóa dịch vụ.
     public void deactivateMedicalService(@PathVariable Long serviceId) {
         adminService.deactivateMedicalService(serviceId);

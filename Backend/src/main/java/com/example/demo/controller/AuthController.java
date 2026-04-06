@@ -9,6 +9,7 @@ import com.example.demo.dto.AuthResponse;
 import com.example.demo.dto.ForgotPasswordRequest;
 import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.PatientRegisterRequest;
+import com.example.demo.dto.RefreshTokenRequest;
 import com.example.demo.dto.ResetPasswordWithOtpRequest;
 import com.example.demo.dto.VerifyForgotPasswordOtpRequest;
 import com.example.demo.service.AuthService;
@@ -21,13 +22,13 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@Tag(name = "Auth", description = "Dang nhap va dang ky tai khoan benh nhan. Nhom nay khong yeu cau JWT.")
+@Tag(name = "Auth", description = "Đăng nhập và đăng ký tài khoản bệnh nhân. Nhóm này không yêu cầu JWT.")
 public class AuthController {
 
     private final AuthService authService;
 
     @PostMapping("/login")
-    @Operation(summary = "Dang nhap", description = "Dang nhap bang username/password va nhan access token JWT.")
+    @Operation(summary = "Đăng nhập", description = "Đăng nhập bằng username/password và nhận access token JWT.")
     // Chức năng: xử lý đăng nhập.
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request.getUsername(), request.getPassword());
@@ -35,29 +36,42 @@ public class AuthController {
 
     // Chức năng: xử lý bệnh nhân đăng ký.
     @PostMapping("/register/patient")
-    @Operation(summary = "Dang ky benh nhan", description = "Tao tai khoan benh nhan moi va tra ve token dang nhap.")
+    @Operation(summary = "Đăng ký bệnh nhân", description = "Tạo tài khoản bệnh nhân mới và trả về bộ token đăng nhập.")
     public AuthResponse registerPatient(@Valid @RequestBody PatientRegisterRequest request) {
         return authService.registerPatient(request);
     }
 
+    @PostMapping("/refresh")
+    @Operation(summary = "Làm mới access token", description = "Nhận refresh token hợp lệ, quay vòng refresh token và trả về cặp token mới.")
+    public AuthResponse refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        return authService.refreshToken(request.getRefreshToken());
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Đăng xuất", description = "Thu hồi refresh token hiện tại trong Redis.")
+    public String logout(@Valid @RequestBody RefreshTokenRequest request) {
+        authService.logout(request.getRefreshToken());
+        return "Đăng xuất thành công";
+    }
+
     @PostMapping("/forgot-password/send-otp")
-    @Operation(summary = "Gui OTP quen mat khau", description = "Nhan email, tao OTP va gui OTP qua email cho nguoi dung.")
+    @Operation(summary = "Gửi OTP quên mật khẩu", description = "Nhận email, tạo OTP và gửi OTP qua email cho người dùng.")
     public String sendForgotPasswordOtp(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.sendForgotPasswordOtp(request);
-        return "OTP sent successfully";
+        return "Gửi OTP thành công";
     }
 
     @PostMapping("/forgot-password/verify-otp")
-    @Operation(summary = "Xac thuc OTP quen mat khau", description = "Xac thuc ma OTP tu email de cho phep reset mat khau.")
+    @Operation(summary = "Xác thực OTP quên mật khẩu", description = "Xác thực mã OTP từ email để cho phép đặt lại mật khẩu.")
     public String verifyForgotPasswordOtp(@Valid @RequestBody VerifyForgotPasswordOtpRequest request) {
         authService.verifyForgotPasswordOtp(request);
-        return "OTP verified successfully";
+        return "Xác thực OTP thành công";
     }
 
     @PostMapping("/forgot-password/reset")
-    @Operation(summary = "Reset mat khau sau OTP", description = "Cap nhat mat khau moi sau khi OTP da duoc xac thuc hop le.")
+    @Operation(summary = "Đặt lại mật khẩu sau OTP", description = "Cập nhật mật khẩu mới sau khi OTP đã được xác thực hợp lệ.")
     public String resetPasswordWithOtp(@Valid @RequestBody ResetPasswordWithOtpRequest request) {
         authService.resetPasswordWithOtp(request);
-        return "Password updated successfully";
+        return "Cập nhật mật khẩu thành công";
     }
 }

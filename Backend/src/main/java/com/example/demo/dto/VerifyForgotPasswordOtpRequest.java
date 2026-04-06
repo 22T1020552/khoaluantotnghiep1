@@ -9,12 +9,12 @@ import lombok.Data;
 @Data
 public class VerifyForgotPasswordOtpRequest {
 
-    @NotBlank(message = "email is required")
-    @Email(message = "email is invalid")
-    @Size(max = 100, message = "email must be <= 100 characters")
+    @NotBlank(message = "Email là bắt buộc")
+    @Email(message = "Email không hợp lệ")
+    @Size(max = 100, message = "Email tối đa 100 ký tự")
     private String email;
 
-    @NotBlank(message = "otp is required")
-    @Pattern(regexp = "\\d{6}", message = "otp must be 6 digits")
+    @NotBlank(message = "OTP là bắt buộc")
+    @Pattern(regexp = "\\d{6}", message = "OTP phải gồm đúng 6 chữ số")
     private String otp;
 }

@@ -9,10 +9,10 @@ import lombok.Data;
 @Data
 public class AdminUpdateUserRequest {
 
-    @Pattern(regexp = "^[a-zA-Z0-9._-]{4,50}$", message = "username must be 4-50 chars and contain no spaces")
+    @Pattern(regexp = "^[a-zA-Z0-9._-]{4,50}$", message = "Tên đăng nhập phải từ 4-50 ký tự và không chứa khoảng trắng")
     private String username;
 
-    @Size(min = 6, max = 100, message = "password must be between 6 and 100 characters")
+    @Size(min = 6, max = 100, message = "Mật khẩu phải từ 6 đến 100 ký tự")
     private String password;
 
     private Role role;

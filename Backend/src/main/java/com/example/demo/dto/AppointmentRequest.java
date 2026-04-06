@@ -11,16 +11,16 @@ import lombok.Data;
 @Data
 public class AppointmentRequest {
 
-    @NotNull(message = "patientId is required")
+    @NotNull(message = "patientId là bắt buộc")
     private Long patientId;
 
-    @NotNull(message = "doctorId is required")
+    @NotNull(message = "doctorId là bắt buộc")
     private Long doctorId;
 
-    @NotNull(message = "appointmentDate is required")
+    @NotNull(message = "appointmentDate là bắt buộc")
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate appointmentDate;
 
-    @NotBlank(message = "timeSlot is required")
+    @NotBlank(message = "timeSlot là bắt buộc")
     private String timeSlot;
 }

@@ -34,40 +34,37 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/medical-records")
 @RequiredArgsConstructor
-@Tag(
-    name = "MedicalRecord",
-    description = "Nghiep vu benh an: tao benh an, don thuoc, ket qua dich vu can lam sang va hoan tat ho so kham."
-)
+@Tag(name = "MedicalRecord", description = "Nghiệp vụ benh an: tao benh an, don thuoc, ket qua dich vu can lam sang va hoan tat ho so kham.")
 public class MedicalRecordController {
 
     private final MedicalRecordService medicalRecordService;
 
     @GetMapping
-    @Operation(summary = "Danh sach benh an")
+    @Operation(summary = "Danh sách bệnh án")
     public List<MedicalRecord> getAll() {
         return medicalRecordService.getAll();
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Chi tiet benh an")
+    @Operation(summary = "Chi tiết bệnh án")
     public MedicalRecord getById(@PathVariable Long id) {
         return medicalRecordService.getById(id);
     }
 
     @GetMapping("/appointment/{appointmentId}")
-    @Operation(summary = "Lay benh an theo lich hen")
+    @Operation(summary = "Lấy bệnh án theo lịch hẹn")
     public MedicalRecord getByAppointment(@PathVariable Long appointmentId) {
         return medicalRecordService.getByAppointmentId(appointmentId);
     }
 
     @PostMapping
-    @Operation(summary = "Tao benh an")
+    @Operation(summary = "Tạo bệnh án")
     public MedicalRecord create(@RequestParam Long appointmentId, @RequestBody MedicalRecord request) {
         return medicalRecordService.create(appointmentId, request);
     }
 
     @PostMapping("/doctor")
-    @Operation(summary = "Bac si tao benh an")
+    @Operation(summary = "Bác sĩ tạo bệnh án")
     public MedicalRecord createByDoctor(
             Authentication authentication,
             @Valid @RequestBody CreateMedicalRecordRequest request) {
@@ -75,7 +72,7 @@ public class MedicalRecordController {
     }
 
     @PostMapping("/{medicalRecordId}/prescription-details")
-    @Operation(summary = "Them thuoc vao don")
+    @Operation(summary = "Thêm thuốc vào đơn")
     public PrescriptionDetail addPrescriptionDetail(
             Authentication authentication,
             @PathVariable Long medicalRecordId,
@@ -83,23 +80,21 @@ public class MedicalRecordController {
         return medicalRecordService.addMedicineToCurrentMedicalRecord(
                 authentication.getName(),
                 medicalRecordId,
-                request
-        );
+                request);
     }
 
     @GetMapping("/{medicalRecordId}/prescription-details")
-    @Operation(summary = "Danh sach thuoc trong don")
+    @Operation(summary = "Danh sách thuốc trong don")
     public List<PrescriptionDetail> getPrescriptionDetails(
             Authentication authentication,
             @PathVariable Long medicalRecordId) {
         return medicalRecordService.getPrescriptionDetailsByMedicalRecord(
                 authentication.getName(),
-                medicalRecordId
-        );
+                medicalRecordId);
     }
 
     @PostMapping("/{medicalRecordId}/service-results")
-    @Operation(summary = "Cap nhat ket qua dich vu")
+    @Operation(summary = "Cập nhật kết quả dịch vụ")
     public MedicalRecordServiceDetail upsertServiceResult(
             Authentication authentication,
             @PathVariable Long medicalRecordId,
@@ -107,12 +102,11 @@ public class MedicalRecordController {
         return medicalRecordService.upsertMedicalRecordServiceResult(
                 authentication.getName(),
                 medicalRecordId,
-                request
-        );
+                request);
     }
 
     @GetMapping("/{medicalRecordId}/prescription-workspace")
-    @Operation(summary = "Khong gian ke don")
+    @Operation(summary = "Không gian kê đơn")
     // Chức năng: xử lý get prescription workspace.
     public PrescriptionWorkspaceResponse getPrescriptionWorkspace(
             Authentication authentication,
@@ -121,7 +115,7 @@ public class MedicalRecordController {
     }
 
     @GetMapping("/{medicalRecordId}/medicine-catalog")
-    @Operation(summary = "Danh muc thuoc de ke don")
+    @Operation(summary = "Danh mục thuốc để kê đơn")
     public PrescriptionMedicineCatalogResponse getMedicineCatalogByGroup(
             Authentication authentication,
             @PathVariable Long medicalRecordId,
@@ -129,12 +123,11 @@ public class MedicalRecordController {
         return medicalRecordService.getMedicineCatalogForPrescription(
                 authentication.getName(),
                 medicalRecordId,
-                group
-        );
+                group);
     }
 
     @PostMapping("/{medicalRecordId}/prescription-details/quick-add")
-    @Operation(summary = "Them nhanh thuoc vao don")
+    @Operation(summary = "Thêm nhanh thuốc vào đơn")
     public PrescriptionWorkspaceResponse quickAddMedicineToPrescription(
             Authentication authentication,
             @PathVariable Long medicalRecordId,
@@ -142,12 +135,11 @@ public class MedicalRecordController {
         return medicalRecordService.quickAddMedicineToPrescription(
                 authentication.getName(),
                 medicalRecordId,
-                request.getMedicineId()
-        );
+                request.getMedicineId());
     }
 
     @PutMapping("/{medicalRecordId}/prescription-details/{medicineId}")
-    @Operation(summary = "Cap nhat chi tiet thuoc")
+    @Operation(summary = "Cập nhật chi tiết thuốc")
     public PrescriptionDetail updatePrescriptionDetail(
             Authentication authentication,
             @PathVariable Long medicalRecordId,
@@ -157,12 +149,11 @@ public class MedicalRecordController {
                 authentication.getName(),
                 medicalRecordId,
                 medicineId,
-                request
-        );
+                request);
     }
 
     @PutMapping("/{medicalRecordId}/prescription-details/{medicineId}/autosave")
-    @Operation(summary = "Tu dong luu don thuoc")
+    @Operation(summary = "Tự động lưu đơn thuốc")
     public PrescriptionAutosaveResponse autosavePrescriptionDetail(
             Authentication authentication,
             @PathVariable Long medicalRecordId,
@@ -172,12 +163,11 @@ public class MedicalRecordController {
                 authentication.getName(),
                 medicalRecordId,
                 medicineId,
-                request
-        );
+                request);
     }
 
     @DeleteMapping("/{medicalRecordId}/prescription-details/{medicineId}")
-    @Operation(summary = "Xoa thuoc khoi don")
+    @Operation(summary = "Xóa thuốc khỏi đơn")
     public PrescriptionWorkspaceResponse removePrescriptionDetail(
             Authentication authentication,
             @PathVariable Long medicalRecordId,
@@ -185,12 +175,11 @@ public class MedicalRecordController {
         return medicalRecordService.removePrescriptionDetail(
                 authentication.getName(),
                 medicalRecordId,
-                medicineId
-        );
+                medicineId);
     }
 
     @PostMapping("/{medicalRecordId}/prescription-save")
-    @Operation(summary = "Luu don thuoc")
+    @Operation(summary = "Lưu đơn thuốc")
     public PrescriptionWorkspaceResponse savePrescription(
             Authentication authentication,
             @PathVariable Long medicalRecordId) {
@@ -198,7 +187,7 @@ public class MedicalRecordController {
     }
 
     @PutMapping("/{medicalRecordId}/complete")
-    @Operation(summary = "Hoan tat benh an")
+    @Operation(summary = "Hoàn tất bệnh án")
     public MedicalRecord completeMedicalRecord(
             Authentication authentication,
             @PathVariable Long medicalRecordId) {
@@ -206,15 +195,14 @@ public class MedicalRecordController {
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Cap nhat benh an")
+    @Operation(summary = "Cập nhật bệnh án")
     public MedicalRecord update(@PathVariable Long id, @RequestBody MedicalRecord request) {
         return medicalRecordService.update(id, request);
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Xoa benh an")
+    @Operation(summary = "Xóa bệnh án")
     public void delete(@PathVariable Long id) {
         medicalRecordService.delete(id);
     }
 }
-

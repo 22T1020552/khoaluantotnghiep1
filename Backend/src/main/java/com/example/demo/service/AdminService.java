@@ -140,7 +140,7 @@ public class AdminService {
         }
 
         if (resolvedStart.isAfter(resolvedEnd)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startTime must be before endTime");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thời gian bắt đầu phải trước thời gian kết thúc");
         }
 
         String normalizedGroupBy = normalizeGroupBy(groupBy);
@@ -168,7 +168,7 @@ public class AdminService {
                     BigDecimal.ZERO,
                     List.of(),
                     List.of(),
-                    "Khong co du lieu trong khoang thoi gian nay"
+                    "Không có du lieu trong khoang thoi gian nay"
             );
         }
 
@@ -220,7 +220,7 @@ public class AdminService {
             return exportRevenueReportPdf(report);
         }
         if (!"CSV".equals(normalizedFormat)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Format must be CSV or PDF");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Định dạng phải là CSV hoặc PDF");
         }
         return exportRevenueReportCsv(report);
     }
@@ -236,7 +236,7 @@ public class AdminService {
     public AdminUserResponse createUser(AdminCreateUserRequest request) {
         String username = request.getUsername().trim();
         if (userRepository.existsByUsername(username)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại");
         }
 
         User user = new User();
@@ -253,12 +253,12 @@ public class AdminService {
     // Chức năng: xử lý cập nhật user.
     public AdminUserResponse updateUser(Long userId, AdminUpdateUserRequest request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng"));
 
         if (request.getUsername() != null && !request.getUsername().isBlank()) {
             String username = request.getUsername().trim();
             if (!username.equals(user.getUsername()) && userRepository.existsByUsername(username)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại");
             }
             user.setUsername(username);
         }
@@ -282,7 +282,7 @@ public class AdminService {
     // Chức năng: xử lý xóa user.
     public void deleteUser(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng"));
 
         user.setIsActive(false);
         userRepository.save(user);
@@ -297,10 +297,10 @@ public class AdminService {
 
     // Chức năng: xử lý tạo phòng khám.
     public AdminRoomResponse createRoom(String roomName) {
-        String normalizedRoomName = normalizeRequiredText(roomName, "roomName is required");
+        String normalizedRoomName = normalizeRequiredText(roomName, "Tên phòng là bắt buộc");
 
         if (roomRepository.existsByRoomNameIgnoreCase(normalizedRoomName)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Room name already exists");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên phòng đã tồn tại");
         }
 
         Room room = new Room();
@@ -312,14 +312,14 @@ public class AdminService {
     // Chức năng: xử lý cập nhật phòng khám.
     public AdminRoomResponse updateRoom(Long roomId, String roomName) {
         Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy phòng"));
 
-        String normalizedRoomName = normalizeRequiredText(roomName, "roomName is required");
+        String normalizedRoomName = normalizeRequiredText(roomName, "Tên phòng là bắt buộc");
 
         roomRepository.findByRoomNameIgnoreCase(normalizedRoomName)
                 .filter(existing -> !Objects.equals(existing.getId(), room.getId()))
                 .ifPresent(existing -> {
-                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Room name already exists");
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên phòng đã tồn tại");
                 });
 
         room.setRoomName(normalizedRoomName);
@@ -330,10 +330,10 @@ public class AdminService {
     // Chức năng: xử lý chỉ định bác sĩ vào phòng.
     public AdminRoomResponse assignDoctorToRoom(Long roomId, Long doctorId) {
         Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy phòng"));
 
         User doctor = userRepository.findByIdAndRole(doctorId, Role.DOCTOR)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bác sĩ"));
 
         room.setCurrentDoctor(doctor);
         Room saved = roomRepository.save(room);
@@ -358,10 +358,10 @@ public class AdminService {
 
     // Chức năng: xử lý tạo thuốc mới.
     public AdminMedicineResponse createMedicine(AdminMedicineCreateRequest request) {
-        String normalizedMedicineName = normalizeRequiredText(request.getMedicineName(), "medicineName is required");
+        String normalizedMedicineName = normalizeRequiredText(request.getMedicineName(), "Tên thuốc là bắt buộc");
 
         if (medicineRepository.existsByMedicineNameIgnoreCase(normalizedMedicineName)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Medicine name already exists");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên thuốc đã tồn tại");
         }
 
         Medicine medicine = new Medicine();
@@ -379,14 +379,14 @@ public class AdminService {
     // Chức năng: xử lý cập nhật thông tin thuốc.
     public AdminMedicineResponse updateMedicine(Long medicineId, AdminMedicineUpdateRequest request) {
         Medicine medicine = medicineRepository.findById(medicineId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medicine not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thuốc"));
 
         if (request.getMedicineName() != null && !request.getMedicineName().isBlank()) {
             String normalizedMedicineName = request.getMedicineName().trim();
             boolean sameName = medicine.getMedicineName() != null
                     && medicine.getMedicineName().equalsIgnoreCase(normalizedMedicineName);
             if (!sameName && medicineRepository.existsByMedicineNameIgnoreCase(normalizedMedicineName)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Medicine name already exists");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên thuốc đã tồn tại");
             }
             medicine.setMedicineName(normalizedMedicineName);
         }
@@ -411,7 +411,7 @@ public class AdminService {
     // Chức năng: xử lý vô hiệu hóa thuốc.
     public void deactivateMedicine(Long medicineId) {
         Medicine medicine = medicineRepository.findById(medicineId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medicine not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thuốc"));
 
         medicine.setIsActive(false);
         medicineRepository.save(medicine);
@@ -426,10 +426,10 @@ public class AdminService {
 
     // Chức năng: xử lý tạo dịch vụ mới.
     public AdminMedicalServiceResponse createMedicalService(AdminMedicalServiceCreateRequest request) {
-        String normalizedServiceName = normalizeRequiredText(request.getServiceName(), "serviceName is required");
+        String normalizedServiceName = normalizeRequiredText(request.getServiceName(), "Tên dịch vụ là bắt buộc");
 
         if (medicalServiceRepository.existsByServiceNameIgnoreCase(normalizedServiceName)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Service name already exists");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên dịch vụ đã tồn tại");
         }
 
         MedicalService medicalService = new MedicalService();
@@ -444,7 +444,7 @@ public class AdminService {
     // Chức năng: xử lý cập nhật giá dịch vụ.
     public AdminMedicalServiceResponse updateMedicalServicePrice(Long serviceId, BigDecimal currentPrice) {
         MedicalService medicalService = medicalServiceRepository.findById(serviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy dịch vụ"));
 
         medicalService.setCurrentPrice(currentPrice);
         MedicalService saved = medicalServiceRepository.save(medicalService);
@@ -454,7 +454,7 @@ public class AdminService {
     // Chức năng: xử lý vô hiệu hóa dịch vụ.
     public void deactivateMedicalService(Long serviceId) {
         MedicalService medicalService = medicalServiceRepository.findById(serviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy dịch vụ"));
 
         medicalService.setIsActive(false);
         medicalServiceRepository.save(medicalService);
@@ -527,7 +527,7 @@ public class AdminService {
         }
         String normalized = groupBy.trim().toUpperCase(Locale.ROOT);
         if (!GROUP_DAY.equals(normalized) && !GROUP_MONTH.equals(normalized) && !GROUP_YEAR.equals(normalized)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "groupBy must be DAY, MONTH or YEAR");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "groupBy phải là DAY, MONTH hoặc YEAR");
         }
         return normalized;
     }
@@ -666,7 +666,7 @@ public class AdminService {
                 content.setLeading(15f);
                 content.newLineAtOffset(x, y);
                 content.setFont(PDType1Font.HELVETICA_BOLD, 13);
-                content.showText("Bao cao doanh thu phong kham");
+                content.showText("Báo cáo doanh thu phong kham");
                 content.newLine();
                 content.setFont(PDType1Font.HELVETICA, 10);
                 content.showText("Tu: " + report.getStartTime().format(DATETIME_FORMAT)
@@ -678,7 +678,7 @@ public class AdminService {
                 content.newLine();
 
                 if (report.getItems().isEmpty()) {
-                    content.showText("Khong co du lieu trong khoang thoi gian nay");
+                    content.showText("Không có du lieu trong khoang thoi gian nay");
                 } else {
                     int limit = Math.min(report.getItems().size(), 30);
                     for (int i = 0; i < limit; i++) {
@@ -701,7 +701,7 @@ public class AdminService {
             document.save(output);
             return output.toByteArray();
         } catch (IOException ex) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Khong the xuat file PDF", ex);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể xuất file PDF", ex);
         }
     }
 
