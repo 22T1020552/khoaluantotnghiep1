@@ -263,11 +263,6 @@ public class NotificationService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Chưa cấu hình máy chủ mail");
         }
 
-        String host = mailHost == null ? "" : mailHost.trim();
-        if (host.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Mail host is not configured");
-        }
-
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(from);
         message.setTo(to);
