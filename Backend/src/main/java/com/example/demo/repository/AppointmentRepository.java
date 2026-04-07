@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.example.demo.entity.Appointment;
 
@@ -37,6 +38,48 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
             Collection<String> statuses
     );
 
+    @Query("""
+    SELECT COUNT(a)
+    FROM Appointment a
+    WHERE a.doctor.id = :doctorId
+      AND a.appointmentTime = :appointmentTime
+      AND (:excludedAppointmentId IS NULL OR a.id <> :excludedAppointmentId)
+                        AND UPPER(TRIM(COALESCE(a.status, ''))) IN (
+                                                'PENDING',
+                                                'PENDING_CONFIRMATION',
+                                                'DRAFT',
+                                                'WAITING',
+                                                'IN_PROGRESS',
+                                                'APPROVED',
+                                                'CONFIRMED'
+                        )
+    """)
+    long countDoctorScheduleConflicts(
+            @Param("doctorId") Long doctorId,
+            @Param("appointmentTime") LocalDateTime appointmentTime,
+            @Param("excludedAppointmentId") Long excludedAppointmentId
+    );
+
+    @Query("""
+    SELECT COUNT(a)
+    FROM Appointment a
+    WHERE a.appointmentTime = :appointmentTime
+      AND (:excludedAppointmentId IS NULL OR a.id <> :excludedAppointmentId)
+      AND UPPER(TRIM(COALESCE(a.status, ''))) IN (
+            'PENDING',
+            'PENDING_CONFIRMATION',
+            'DRAFT',
+            'WAITING',
+            'IN_PROGRESS',
+            'APPROVED',
+            'CONFIRMED'
+      )
+    """)
+    long countActiveTimeslotConflicts(
+            @Param("appointmentTime") LocalDateTime appointmentTime,
+            @Param("excludedAppointmentId") Long excludedAppointmentId
+    );
+
     List<Appointment> findByStatusOrderByAppointmentTimeAsc(String status);
 
     List<Appointment> findByStatusInOrderByAppointmentTimeAsc(Collection<String> statuses);
@@ -53,6 +96,12 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     );
 
     List<Appointment> findByPatientId(Long patientId);
+
+    boolean existsByPatient_IdNotAndAppointmentTimeAndDoctorIsNotNullAndStatusNotIn(
+            Long patientId,
+            LocalDateTime appointmentTime,
+            Collection<String> statuses
+    );
 
     List<Appointment> findByPatient_IdOrderByAppointmentTimeDesc(Long patientId);
 

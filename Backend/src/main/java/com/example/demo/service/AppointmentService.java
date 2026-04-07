@@ -76,6 +76,8 @@ public class AppointmentService {
         LocalDateTime appointmentTime = resolvePatientAppointmentTime(request);
         String symptoms = resolveSymptoms(request);
 
+        ensureNoConflictWithScheduledPatient(patient.getId(), appointmentTime);
+
         Appointment appointment = new Appointment();
         appointment.setPatient(patient);
         appointment.setAppointmentTime(appointmentTime);
@@ -103,10 +105,10 @@ public class AppointmentService {
 
         LocalDateTime appointmentTime = combineDateAndStartTime(request.getAppointmentDate(), request.getTimeSlot());
 
-        boolean exists = appointmentRepository.existsByDoctor_IdAndAppointmentTimeAndStatusNotIn(
-                doctor.getId(),
-                appointmentTime,
-                RELEASED_SLOT_STATUSES);
+        boolean exists = appointmentRepository.countDoctorScheduleConflicts(
+            doctor.getId(),
+            appointmentTime,
+            null) > 0;
         if (exists) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ đã có lịch hẹn vào thời điểm này");
         }
@@ -140,11 +142,10 @@ public class AppointmentService {
 
     // Chức năng: xử lý đảm bảo có bác sĩ.
     private void ensureDoctorIsAvailable(Long doctorId, LocalDateTime appointmentTime, Long appointmentId) {
-        boolean exists = appointmentRepository.existsByDoctor_IdAndAppointmentTimeAndIdNotAndStatusNotIn(
+        boolean exists = appointmentRepository.countDoctorScheduleConflicts(
                 doctorId,
                 appointmentTime,
-                appointmentId,
-                RELEASED_SLOT_STATUSES);
+                appointmentId) > 0;
         if (exists) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ đã có lịch hẹn vào thời điểm này");
         }
@@ -175,6 +176,19 @@ public class AppointmentService {
         }
 
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Triệu chứng là bắt buộc");
+    }
+
+    // Chức năng: xử lý chặn trùng giờ với lịch của bệnh nhân khác đã được xếp bác sĩ.
+    private void ensureNoConflictWithScheduledPatient(Long patientId, LocalDateTime appointmentTime) {
+        boolean occupied = appointmentRepository.existsByPatient_IdNotAndAppointmentTimeAndDoctorIsNotNullAndStatusNotIn(
+                patientId,
+                appointmentTime,
+                RELEASED_SLOT_STATUSES);
+
+        if (occupied) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Khung giờ này đã có bệnh nhân được xếp lịch. Vui lòng chọn giờ khác");
+        }
     }
 
     // Chức năng: xử lý kết hợp ngày và giờ bắt đầu.
