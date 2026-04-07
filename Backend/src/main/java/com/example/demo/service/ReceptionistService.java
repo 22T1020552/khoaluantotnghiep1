@@ -119,7 +119,7 @@ public class ReceptionistService {
     }
 
     // Chức năng: xử lý duyệt cuộc hẹn.
-    public Appointment approveAppointment(Long appointmentId, Long doctorId, String specialty) {
+    public Appointment approveAppointment(Long appointmentId, Long doctorId, String specialty, LocalDateTime appointmentTime) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
@@ -128,12 +128,19 @@ public class ReceptionistService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ lịch hẹn ở trạng thái PENDING mới có thể được duyệt");
         }
 
-        User doctor = resolveDoctorForAssignment(doctorId, specialty, appointment.getAppointmentTime(),
+        LocalDateTime scheduledTime = resolveApprovedAppointmentTime(appointment.getAppointmentTime(), appointmentTime);
+
+        ensureTimeslotIsAvailable(scheduledTime, appointment.getId());
+
+        User doctor = resolveDoctorForAssignment(doctorId, specialty, scheduledTime,
                 appointment.getId());
 
-        ensureDoctorIsAvailable(doctor.getId(), appointment.getAppointmentTime(), appointment.getId());
+        ensureDoctorHasAssignedRoom(doctor.getId());
+
+        ensureDoctorIsAvailable(doctor.getId(), scheduledTime, appointment.getId());
 
         appointment.setDoctor(doctor);
+        appointment.setAppointmentTime(scheduledTime);
         appointment.setStatus(STATUS_WAITING);
 
         Appointment saved = appointmentRepository.save(appointment);
@@ -142,8 +149,42 @@ public class ReceptionistService {
     }
 
     // Chức năng: xử lý chỉ định bác sĩ và chuyển đến phòng chờ.
-    public Appointment assignDoctorAndMoveToWaiting(Long appointmentId, Long doctorId, String specialty) {
-        return approveAppointment(appointmentId, doctorId, specialty);
+    public Appointment assignDoctorAndMoveToWaiting(Long appointmentId, Long doctorId, String specialty,
+            LocalDateTime appointmentTime) {
+        return approveAppointment(appointmentId, doctorId, specialty, appointmentTime);
+    }
+
+    // Chức năng: xử lý chốt thời gian khám khi lễ tân duyệt lịch.
+    private LocalDateTime resolveApprovedAppointmentTime(LocalDateTime currentTime, LocalDateTime selectedTime) {
+        LocalDateTime resolved = selectedTime == null ? currentTime : selectedTime;
+        if (resolved == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thời gian khám là bắt buộc");
+        }
+
+        if (!resolved.isAfter(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Thời gian khám phải lớn hơn thời điểm hiện tại");
+        }
+
+        return resolved;
+    }
+
+    // Chức năng: xử lý đảm bảo khung giờ chưa có lịch hẹn active khác.
+    private void ensureTimeslotIsAvailable(LocalDateTime appointmentTime, Long appointmentId) {
+        boolean occupied = appointmentRepository.countActiveTimeslotConflicts(appointmentTime, appointmentId) > 0;
+        if (occupied) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Khung giờ này đã có lịch hẹn khác. Vui lòng chọn giờ khác");
+        }
+    }
+
+    // Chức năng: xử lý đảm bảo bác sĩ đã được gán phòng khám.
+    private void ensureDoctorHasAssignedRoom(Long doctorId) {
+        List<Room> rooms = roomRepository.findByCurrentDoctor_Id(doctorId);
+        if (rooms.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Bác sĩ chưa được gán phòng khám. Vui lòng chọn bác sĩ khác");
+        }
     }
 
     // Chức năng: xử lý cập nhật trạng thái chờ.
@@ -198,11 +239,10 @@ public class ReceptionistService {
 
     // Chức năng: xử lý đảm bảo bác sĩ có sẵn.
     private void ensureDoctorIsAvailable(Long doctorId, LocalDateTime appointmentTime, Long appointmentId) {
-        boolean occupied = appointmentRepository.existsByDoctor_IdAndAppointmentTimeAndIdNotAndStatusNotIn(
+        boolean occupied = appointmentRepository.countDoctorScheduleConflicts(
                 doctorId,
                 appointmentTime,
-                appointmentId,
-                RELEASED_SLOT_STATUSES);
+                appointmentId) > 0;
         if (occupied) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ đã có lịch hẹn vào thời điểm này");
         }
@@ -233,11 +273,10 @@ public class ReceptionistService {
 
     // Chức năng: xử lý kiểm tra bác sĩ có rảnh ở khung giờ không.
     private boolean isDoctorAvailable(Long doctorId, LocalDateTime appointmentTime, Long appointmentId) {
-        return !appointmentRepository.existsByDoctor_IdAndAppointmentTimeAndIdNotAndStatusNotIn(
+        return appointmentRepository.countDoctorScheduleConflicts(
                 doctorId,
                 appointmentTime,
-                appointmentId,
-                RELEASED_SLOT_STATUSES);
+            appointmentId) == 0;
     }
 
     // Chức năng: xử lý xác thực quá trình chuyển đổi trạng thái.
