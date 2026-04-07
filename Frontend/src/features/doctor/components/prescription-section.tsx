@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
-import type { Medicine, PrescriptionItem } from "../types";
+import { useEffect, useMemo, useState } from "react";
+import type { Medicine, PrescriptionItem } from "@/types/doctor.type";
 import styles from "@/styles/common.module.css";
 interface PrescriptionSectionProps {
   prescriptions: PrescriptionItem[];
   availableMedicines: Medicine[];
+  catalogMessage?: string | null;
   totalCost: number;
   onAddMedicine: (medicine: Medicine) => void;
   onUpdatePrescription: (
@@ -17,6 +18,7 @@ interface PrescriptionSectionProps {
 export function PrescriptionSection({
   prescriptions,
   availableMedicines,
+  catalogMessage,
   totalCost,
   onAddMedicine,
   onUpdatePrescription,
@@ -27,6 +29,12 @@ export function PrescriptionSection({
     [availableMedicines],
   );
   const [activeCategory, setActiveCategory] = useState<string>(categories[0] ?? "");
+
+  useEffect(() => {
+    if (!categories.includes(activeCategory)) {
+      setActiveCategory(categories[0] ?? "");
+    }
+  }, [activeCategory, categories]);
 
   return (
     <div>
@@ -108,7 +116,9 @@ export function PrescriptionSection({
         </div>
 
         <div className={styles.medicineGrid}>
-          {availableMedicines.filter((medicine) => medicine.category === activeCategory).map((medicine) => (
+          {availableMedicines
+            .filter((medicine) => (activeCategory ? medicine.category === activeCategory : true))
+            .map((medicine) => (
             <div
               key={medicine.id}
               className={styles.medicineItem}
@@ -122,6 +132,10 @@ export function PrescriptionSection({
               <p className={`${styles.textSmall} ${styles.textMuted}`}>Tồn: {medicine.stock_quantity}</p>
             </div>
           ))}
+
+          {availableMedicines.length === 0 && (
+            <p className={styles.textSmall}>{catalogMessage || "Không có thuốc đang hoạt động."}</p>
+          )}
         </div>
       </div>
     </div>
