@@ -1,13 +1,25 @@
-import type { AppointmentWithDetails } from "../mock-data";
+import type { ReceptionistAppointment } from "@/services/receptionistService";
 import styles from "@/styles/common.module.css";
 
 interface PendingAppointmentsProps {
-  appointments: AppointmentWithDetails[];
-  onConfirmClick: (appointment: AppointmentWithDetails) => void;
+  appointments: ReceptionistAppointment[];
+  onConfirmClick: (appointment: ReceptionistAppointment) => void;
   onCancelClick: (id: number) => void;
+  disabled?: boolean;
 }
 
-export function PendingAppointments({ appointments, onConfirmClick, onCancelClick }: PendingAppointmentsProps) {
+export function PendingAppointments({ appointments, onConfirmClick, onCancelClick, disabled = false }: PendingAppointmentsProps) {
+  const toGenderLabel = (gender?: string | null) => {
+    const normalized = (gender ?? "").trim().toUpperCase();
+    if (normalized === "MALE" || normalized === "NAM") {
+      return "Nam";
+    }
+    if (normalized === "FEMALE" || normalized === "NU" || normalized === "NỮ") {
+      return "Nữ";
+    }
+    return "Khác";
+  };
+
   return (
     <div className={styles.card}>
       <h2 className={styles.mb3}>Lịch hẹn chờ xác nhận ({appointments.length})</h2>
@@ -22,25 +34,25 @@ export function PendingAppointments({ appointments, onConfirmClick, onCancelClic
               <div className={styles.flexBetween}>
                 <div>
                   <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "0.5rem" }}>
-                    {appointment.patient.full_name}
+                    {appointment.patient.fullName}
                   </h3>
                   <div style={{ display: "flex", gap: "1rem", fontSize: "0.875rem", color: "#6b7280", marginBottom: "0.75rem" }}>
-                    <span>📞 {appointment.patient.phone_number}</span>
-                    <span>🆔 {appointment.patient.national_id}</span>
-                    <span>👤 {appointment.patient.gender === "male" ? "Nam" : "Nữ"}</span>
+                    <span>📞 {appointment.patient.phoneNumber || "Chưa có"}</span>
+                    <span>🆔 {appointment.patient.nationalId || "Chưa có"}</span>
+                    <span>👤 {toGenderLabel(appointment.patient.gender)}</span>
                   </div>
                   <div style={{ backgroundColor: "#f3f4f6", padding: "0.75rem", borderRadius: "0.375rem" }}>
                     <p style={{ fontSize: "0.875rem", fontWeight: "500", color: "#374151", marginBottom: "0.25rem" }}>
                       Triệu chứng:
                     </p>
-                    <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>{appointment.symptoms}</p>
+                    <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>{appointment.symptoms || "Chưa có"}</p>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button className={`${styles.button} ${styles.primary}`} onClick={() => onConfirmClick(appointment)}>
+                  <button className={`${styles.button} ${styles.primary}`} onClick={() => onConfirmClick(appointment)} disabled={disabled}>
                     Xác nhận
                   </button>
-                  <button className={`${styles.button} ${styles.outline}`} onClick={() => onCancelClick(appointment.id)}>
+                  <button className={`${styles.button} ${styles.outline}`} onClick={() => onCancelClick(appointment.id)} disabled={disabled}>
                     Hủy
                   </button>
                 </div>
