@@ -124,6 +124,9 @@ public class AuthService {
 
         User user = new User();
         user.setUsername(request.getUsername().trim());
+        user.setFullName(request.getFullName().trim());
+        user.setEmail(normalizeEmail(request.getGmail()));
+        user.setPhoneNumber(trimToNull(request.getPhoneNumber()) == null ? "" : request.getPhoneNumber().trim());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(Role.PATIENT);
         user.setIsActive(true);
@@ -303,6 +306,11 @@ public class AuthService {
 
     // Chức năng: tìm user theo email bệnh nhân hoặc username dạng email.
     private User findUserByEmailForReset(String normalizedEmail) {
+        User directUser = userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+        if (directUser != null) {
+            return directUser;
+        }
+
         Patient patient = patientRepository.findByGmailIgnoreCase(normalizedEmail)
                 .orElse(null);
         if (patient != null && patient.getUser() != null) {
