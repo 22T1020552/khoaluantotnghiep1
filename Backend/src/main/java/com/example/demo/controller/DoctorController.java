@@ -18,6 +18,7 @@ import com.example.demo.dto.DoctorPatientHistoryDetailResponse;
 import com.example.demo.dto.DoctorPatientHistoryResponse;
 import com.example.demo.dto.DoctorResponse;
 import com.example.demo.entity.Appointment;
+import com.example.demo.entity.Medicine;
 import com.example.demo.service.DoctorService;
 import com.example.demo.service.MedicalRecordService;
 
@@ -50,6 +51,20 @@ public class DoctorController {
             Authentication authentication,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return doctorService.getMyWaitingPatients(authentication.getName(), date);
+    }
+
+    @GetMapping("/me/completed-patients")
+    @Operation(summary = "Danh sách bệnh nhân đã khám", description = "Lấy danh sách bệnh nhân đã hoàn tất khám của bác sĩ đang đăng nhập.")
+    public List<Appointment> getMyCompletedPatients(
+            Authentication authentication,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return doctorService.getMyCompletedPatients(authentication.getName(), date);
+    }
+
+    @GetMapping("/me/medicines")
+    @Operation(summary = "Danh mục thuốc cho bác sĩ", description = "Lấy danh mục thuốc đang hoạt động để bác sĩ kê đơn.")
+    public List<Medicine> getAvailableMedicines() {
+        return doctorService.getAvailableMedicines();
     }
 
     @PutMapping("/{doctorId}/clinic-room")

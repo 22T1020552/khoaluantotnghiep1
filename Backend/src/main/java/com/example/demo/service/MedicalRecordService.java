@@ -29,6 +29,7 @@ import com.example.demo.dto.PrescriptionWorkspaceResponse;
 import com.example.demo.dto.UpdatePrescriptionDetailRequest;
 import com.example.demo.dto.UpsertMedicalRecordServiceResultRequest;
 import com.example.demo.entity.Appointment;
+import com.example.demo.entity.Invoice;
 import com.example.demo.entity.MedicalRecord;
 import com.example.demo.entity.MedicalRecordServiceDetail;
 import com.example.demo.entity.MedicalRecordServiceId;
@@ -445,6 +446,11 @@ public class MedicalRecordService {
     // Chức năng: xử lý hoàn thành bệnh án.
     public MedicalRecord completeMedicalRecord(String username, Long medicalRecordId) {
         MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+        Appointment appointment = medicalRecord.getAppointment();
+        if (appointment != null) {
+            appointment.setStatus(STATUS_COMPLETED);
+            appointmentRepository.save(appointment);
+        }
         return medicalRecord;
     }
 
@@ -647,7 +653,7 @@ public class MedicalRecordService {
                     return new PrescriptionCatalogMedicineResponse(
                             medicine.getId(),
                             medicine.getMedicineName(),
-                            classifyPharmacologyGroup(medicine.getMedicineName()),
+                            resolvePharmacologyGroup(medicine),
                             extractConcentration(medicine.getMedicineName()),
                             medicine.getUnit(),
                             medicine.getSellingPrice(),
@@ -656,6 +662,19 @@ public class MedicalRecordService {
                             inStock ? null : "Thuốc đã hết trong kho");
                 })
                 .toList();
+    }
+
+    // Chức năng: xử lý ưu tiên nhóm thuốc đã được quản trị khai báo.
+    private String resolvePharmacologyGroup(Medicine medicine) {
+        if (medicine == null) {
+            return GROUP_OTHER;
+        }
+
+        if (medicine.getMedicineType() != null && !medicine.getMedicineType().isBlank()) {
+            return medicine.getMedicineType().trim();
+        }
+
+        return classifyPharmacologyGroup(medicine.getMedicineName());
     }
 
     // Chức năng: xử lý chuẩn hóa nhóm đã chọn.
@@ -755,9 +774,26 @@ public class MedicalRecordService {
 
     // Chức năng: xử lý đảm bảo đơn thuốc có thể chỉnh sửa được.
     private void ensurePrescriptionEditable(MedicalRecord medicalRecord) {
-        if (STATUS_COMPLETED.equalsIgnoreCase(medicalRecord.getAppointment().getStatus())) {
+        Appointment appointment = medicalRecord.getAppointment();
+        if (appointment == null || appointment.getStatus() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Không thể chỉnh sửa đơn thuốc khi lịch hẹn đã hoàn tất");
+                    "Không thể chỉnh sửa đơn thuốc do lịch hẹn không hợp lệ");
+        }
+
+        if (!STATUS_COMPLETED.equalsIgnoreCase(appointment.getStatus())) {
+            return;
+        }
+
+        try {
+            Invoice invoice = invoiceService.getByMedicalRecordId(medicalRecord.getId());
+            if (Boolean.TRUE.equals(invoice.getIsPaid())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Không thể chỉnh sửa đơn thuốc khi bệnh án đã được thanh toán");
+            }
+        } catch (ResponseStatusException ex) {
+            if (!HttpStatus.NOT_FOUND.equals(ex.getStatusCode())) {
+                throw ex;
+            }
         }
     }
 }
