@@ -1,58 +1,127 @@
 'use client';
 
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Stethoscope, Pill, FileText, Activity, LogOut, Link, LayoutDashboard } from "lucide-react";
+import { getApiErrorMessage } from "@/services/api";
+import {
+  patientService,
+  type PatientMedicalRecordDetailResponse,
+  type PatientMedicalRecordHistoryItemResponse,
+  type PatientProfileResponse,
+} from "@/services/patientService";
+import { Activity, Calendar, FileText, Loader2, Pill, Stethoscope } from "lucide-react";
 import styles from "./patient-history.module.css";
-import { MedicalRecord } from "@/types/record.type"; 
+import { toast } from "sonner";
 
-const mockRecords: MedicalRecord[] = [
-  {
-    id: 101,
-    appointment_id: 1,
-    diagnosis: "Viêm họng cấp",
-    doctor_advice: "Kháng sinh + viên ngậm, nghỉ ngơi nhiều, uống nước ấm",
-    created_at: "2026-03-20T10:00:00",
-    appointment: {
-      // Giả sử appointment có chứa thông tin bác sĩ
-      id: 1,
-      doctor: { full_name: "BS. Nguyễn Văn Hùng" }
-    } as any,
-    prescriptionDetails: [
-      {
-        medicine: { medicine_name: "Amoxicillin 500mg", selling_price: 2000 },
-        quantity: 15,
-        usage_instructions: "3 viên/ngày x 5 ngày",
-      } as any,
-      {
-        medicine: { medicine_name: "Strepsils", selling_price: 3000 },
-        quantity: 10,
-        usage_instructions: "Ngậm khi đau",
-      } as any,
-    ],
-    services: [
-      {
-        service: { service_name: "Khám nội chung", current_price: 150000 }
-      } as any
-    ]
+const formatDateTime = (value: string | null | undefined) => {
+  if (!value) {
+    return "Chưa cập nhật";
   }
-];
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+};
+
+const createInitials = (fullName: string | null | undefined) => {
+  if (!fullName) {
+    return "BN";
+  }
+
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return "BN";
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+};
 
 export function PatientHistory() {
-  
-  // Hàm phụ trợ: Tính tổng tiền (Tiền dịch vụ + Tiền thuốc)
-  const calculateTotalCost = (record: MedicalRecord) => {
-    let total = 0;
-    // Cộng tiền dịch vụ
-    if (record.services) {
-      total += record.services.reduce((sum, s) => sum + (s.service?.current_price || 0), 0);
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<PatientProfileResponse | null>(null);
+  const [records, setRecords] = useState<PatientMedicalRecordHistoryItemResponse[]>([]);
+  const [recordDetails, setRecordDetails] = useState<Record<number, PatientMedicalRecordDetailResponse | null>>({});
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadHistory = async () => {
+      try {
+        setLoading(true);
+        const [profileData, historyData] = await Promise.all([
+          patientService.getProfile(),
+          patientService.getMedicalRecordHistory(),
+        ]);
+
+        const sortedRecords = [...historyData].sort(
+          (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+        );
+
+        const details = await Promise.all(
+          sortedRecords.map((record) =>
+            patientService.getMedicalRecordDetail(record.medicalRecordId).catch(() => null)
+          )
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        const detailMap = sortedRecords.reduce<Record<number, PatientMedicalRecordDetailResponse | null>>(
+          (map, record, index) => {
+            map[record.medicalRecordId] = details[index];
+            return map;
+          },
+          {}
+        );
+
+        setProfile(profileData);
+        setRecords(sortedRecords);
+        setRecordDetails(detailMap);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        toast.error(getApiErrorMessage(error, "Không thể tải lịch sử khám bệnh"));
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadHistory();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const patientDisplayName = profile?.fullName || profile?.gmail || "Bệnh nhân";
+  const patientAvatar = useMemo(() => createInitials(patientDisplayName), [patientDisplayName]);
+
+  const calculateTotalCost = (detail: PatientMedicalRecordDetailResponse | null) => {
+    if (!detail) {
+      return 0;
     }
-    // Cộng tiền thuốc
-    if (record.prescriptionDetails) {
-      total += record.prescriptionDetails.reduce((sum, p) => sum + ((p.medicine?.selling_price || 0) * p.quantity), 0);
-    }
-    return total;
+
+    return detail.prescriptionItems.reduce((sum, item) => sum + (item.totalPrice ?? 0), 0);
   };
 
   return (
@@ -67,25 +136,25 @@ export function PatientHistory() {
       {/* Thông tin bệnh nhân */}
       <Card className={styles.patientCard}>
         <div className={styles.patientFlex}>
-          <div className={styles.avatar}>BN</div>
+          <div className={styles.avatar}>{patientAvatar}</div>
           <div className={styles.patientInfo}>
             <h3 className={styles.patientName}>Thông tin bệnh nhân</h3>
             <div className={styles.infoGrid}>
               <div>
                 <span className={styles.infoLabel}>Họ tên:</span>
-                <span className={styles.infoValue}>Nguyễn Văn A</span>
-              </div>
-              <div>
-                <span className={styles.infoLabel}>Ngày sinh:</span>
-                <span className={styles.infoValue}>15/05/1990</span>
+                <span className={styles.infoValue}>{patientDisplayName}</span>
               </div>
               <div>
                 <span className={styles.infoLabel}>SĐT:</span>
-                <span className={styles.infoValue}>0123456789</span>
+                <span className={styles.infoValue}>{profile?.phoneNumber || "Chưa cập nhật"}</span>
+              </div>
+              <div>
+                <span className={styles.infoLabel}>Email:</span>
+                <span className={styles.infoValue}>{profile?.gmail || "Chưa cập nhật"}</span>
               </div>
               <div>
                 <span className={styles.infoLabel}>Mã BHYT:</span>
-                <span className={styles.infoValue}>DN1234567890123</span>
+                <span className={styles.infoValue}>{profile?.healthInsuranceNumber || "Chưa cập nhật"}</span>
               </div>
             </div>
           </div>
@@ -94,10 +163,21 @@ export function PatientHistory() {
 
       {/* Danh sách Hồ sơ bệnh án */}
       <div>
-        <h2 className={styles.sectionTitle}>Hồ sơ khám bệnh ({mockRecords.length})</h2>
-        
-        {mockRecords.map((record) => (
-          <Card key={record.id} className={styles.recordCard}>
+        <h2 className={styles.sectionTitle}>Hồ sơ khám bệnh ({records.length})</h2>
+
+        {loading && (
+          <Card className={styles.emptyState}>
+            <Loader2 size={24} className="animate-spin" />
+            <p>Đang tải hồ sơ khám bệnh...</p>
+          </Card>
+        )}
+
+        {!loading && records.map((record) => {
+          const detail = recordDetails[record.medicalRecordId] ?? null;
+          const totalCost = calculateTotalCost(detail);
+
+          return (
+          <Card key={record.medicalRecordId} className={styles.recordCard}>
             
             {/* Record Header */}
             <div className={styles.recordHeader}>
@@ -109,22 +189,20 @@ export function PatientHistory() {
                   <div className={styles.badgeGroup}>
                     <Badge variant="secondary" className={styles.customBadge}>
                       <Calendar size={12} style={{ marginRight: '4px' }} />
-                      {/* Format ngày tạo bệnh án */}
-                      {new Date(record.created_at).toLocaleDateString("vi-VN")} 
+                      {formatDateTime(record.createdAt)}
                     </Badge>
                     <Badge variant="secondary" className={styles.customBadge}>
                       <Stethoscope size={12} style={{ marginRight: '4px' }} />
-                      {/* Lấy tên bác sĩ từ appointment */}
-                      {record.appointment?.doctor?.username || "Chưa cập nhật"}
+                      {detail?.doctorUsername || record.doctorUsername || "Chưa cập nhật"}
                     </Badge>
                   </div>
-                  <p className={styles.recordId}>Mã hồ sơ: #{record.id}</p>
+                  <p className={styles.recordId}>Mã hồ sơ: #{record.medicalRecordId}</p>
                 </div>
               </div>
               <div className={styles.costRight}>
-                <p className={styles.costLabel}>Tổng chi phí</p>
+                <p className={styles.costLabel}>Tổng tiền thuốc</p>
                 <p className={styles.costValue}>
-                  {calculateTotalCost(record).toLocaleString("vi-VN")}đ
+                  {totalCost.toLocaleString("vi-VN")}đ
                 </p>
               </div>
             </div>
@@ -134,44 +212,38 @@ export function PatientHistory() {
               
               <div className={`${styles.block} ${styles.blockBlue}`}>
                 <p className={styles.blockTitleBlue}>Chẩn đoán:</p>
-                <p className={styles.blockTextBlue}>{record.diagnosis}</p>
+                <p className={styles.blockTextBlue}>{detail?.diagnosis || record.diagnosis || "Chưa cập nhật"}</p>
               </div>
 
               <div className={`${styles.block} ${styles.blockGreen}`}>
                 <p className={styles.blockTitleGreen}>Lời khuyên / Điều trị:</p>
-                {/* Đổi từ treatment sang doctor_advice */}
-                <p className={styles.blockTextGreen}>{record.doctor_advice}</p> 
+                <p className={styles.blockTextGreen}>{detail?.doctorAdvice || record.doctorAdvice || "Chưa cập nhật"}</p>
               </div>
 
-              {/* Danh sách Dịch vụ khám (Mới thêm dựa theo Interface của bạn) */}
-              {record.services && record.services.length > 0 && (
+              {/* Danh sách Dịch vụ cận lâm sàng chưa có endpoint chi tiết ở phía patient API */}
+              {record.appointmentTime && (
                 <div className={`${styles.block} ${styles.blockBlue}`} style={{ backgroundColor: '#f0f9ff' }}>
                   <div className={styles.blockTitleBlue} style={{ color: '#0369a1' }}>
-                    <Activity size={16} /> Dịch vụ cận lâm sàng:
+                    <Activity size={16} /> Thời gian khám:
                   </div>
                   <ul className={styles.medList} style={{ color: '#0ea5e9' }}>
-                    {record.services.map((srv, idx) => (
-                      <li key={idx}>
-                        {srv.service?.service_name}
-                      </li>
-                    ))}
+                    <li>{formatDateTime(record.appointmentTime)}</li>
                   </ul>
                 </div>
               )}
 
               {/* Danh sách Thuốc */}
-              {record.prescriptionDetails && record.prescriptionDetails.length > 0 && (
+              {detail?.prescriptionItems && detail.prescriptionItems.length > 0 && (
                 <div className={`${styles.block} ${styles.blockPurple}`}>
                   <div className={styles.blockTitlePurple}>
                     <Pill size={16} /> Đơn thuốc:
                   </div>
                   <ul className={styles.medList}>
-                    {/* Map từ mảng prescriptionDetails ra hiển thị */}
-                    {record.prescriptionDetails.map((detail, idx) => (
+                    {detail.prescriptionItems.map((item, idx) => (
                       <li key={idx}>
-                        <span style={{ fontWeight: 500 }}>{detail.medicine?.medicine_name}</span> 
-                        {' - Số lượng: '}{detail.quantity}
-                        {' - Cách dùng: '}{detail.usage_instructions}
+                        <span style={{ fontWeight: 500 }}>{item.medicineName || "Thuốc"}</span>
+                        {' - Số lượng: '}{item.quantity ?? 0}
+                        {' - Cách dùng: '}{item.usageInstructions || "Chưa cập nhật"}
                       </li>
                     ))}
                   </ul>
@@ -180,10 +252,11 @@ export function PatientHistory() {
 
             </div>
           </Card>
-        ))}
+        );
+        })}
 
         {/* Empty State */}
-        {mockRecords.length === 0 && (
+        {!loading && records.length === 0 && (
           <Card className={styles.emptyState}>
             <FileText size={48} color="#d1d5db" />
             <p>Chưa có hồ sơ khám bệnh</p>

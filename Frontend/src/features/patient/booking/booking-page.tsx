@@ -1,43 +1,19 @@
 'use client';
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
-import { CheckCircle } from "lucide-react";
 import { toast } from "sonner";
-import { BookingForm } from "./components/booking-form"; // Import form vào đây
+import { BookingForm } from "./components/booking-form"; 
 import styles from "./booking.module.css";
 
 export function BookingPageContent() {
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const router = useRouter();
 
-  // Hàm này sẽ được truyền vào BookingForm
-  const handleBookingSuccess = () => {
-    setIsSubmitted(true);
+  const handleBookingSuccess = (appointmentId: number) => {
     toast.success("Đặt lịch khám thành công!");
-
-    // Sau 3 giây, tắt màn hình thành công, quay lại form trống
-    setTimeout(() => {
-      setIsSubmitted(false);
-    }, 3000);
+    router.push(`/appointments?createdId=${appointmentId}`);
   };
 
-  // Nếu đã submit, chỉ hiện thị Card Thành Công
-  if (isSubmitted) {
-    return (
-      <div className={styles.centerContainer}>
-        <Card className={styles.successCard}>
-          <div className={styles.iconWrapper}>
-            <CheckCircle className={styles.iconSuccess} />
-          </div>
-          <h2 className={styles.successTitle}>Đặt lịch thành công!</h2>
-          <p className={styles.successText}>Cảm ơn bạn đã đặt lịch khám tại phòng khám của chúng tôi.</p>
-          <p className={styles.successSubtext}>Lễ tân sẽ liên hệ với bạn sớm nhất để xác nhận lịch hẹn.</p>
-        </Card>
-      </div>
-    );
-  }
-
-  // Mặc định hiện thị Layout chứa BookingForm
   return (
     <div className={styles.container}>
       <div className={styles.formWrapper}>

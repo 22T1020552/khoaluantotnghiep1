@@ -1,20 +1,37 @@
 'use client';
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, User, CreditCard, FileText } from "lucide-react";
+import { getApiErrorMessage } from "@/services/api";
+import { patientService } from "@/services/patientService";
+import { Calendar, CreditCard, FileText, Loader2, User } from "lucide-react";
 import { toast } from "sonner";
 import styles from "../booking.module.css";
 
 // Định nghĩa props để truyền sự kiện ra ngoài component cha
 interface BookingFormProps {
-  onSuccess: () => void;
+  onSuccess: (appointmentId: number) => void;
 }
 
+const toApiDateTime = (value: string) => {
+  const normalized = value.trim();
+  if (!normalized) {
+    return normalized;
+  }
+
+  // Backend expects LocalDateTime in yyyy-MM-dd'T'HH:mm:ss.
+  if (normalized.length === 16) {
+    return `${normalized}:00`;
+  }
+
+  return normalized;
+};
+
 export function BookingForm({ onSuccess }: BookingFormProps) {
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     dateOfBirth: "",
@@ -22,21 +39,66 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
     phone: "",
     idNumber: "",
     insuranceNumber: "",
+    appointmentTime: "",
     reason: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    let isMounted = true;
 
-    if (!formData.fullName || !formData.dateOfBirth || !formData.phone || !formData.reason) {
+    const loadProfile = async () => {
+      try {
+        const profile = await patientService.getProfile();
+        if (!isMounted) {
+          return;
+        }
+
+        setFormData((prev) => ({
+          ...prev,
+          fullName: profile.fullName ?? "",
+          phone: profile.phoneNumber ?? "",
+          idNumber: profile.nationalId ?? "",
+          insuranceNumber: profile.healthInsuranceNumber ?? "",
+        }));
+      } catch {
+        // Do not block form usage when profile API fails.
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const normalizedReason = formData.reason.trim();
+
+    if (!formData.fullName || !formData.dateOfBirth || !formData.phone || !formData.reason || !formData.appointmentTime) {
       toast.error("Vui lòng điền đầy đủ thông tin bắt buộc");
       return;
     }
 
-    // Ở tuần 3, bạn sẽ gọi API ở đây: await appointmentService.create(...)
-    
-    // Báo ra ngoài Component Cha là đã thành công
-    onSuccess();
+    if (normalizedReason.length < 5) {
+      toast.error("Lý do khám cần tối thiểu 5 ký tự");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const createdAppointment = await patientService.createAppointment({
+        appointmentTime: toApiDateTime(formData.appointmentTime),
+        symptoms: normalizedReason,
+      });
+
+      onSuccess(createdAppointment.id);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể đặt lịch khám"));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -91,16 +153,38 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
           <FileText className={styles.sectionIcon} />
           <h2 className={styles.sectionTitle}>Thông tin khám bệnh</h2>
         </div>
-        <div>
-          <Label htmlFor="reason">Lý do khám / Triệu chứng <span className={styles.required}>*</span></Label>
-          <Textarea id="reason" value={formData.reason} onChange={(e) => setFormData({ ...formData, reason: e.target.value })} placeholder="Mô tả triệu chứng..." rows={4} required />
+        <div className={styles.fieldGroup}>
+          <Label htmlFor="appointmentTime" className={styles.fieldLabel}>
+            Thời gian hẹn <span className={styles.required}>*</span>
+          </Label>
+          <Input
+            id="appointmentTime"
+            type="datetime-local"
+            value={formData.appointmentTime}
+            onChange={(e) => setFormData({ ...formData, appointmentTime: e.target.value })}
+            required
+          />
+        </div>
+        <div className={styles.fieldGroup}>
+          <Label htmlFor="reason" className={styles.fieldLabel}>
+            Lý do khám / Triệu chứng <span className={styles.required}>*</span>
+          </Label>
+          <Textarea
+            id="reason"
+            className={styles.reasonTextarea}
+            value={formData.reason}
+            onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+            placeholder="Mô tả triệu chứng..."
+            rows={4}
+            required
+          />
         </div>
       </div>
 
       <div className={styles.actions}>
-        <Button type="submit" className={styles.submitBtn} size="lg">
-          <Calendar className="w-5 h-5 mr-2" />
-          Đặt lịch khám
+        <Button type="submit" className={styles.submitBtn} size="lg" disabled={submitting}>
+          {submitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Calendar className="w-5 h-5 mr-2" />}
+          {submitting ? "Đang gửi..." : "Đặt lịch khám"}
         </Button>
       </div>
     </form>

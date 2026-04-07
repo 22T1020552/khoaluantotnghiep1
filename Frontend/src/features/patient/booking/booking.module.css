@@ -148,6 +148,20 @@
   color: #ef4444;
 }
 
+.fieldGroup {
+  width: 100%;
+}
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 0.55rem;
+}
+
+.reasonTextarea {
+  width: 100%;
+  min-height: 132px;
+}
+
 .actions {
   display: flex;
   gap: 1rem;

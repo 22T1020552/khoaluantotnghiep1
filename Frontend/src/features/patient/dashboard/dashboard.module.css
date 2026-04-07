@@ -19,26 +19,39 @@
 .logoContainer {
   padding: 24px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 
 .logoIcon {
-  width: 32px;
-  height: 32px;
-  background-color: #2563eb;
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(145deg, #0a86a5, #08a172);
   color: white;
-  border-radius: 8px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
+  font-size: 24px;
+  font-weight: 700;
 }
 
 .logoText {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
+  line-height: 1.2;
   font-weight: 700;
-  color: #1e293b;
+  color: #153744;
+}
+
+.logoTextWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.logoSubtitle {
+  font-size: 0.84rem;
+  color: #5a7580;
 }
 
 .nav {
