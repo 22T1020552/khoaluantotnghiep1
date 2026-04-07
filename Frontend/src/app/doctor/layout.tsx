@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { LayoutDashboard, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { BrandLogo } from '@/components/layout/brand-logo';
+import { useAuth } from '@/hooks/useAuth';
 import styles from '@/styles/common.module.css';
 
 export default function DoctorLayout({
@@ -13,8 +15,10 @@ export default function DoctorLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const { username, logout } = useAuth();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     toast.success('Đăng xuất thành công');
     router.push('/');
   };
@@ -22,10 +26,7 @@ export default function DoctorLayout({
   return (
     <div className={styles.pageLayout}>
       <aside className={styles.sidebar}>
-        <div className={styles.logoContainer}>
-          <div className={styles.logoIcon}>+</div>
-          <span className={styles.logoText}>MEDICARE</span>
-        </div>
+        <BrandLogo className={styles.logoContainer} />
 
         <nav className={styles.nav}>
           <Link href="/doctor" className={`${styles.navItem} ${styles.active}`}>
@@ -37,11 +38,11 @@ export default function DoctorLayout({
           <div className={styles.userInfo}>
             <img src="https://github.com/shadcn.png" alt="Avatar" className={styles.avatar} />
             <div>
-              <div className={styles.userName}>Bác sĩ trực</div>
+              <div className={styles.userName}>{username || 'Bác sĩ trực'}</div>
               <div className={styles.userRole}>Khoa khám bệnh</div>
             </div>
           </div>
-          <button className={`${styles.navItem} ${styles.logoutButton}`} type="button" onClick={handleLogout}>
+          <button className={`${styles.navItem} ${styles.logoutButton}`} type="button" onClick={() => void handleLogout()}>
             <LogOut size={20} /> Đăng xuất
           </button>
         </div>

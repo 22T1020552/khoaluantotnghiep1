@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -28,13 +29,7 @@ export function LandingPage() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div className={styles.container}>
-          <div className={styles.brand}>
-            <div className={styles.brandIcon}>+</div>
-            <div>
-              <h1 className={styles.brandTitle}>Phòng Khám Đa Khoa</h1>
-              <p className={styles.brandSubtitle}>Chăm sóc sức khỏe toàn diện</p>
-            </div>
-          </div>
+          <BrandLogo titleAs="h1" />
 
           <nav className={styles.nav}>
             <a href="#services">Dịch vụ</a>
@@ -63,11 +58,11 @@ export function LandingPage() {
               </p>
               <div className={styles.heroActions}>
                 <Link href="/signin">
-                  <Button size="lg">Đăng nhập hệ thống</Button>
+                  <Button size="lg">Đặt lịch khám</Button>
                 </Link>
-                <a className={styles.contactLink} href="#contact">
-                  Tư vấn nhanh
-                </a>
+                <Link href="/signup">
+                  <Button variant="outline">Đăng ký tài khoản mới</Button>
+                </Link>
               </div>
             </div>
 

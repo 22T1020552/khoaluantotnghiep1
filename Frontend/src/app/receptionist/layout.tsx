@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
+import { BrandLogo } from '@/components/layout/brand-logo';
+import { useAuth } from '@/hooks/useAuth';
 import styles from '@/styles/common.module.css';
 
 export default function ReceptionistLayout({
@@ -14,8 +16,10 @@ export default function ReceptionistLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { username, logout } = useAuth();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     toast.success('Đăng xuất thành công');
     router.push('/');
   };
@@ -26,10 +30,7 @@ export default function ReceptionistLayout({
   return (
     <div className={styles.pageLayout}>
       <aside className={styles.sidebar}>
-        <div className={styles.logoContainer}>
-          <div className={styles.logoIcon}>+</div>
-          <span className={styles.logoText}>MEDICARE</span>
-        </div>
+        <BrandLogo className={styles.logoContainer} />
 
         <nav className={styles.nav}>
           <Link href="/receptionist" className={`${styles.navItem} ${isActive ? styles.active : ''}`}>
@@ -41,7 +42,7 @@ export default function ReceptionistLayout({
           <div className={styles.userInfo}>
             <img src="https://github.com/shadcn.png" alt="Avatar" className={styles.avatar} />
             <div>
-              <div className={styles.userName}>Lễ tân trực</div>
+              <div className={styles.userName}>{username || 'Lễ tân trực'}</div>
               <div className={styles.userRole}>Quầy tiếp nhận</div>
             </div>
           </div>

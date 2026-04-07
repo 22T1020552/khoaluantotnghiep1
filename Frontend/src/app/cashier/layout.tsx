@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, LogOut, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
+import { BrandLogo } from '@/components/layout/brand-logo';
+import { useAuth } from '@/hooks/useAuth';
 import styles from '@/styles/common.module.css';
 
 export default function CashierLayout({
@@ -14,8 +16,10 @@ export default function CashierLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { username, logout } = useAuth();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     toast.success('Đăng xuất thành công');
     router.push('/');
   };
@@ -26,10 +30,7 @@ export default function CashierLayout({
   return (
     <div className={styles.pageLayout}>
       <aside className={styles.sidebar}>
-        <div className={styles.logoContainer}>
-          <div className={styles.logoIcon}>+</div>
-          <span className={styles.logoText}>MEDICARE</span>
-        </div>
+        <BrandLogo className={styles.logoContainer} />
 
         <nav className={styles.nav}>
           <Link href="/cashier" className={`${styles.navItem} ${isPaymentActive ? styles.active : ''}`}>
@@ -44,11 +45,11 @@ export default function CashierLayout({
           <div className={styles.userInfo}>
             <img src="https://github.com/shadcn.png" alt="Avatar" className={styles.avatar} />
             <div>
-              <div className={styles.userName}>Thu ngân trực</div>
+              <div className={styles.userName}>{username || 'Thu ngân trực'}</div>
               <div className={styles.userRole}>Quầy thanh toán</div>
             </div>
           </div>
-          <button className={`${styles.navItem} ${styles.logoutButton}`} type="button" onClick={handleLogout}>
+          <button className={`${styles.navItem} ${styles.logoutButton}`} type="button" onClick={() => void handleLogout()}>
             <LogOut size={20} /> Đăng xuất
           </button>
         </div>
