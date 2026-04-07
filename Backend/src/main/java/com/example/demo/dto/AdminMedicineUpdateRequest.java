@@ -10,16 +10,16 @@ import lombok.Data;
 @Data
 public class AdminMedicineUpdateRequest {
 
-    @Size(max = 200, message = "medicineName must be at most 200 characters")
+    @Size(max = 200, message = "Tên thuốc tối đa 200 ký tự")
     private String medicineName;
 
-    @Size(max = 50, message = "unit must be at most 50 characters")
+    @Size(max = 50, message = "Đơn vị tối đa 50 ký tự")
     private String unit;
 
-    @DecimalMin(value = "0", message = "sellingPrice must be greater than or equal to 0")
+    @DecimalMin(value = "0", message = "Giá bán phải lớn hơn hoặc bằng 0")
     private BigDecimal sellingPrice;
 
-    @Min(value = 0, message = "stockQuantity must be greater than or equal to 0")
+    @Min(value = 0, message = "Số lượng tồn phải lớn hơn hoặc bằng 0")
     private Integer stockQuantity;
 
     private Boolean isActive;

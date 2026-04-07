@@ -40,11 +40,11 @@ public class DoctorService {
     // Chức năng: cập nhật phòng khám cho bác sĩ.
     public DoctorResponse updateClinicRoom(Long doctorId, String clinicRoom) {
         if (clinicRoom == null || clinicRoom.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clinicRoom is required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phòng khám là bắt buộc");
         }
 
         User doctor = userRepository.findByIdAndRole(doctorId, Role.DOCTOR)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bác sĩ"));
 
         String normalizedRoomName = clinicRoom.trim();
 
@@ -67,7 +67,7 @@ public class DoctorService {
     // Chức năng: lấy danh sách bệnh nhân đang chờ khám.
     public List<Appointment> getMyWaitingPatients(String username, LocalDate date) {
         User doctor = userRepository.findByUsernameAndRole(username, Role.DOCTOR)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor account not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản bác sĩ"));
 
         if (date != null) {
             LocalDateTime from = date.atStartOfDay();

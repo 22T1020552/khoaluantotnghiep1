@@ -27,32 +27,32 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Tag(
     name = "Receptionist",
-    description = "Nghiep vu le tan: duyet lich hen, phan cong bac si, quan ly hang doi cho kham va huy lich.")
+    description = "Nghiệp vụ le tan: duyet lich hen, phan cong bac si, quan ly hang doi cho kham va huy lich.")
 public class ReceptionistController {
 
     private final ReceptionistService receptionistService;
 
     @GetMapping("/appointments/today")
-    @Operation(summary = "Lich hen hom nay")
+    @Operation(summary = "Lịch hẹn hôm nay")
     public List<Appointment> getTodayAppointments() {
         return receptionistService.getTodayAppointments();
     }
 
     @GetMapping("/appointments/from-booking")
-    @Operation(summary = "Lich hen tu kenh dat lich")
+    @Operation(summary = "Lịch hẹn từ kênh đặt lịch")
     public List<Appointment> getFromBookingList() {
         return receptionistService.getAppointmentsFromBookingList();
     }
 
     @GetMapping("/doctors/by-specialty")
-    @Operation(summary = "Danh sach bac si theo chuyen khoa")
+    @Operation(summary = "Danh sách bác sĩ theo chuyen khoa")
     public List<ReceptionistDoctorOptionResponse> getDoctorsBySpecialty(
             @RequestParam(required = false) String specialty) {
         return receptionistService.getDoctorsBySpecialty(specialty);
     }
 
     @PutMapping("/appointments/{appointmentId}/approve")
-    @Operation(summary = "Duyet lich hen")
+    @Operation(summary = "Duyệt lịch hẹn")
     public Appointment approveAppointment(
             @PathVariable Long appointmentId,
             @Valid @RequestBody ReceptionistApproveRequest request) {
@@ -60,7 +60,7 @@ public class ReceptionistController {
     }
 
     @PutMapping("/appointments/{appointmentId}/assign-doctor")
-    @Operation(summary = "Phan cong bac si va chuyen hang cho")
+    @Operation(summary = "Phân công bác sĩ va chuyen hang cho")
     public Appointment assignDoctorAndMoveToWaiting(
             @PathVariable Long appointmentId,
             @Valid @RequestBody ReceptionistApproveRequest request) {
@@ -74,7 +74,7 @@ public class ReceptionistController {
     }
 
     @PutMapping("/appointments/{appointmentId}/waiting-status")
-    @Operation(summary = "Cap nhat trang thai hang cho")
+    @Operation(summary = "Cập nhật trạng thái hàng chờ")
     public Appointment updateWaitingStatus(
             @PathVariable Long appointmentId,
             @Valid @RequestBody ReceptionistWaitingStatusUpdateRequest request) {
@@ -82,7 +82,7 @@ public class ReceptionistController {
     }
 
     @PutMapping("/appointments/{appointmentId}/cancel")
-    @Operation(summary = "Huy lich hen boi le tan")
+    @Operation(summary = "Hủy lịch hẹn bởi lễ tân")
     public Appointment cancelAppointmentByReceptionist(
             @PathVariable Long appointmentId,
             @RequestBody ReceptionistCancelAppointmentRequest request) {

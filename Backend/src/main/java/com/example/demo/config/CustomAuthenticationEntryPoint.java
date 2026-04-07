@@ -14,26 +14,27 @@ import com.example.demo.config.CustomAccessDeniedHandler.ErrorResponse;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
-                         AuthenticationException authException) throws IOException, ServletException {
-        
+            AuthenticationException authException) throws IOException, ServletException {
+
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 
         ErrorResponse errorResponse = new ErrorResponse(
                 HttpServletResponse.SC_UNAUTHORIZED,
-                "Unauthorized - Authentication required",
+                "Chưa xác thực - Vui lòng đăng nhập",
                 request.getServletPath(),
                 LocalDateTime.now(),
-                "Missing or invalid JWT token. Please login first."
-        );
+                "Thiếu JWT hoặc JWT không hợp lệ. Vui lòng đăng nhập lại.");
 
         response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }

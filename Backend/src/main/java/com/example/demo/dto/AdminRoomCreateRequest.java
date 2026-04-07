@@ -7,7 +7,7 @@ import lombok.Data;
 @Data
 public class AdminRoomCreateRequest {
 
-    @NotBlank(message = "roomName is required")
-    @Size(max = 100, message = "roomName must be at most 100 characters")
+    @NotBlank(message = "Tên phòng là bắt buộc")
+    @Size(max = 100, message = "Tên phòng tối đa 100 ký tự")
     private String roomName;
 }

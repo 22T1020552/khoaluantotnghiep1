@@ -6,6 +6,6 @@ import lombok.Data;
 @Data
 public class DoctorClinicRoomRequest {
 
-    @NotBlank(message = "clinicRoom is required")
+    @NotBlank(message = "Phòng khám là bắt buộc")
     private String clinicRoom;
 }

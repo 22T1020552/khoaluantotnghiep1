@@ -11,15 +11,15 @@ import lombok.Data;
 @Data
 public class AdminCreateUserRequest {
 
-    @NotBlank(message = "username is required")
-    @Pattern(regexp = "^[a-zA-Z0-9._-]{4,50}$", message = "username must be 4-50 chars and contain no spaces")
+    @NotBlank(message = "Tên đăng nhập là bắt buộc")
+    @Pattern(regexp = "^[a-zA-Z0-9._-]{4,50}$", message = "Tên đăng nhập phải từ 4-50 ký tự và không chứa khoảng trắng")
     private String username;
 
-    @NotBlank(message = "password is required")
-    @Size(min = 6, max = 100, message = "password must be between 6 and 100 characters")
+    @NotBlank(message = "Mật khẩu là bắt buộc")
+    @Size(min = 6, max = 100, message = "Mật khẩu phải từ 6 đến 100 ký tự")
     private String password;
 
-    @NotNull(message = "role is required")
+    @NotNull(message = "Vai trò là bắt buộc")
     private Role role;
 
     private Boolean isActive;

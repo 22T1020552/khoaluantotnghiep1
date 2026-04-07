@@ -8,12 +8,12 @@ import lombok.Data;
 @Data
 public class ResetPasswordWithOtpRequest {
 
-    @NotBlank(message = "email is required")
-    @Email(message = "email is invalid")
-    @Size(max = 100, message = "email must be <= 100 characters")
+    @NotBlank(message = "Email là bắt buộc")
+    @Email(message = "Email không hợp lệ")
+    @Size(max = 100, message = "Email tối đa 100 ký tự")
     private String email;
 
-    @NotBlank(message = "newPassword is required")
-    @Size(min = 6, max = 100, message = "newPassword must be between 6 and 100 characters")
+    @NotBlank(message = "Mật khẩu mới là bắt buộc")
+    @Size(min = 6, max = 100, message = "Mật khẩu mới phải từ 6 đến 100 ký tự")
     private String newPassword;
 }

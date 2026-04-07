@@ -8,6 +8,6 @@ public class ReceptionistApproveRequest {
 
     private Long doctorId;
 
-    @Size(max = 100, message = "specialty must be <= 100 characters")
+    @Size(max = 100, message = "Chuyên khoa tối đa 100 ký tự")
     private String specialty;
 }

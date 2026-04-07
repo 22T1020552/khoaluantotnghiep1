@@ -6,6 +6,6 @@ import lombok.Data;
 @Data
 public class ReceptionistWaitingStatusUpdateRequest {
 
-    @NotBlank(message = "status is required")
+    @NotBlank(message = "Trạng thái là bắt buộc")
     private String status;
 }

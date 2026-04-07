@@ -31,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Tag(
     name = "Doctor",
-    description = "Nghiep vu bac si: danh sach bac si, hang doi cho kham, cap nhat phong va xem lich su benh an."
+    description = "Nghiệp vụ bac si: danh sach bac si, hang doi cho kham, cap nhat phong va xem lich su benh an."
 )
 public class DoctorController {
 
@@ -39,13 +39,13 @@ public class DoctorController {
     private final MedicalRecordService medicalRecordService;
 
     @GetMapping
-    @Operation(summary = "Danh sach bac si", description = "Lay danh sach bac si hien co.")
+    @Operation(summary = "Danh sách bác sĩ", description = "Lấy danh sách bác sĩ hiện có.")
     public List<DoctorResponse> getAllDoctors() {
         return doctorService.getAllDoctors();
     }
 
     @GetMapping("/me/waiting-patients")
-    @Operation(summary = "Danh sach benh nhan dang cho", description = "Lay danh sach benh nhan dang cho kham cua bac si dang dang nhap.")
+    @Operation(summary = "Danh sách bệnh nhân đang chờ", description = "Lấy danh sách bệnh nhân đang chờ khám của bác sĩ đang đăng nhập.")
     public List<Appointment> getMyWaitingPatients(
             Authentication authentication,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -53,7 +53,7 @@ public class DoctorController {
     }
 
     @PutMapping("/{doctorId}/clinic-room")
-    @Operation(summary = "Cap nhat phong kham", description = "Cap nhat thong tin phong kham phu trach cua bac si.")
+    @Operation(summary = "Cập nhật phòng kham", description = "Cập nhật thông tin phòng khám phụ trách của bác sĩ.")
     public DoctorResponse updateClinicRoom(
             @PathVariable Long doctorId,
             @Valid @RequestBody DoctorClinicRoomRequest request) {
@@ -61,7 +61,7 @@ public class DoctorController {
     }
 
     @GetMapping("/appointments/{appointmentId}/patient-history")
-    @Operation(summary = "Lich su benh an tong quan", description = "Lay tong quan lich su benh an cua benh nhan theo cuoc hen.")
+    @Operation(summary = "Lịch sử bệnh án tổng quan", description = "Lấy tổng quan lịch sử bệnh án của bệnh nhân theo cuộc hẹn.")
     public DoctorPatientHistoryResponse getPatientHistorySummary(
             Authentication authentication,
             @PathVariable Long appointmentId) {
@@ -69,7 +69,7 @@ public class DoctorController {
     }
 
     @GetMapping("/appointments/{appointmentId}/patient-history/{medicalRecordId}")
-    @Operation(summary = "Lich su benh an chi tiet", description = "Lay chi tiet mot benh an cu the de bac si doi chieu khi kham.")
+    @Operation(summary = "Lịch sử bệnh án chi tiết", description = "Lấy chi tiết một bệnh án cụ thể để bác sĩ đối chiếu khi khám.")
     public DoctorPatientHistoryDetailResponse getPatientHistoryDetail(
             Authentication authentication,
             @PathVariable Long appointmentId,

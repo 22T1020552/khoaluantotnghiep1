@@ -9,31 +9,31 @@ import lombok.Data;
 @Data
 public class PatientRegisterRequest {
 
-    @NotBlank(message = "username is required")
-    @Pattern(regexp = "^[a-zA-Z0-9._-]{4,50}$", message = "username must be 4-50 chars and contain no spaces")
+    @NotBlank(message = "Tên đăng nhập là bắt buộc")
+    @Pattern(regexp = "^[a-zA-Z0-9._-]{4,50}$", message = "Tên đăng nhập phải từ 4-50 ký tự và không chứa khoảng trắng")
     private String username;
 
-    @NotBlank(message = "password is required")
-    @Size(min = 6, max = 100, message = "password must be between 6 and 100 characters")
+    @NotBlank(message = "Mật khẩu là bắt buộc")
+    @Size(min = 6, max = 100, message = "Mật khẩu phải từ 6 đến 100 ký tự")
     private String password;
 
-    @NotBlank(message = "fullName is required")
-    @Size(max = 100, message = "fullName must be <= 100 characters")
+    @NotBlank(message = "Họ và tên là bắt buộc")
+    @Size(max = 100, message = "Họ và tên tối đa 100 ký tự")
     private String fullName;
 
-    @Size(max = 10, message = "gender must be <= 10 characters")
+    @Size(max = 10, message = "Giới tính tối đa 10 ký tự")
     private String gender;
 
-    @Size(max = 20, message = "nationalId must be <= 20 characters")
+    @Size(max = 20, message = "Số CCCD/CMND tối đa 20 ký tự")
     private String nationalId;
 
-    @Size(max = 20, message = "healthInsuranceNumber must be <= 20 characters")
+    @Size(max = 20, message = "Số BHYT tối đa 20 ký tự")
     private String healthInsuranceNumber;
 
-    @Size(max = 15, message = "phoneNumber must be <= 15 characters")
+    @Size(max = 15, message = "Số điện thoại tối đa 15 ký tự")
     private String phoneNumber;
 
-    @Email(message = "gmail must be a valid email")
-    @Size(max = 100, message = "gmail must be <= 100 characters")
+    @Email(message = "Email không hợp lệ")
+    @Size(max = 100, message = "Email tối đa 100 ký tự")
     private String gmail;
 }

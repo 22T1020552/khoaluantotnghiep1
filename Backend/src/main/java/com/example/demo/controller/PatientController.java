@@ -30,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Tag(
     name = "Patient",
-    description = "Nghiep vu benh nhan: xem ho so, dat lich, theo doi lich hen va lich su benh an."
+    description = "Nghiệp vụ benh nhan: xem ho so, dat lich, theo doi lich hen va lich su benh an."
 )
 public class PatientController {
 
@@ -38,31 +38,31 @@ public class PatientController {
     private final PatientService patientService;
 
     @GetMapping("/profile")
-    @Operation(summary = "Thong tin ho so benh nhan")
+    @Operation(summary = "Thông tin hồ sơ bệnh nhân")
     public PatientPrefillResponse getProfile(@RequestParam(required = false) Long patientId) {
         return appointmentService.getPatientPrefill(patientId);
     }
 
     @PostMapping("/appointments")
-    @Operation(summary = "Dat lich kham")
+    @Operation(summary = "Đặt lịch khám")
     public Appointment createAppointment(@Valid @RequestBody PatientAppointmentRequest request) {
         return appointmentService.createAppointmentForPatient(request);
     }
 
     @GetMapping("/appointments")
-    @Operation(summary = "Danh sach lich hen cua toi")
+    @Operation(summary = "Danh sách lịch hẹn cua toi")
     public List<Appointment> getMyAppointments(Authentication authentication) {
         return appointmentService.getMyAppointments(authentication.getName());
     }
 
     @GetMapping("/medical-records")
-    @Operation(summary = "Lich su kham benh va benh an")
+    @Operation(summary = "Lịch sử khám bệnh và bệnh án")
     public List<PatientMedicalRecordHistoryItemResponse> getMyMedicalRecords(Authentication authentication) {
         return patientService.getMyMedicalRecordHistory(authentication.getName());
     }
 
     @GetMapping("/medical-records/{medicalRecordId}")
-    @Operation(summary = "Chi tiet benh an va don thuoc")
+    @Operation(summary = "Chi tiết bệnh án và đơn thuốc")
     public PatientMedicalRecordDetailResponse getMyMedicalRecordDetail(
             Authentication authentication,
             @PathVariable Long medicalRecordId) {
@@ -70,7 +70,7 @@ public class PatientController {
     }
 
     @PutMapping("/appointments/{appointmentId}/cancel")
-    @Operation(summary = "Huy lich hen cua toi")
+    @Operation(summary = "Hủy lịch hẹn của tôi")
     public Appointment cancelMyAppointment(
             @PathVariable Long appointmentId,
             Authentication authentication) {

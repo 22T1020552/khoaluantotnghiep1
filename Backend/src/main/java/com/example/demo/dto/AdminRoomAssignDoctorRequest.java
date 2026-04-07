@@ -6,6 +6,6 @@ import lombok.Data;
 @Data
 public class AdminRoomAssignDoctorRequest {
 
-    @NotNull(message = "doctorId is required")
+    @NotNull(message = "doctorId là bắt buộc")
     private Long doctorId;
 }

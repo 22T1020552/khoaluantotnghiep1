@@ -35,15 +35,15 @@ public class JwtFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
+            HttpServletResponse response,
+            FilterChain filterChain)
             throws ServletException, IOException {
 
         String path = request.getServletPath();
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            logger.debug("No valid Authorization header found for path: {}", path);
+            logger.debug("Không tìm thấy Authorization header hợp lệ cho đường dẫn: {}", path);
             filterChain.doFilter(request, response);
             return;
         }
@@ -55,7 +55,7 @@ public class JwtFilter extends OncePerRequestFilter {
             String role = jwtService.extractRole(token);
 
             if (username == null || role == null) {
-                logger.warn("Token missing username or role for path: {}", path);
+                logger.warn("Token thiếu username hoặc role cho đường dẫn: {}", path);
                 SecurityContextHolder.clearContext();
                 filterChain.doFilter(request, response);
                 return;
@@ -66,26 +66,25 @@ public class JwtFilter extends OncePerRequestFilter {
             }
 
             SimpleGrantedAuthority authority = new SimpleGrantedAuthority(role);
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(username, null, List.of(authority));
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(username, null,
+                    List.of(authority));
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            logger.debug("Successfully authenticated user: {} with role: {} for path: {}", 
-                         username, role, path);
+            logger.debug("Xác thực thành công người dùng: {} với vai trò: {} cho đường dẫn: {}",
+                    username, role, path);
         } catch (io.jsonwebtoken.ExpiredJwtException e) {
-            logger.warn("JWT Token expired for path: {}", path);
+            logger.warn("JWT đã hết hạn cho đường dẫn: {}", path);
             SecurityContextHolder.clearContext();
         } catch (io.jsonwebtoken.MalformedJwtException e) {
-            logger.warn("Invalid JWT Token format for path: {}", path);
+            logger.warn("Định dạng JWT không hợp lệ cho đường dẫn: {}", path);
             SecurityContextHolder.clearContext();
-        } catch (io.jsonwebtoken.SignatureException e) {
-            logger.warn("Invalid JWT Token signature for path: {}", path);
+        } catch (io.jsonwebtoken.security.SignatureException e) {
+            logger.warn("Chữ ký JWT không hợp lệ cho đường dẫn: {}", path);
             SecurityContextHolder.clearContext();
         } catch (Exception ex) {
-            logger.error("Error processing JWT token for path: {}: {}", path, ex.getMessage(), ex);
+            logger.error("Lỗi xử lý JWT cho đường dẫn: {}: {}", path, ex.getMessage(), ex);
             SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
     }
 }
-

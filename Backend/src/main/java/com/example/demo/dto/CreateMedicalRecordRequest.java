@@ -7,12 +7,12 @@ import lombok.Data;
 @Data
 public class CreateMedicalRecordRequest {
 
-    @NotNull(message = "appointmentId is required")
+    @NotNull(message = "appointmentId là bắt buộc")
     private Long appointmentId;
 
-    @NotBlank(message = "diagnosis is required")
+    @NotBlank(message = "Chẩn đoán là bắt buộc")
     private String diagnosis;
 
-    @NotBlank(message = "doctorAdvice is required")
+    @NotBlank(message = "Lời dặn của bác sĩ là bắt buộc")
     private String doctorAdvice;
 }

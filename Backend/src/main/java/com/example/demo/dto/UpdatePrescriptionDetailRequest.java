@@ -8,10 +8,10 @@ import lombok.Data;
 @Data
 public class UpdatePrescriptionDetailRequest {
 
-    @NotNull(message = "quantity is required")
-    @Min(value = 1, message = "quantity must be >= 1")
+    @NotNull(message = "quantity là bắt buộc")
+    @Min(value = 1, message = "quantity phải >= 1")
     private Integer quantity;
 
-    @NotBlank(message = "usageInstructions is required")
+    @NotBlank(message = "usageInstructions là bắt buộc")
     private String usageInstructions;
 }
