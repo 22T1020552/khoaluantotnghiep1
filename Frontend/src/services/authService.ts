@@ -11,9 +11,11 @@ import type {
 } from "@/types/auth";
 
 const normalizeRole = (role: string) => role.toUpperCase();
+const PROACTIVE_REFRESH_WINDOW_SECONDS = 60;
 
 const toSession = (response: AuthResponse): AuthSession => ({
   token: response.token,
+  refreshToken: response.refreshToken,
   username: response.username,
   role: normalizeRole(response.role),
 });
@@ -50,6 +52,15 @@ export const isTokenExpired = (token: string) => {
   return Date.now() >= payload.exp * 1000;
 };
 
+const shouldRefreshTokenProactively = (token: string) => {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) {
+    return false;
+  }
+
+  return payload.exp * 1000 - Date.now() <= PROACTIVE_REFRESH_WINDOW_SECONDS * 1000;
+};
+
 export const getCurrentAuthSession = (): AuthSession | null => {
   const stored = getStoredAuthSession();
   if (!stored) {
@@ -65,6 +76,39 @@ export const getCurrentAuthSession = (): AuthSession | null => {
 };
 
 export const authService = {
+  async refreshSession() {
+    const stored = getStoredAuthSession();
+    const refreshToken = stored?.refreshToken;
+
+    if (!refreshToken) {
+      clearStoredAuthSession();
+      return null;
+    }
+
+    const response = await api.post<AuthResponse>("/api/auth/refresh", { refreshToken });
+    const session = toSession(response.data);
+    saveStoredAuthSession(session);
+    return session;
+  },
+
+  async initializeSession() {
+    const stored = getStoredAuthSession();
+    if (!stored) {
+      return null;
+    }
+
+    if (shouldRefreshTokenProactively(stored.token)) {
+      try {
+        return await this.refreshSession();
+      } catch {
+        clearStoredAuthSession();
+        return null;
+      }
+    }
+
+    return stored;
+  },
+
   async login(payload: LoginRequest) {
     const response = await api.post<AuthResponse>("/api/auth/login", payload);
     const session = toSession(response.data);
@@ -94,7 +138,18 @@ export const authService = {
     return response.data;
   },
 
-  logout() {
+  async logout() {
+    const stored = getStoredAuthSession();
+    const refreshToken = stored?.refreshToken;
+
+    if (refreshToken) {
+      try {
+        await api.post<string>("/api/auth/logout", { refreshToken });
+      } catch {
+        // Logout must be resilient even when token is already invalid or network fails.
+      }
+    }
+
     clearStoredAuthSession();
   },
 };

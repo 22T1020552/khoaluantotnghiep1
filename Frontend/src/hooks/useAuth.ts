@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { authService, getCurrentAuthSession, isTokenExpired } from "@/services/authService";
+import { authService, isTokenExpired } from "@/services/authService";
 import type {
   AuthSession,
   ForgotPasswordRequest,
@@ -15,14 +15,14 @@ import type {
 export function useAuth() {
   const [session, setSession] = useState<AuthSession | null>(null);
 
-  const syncSession = useCallback(() => {
-    const storedSession = getCurrentAuthSession();
+  const syncSession = useCallback(async () => {
+    const storedSession = await authService.initializeSession();
     setSession(storedSession);
     return storedSession;
   }, []);
 
   useEffect(() => {
-    syncSession();
+    void syncSession();
   }, [syncSession]);
 
   const login = useCallback(async (payload: LoginRequest) => {
@@ -49,8 +49,8 @@ export function useAuth() {
     return authService.resetPasswordWithOtp(payload);
   }, []);
 
-  const logout = useCallback(() => {
-    authService.logout();
+  const logout = useCallback(async () => {
+    await authService.logout();
     setSession(null);
   }, []);
 

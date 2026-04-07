@@ -2,6 +2,7 @@ export type AuthRole = "ADMIN" | "RECEPTIONIST" | "DOCTOR" | "CASHIER" | "PATIEN
 
 export interface AuthResponse {
   token: string;
+  refreshToken?: string;
   username: string;
   role: AuthRole;
 }
