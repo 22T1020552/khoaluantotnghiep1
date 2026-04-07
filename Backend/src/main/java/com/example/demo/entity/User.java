@@ -1,5 +1,7 @@
 package com.example.demo.entity;
 
+import java.time.LocalDateTime;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
@@ -11,6 +13,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -34,6 +37,18 @@ public class User {
 
     @Column(nullable = false, unique = true, length = 50)
     private String username;
+
+    @Column(name = "full_name", nullable = false, length = 120)
+    private String fullName;
+
+    @Column(nullable = false, unique = true, length = 120)
+    private String email;
+
+    @Column(name = "phone_number", nullable = false, length = 20)
+    private String phoneNumber;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
     @Column(name = "password", nullable = false, length = 255)
     @JsonIgnore
@@ -59,6 +74,13 @@ public class User {
     // Chức năng: xử lý set password.
     public void setPassword(String password) {
         this.passwordHash = password;
+    }
+
+    @PrePersist
+    public void beforeInsert() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 
 }

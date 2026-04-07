@@ -239,8 +239,16 @@ public class AdminService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại");
         }
 
+        String email = normalizeEmail(request.getEmail(), "Email là bắt buộc");
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email đã tồn tại");
+        }
+
         User user = new User();
         user.setUsername(username);
+        user.setFullName(normalizeRequiredText(request.getFullName(), "Họ và tên là bắt buộc"));
+        user.setEmail(email);
+        user.setPhoneNumber(normalizeRequiredText(request.getPhoneNumber(), "Số điện thoại là bắt buộc"));
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(request.getRole());
         Boolean active = request.getIsActive();
@@ -261,6 +269,23 @@ public class AdminService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại");
             }
             user.setUsername(username);
+        }
+
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName().trim());
+        }
+
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String email = normalizeEmail(request.getEmail(), "Email không hợp lệ");
+            boolean sameEmail = user.getEmail() != null && user.getEmail().equalsIgnoreCase(email);
+            if (!sameEmail && userRepository.existsByEmailIgnoreCase(email)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email đã tồn tại");
+            }
+            user.setEmail(email);
+        }
+
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank()) {
+            user.setPhoneNumber(request.getPhoneNumber().trim());
         }
 
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
@@ -366,6 +391,7 @@ public class AdminService {
 
         Medicine medicine = new Medicine();
         medicine.setMedicineName(normalizedMedicineName);
+        medicine.setMedicineType(normalizeRequiredText(request.getMedicineType(), "Loại thuốc là bắt buộc"));
         medicine.setUnit(normalizeOptionalText(request.getUnit()));
         medicine.setSellingPrice(request.getSellingPrice());
         Integer stockQuantity = request.getStockQuantity();
@@ -393,6 +419,9 @@ public class AdminService {
 
         if (request.getUnit() != null) {
             medicine.setUnit(normalizeOptionalText(request.getUnit()));
+        }
+        if (request.getMedicineType() != null && !request.getMedicineType().isBlank()) {
+            medicine.setMedicineType(request.getMedicineType().trim());
         }
         if (request.getSellingPrice() != null) {
             medicine.setSellingPrice(request.getSellingPrice());
@@ -477,6 +506,15 @@ public class AdminService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    // Chức năng: xử lý chuẩn hóa email người dùng.
+    private String normalizeEmail(String value, String errorMessage) {
+        String normalized = normalizeRequiredText(value, errorMessage).toLowerCase(Locale.ROOT);
+        if (!normalized.contains("@")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email không hợp lệ");
+        }
+        return normalized;
+    }
+
     // Chức năng: xử lý chuyển đổi response phòng khám.
     private AdminRoomResponse toAdminRoomResponse(Room room) {
         User doctor = room.getCurrentDoctor();
@@ -493,6 +531,7 @@ public class AdminService {
         return new AdminMedicineResponse(
                 medicine.getId(),
                 medicine.getMedicineName(),
+            medicine.getMedicineType(),
                 medicine.getUnit(),
                 medicine.getSellingPrice(),
                 medicine.getStockQuantity(),
@@ -515,8 +554,12 @@ public class AdminService {
         return new AdminUserResponse(
                 user.getId(),
                 user.getUsername(),
+                user.getFullName(),
+                user.getEmail(),
+                user.getPhoneNumber(),
                 user.getRole(),
-                user.getIsActive()
+                user.getIsActive(),
+                user.getCreatedAt()
         );
     }
 

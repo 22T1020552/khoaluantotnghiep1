@@ -13,6 +13,9 @@ public class AdminMedicineUpdateRequest {
     @Size(max = 200, message = "Tên thuốc tối đa 200 ký tự")
     private String medicineName;
 
+    @Size(max = 100, message = "Loại thuốc tối đa 100 ký tự")
+    private String medicineType;
+
     @Size(max = 50, message = "Đơn vị tối đa 50 ký tự")
     private String unit;
 
