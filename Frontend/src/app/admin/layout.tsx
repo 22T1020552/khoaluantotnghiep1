@@ -13,33 +13,34 @@ import {
   UserRound,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { BrandLogo } from '@/components/layout/brand-logo';
+import { useAuth } from '@/hooks/useAuth';
 import styles from '@/styles/common.module.css';
 
 const navItems = [
-  { href: '/admin', label: 'Tong quan', icon: LayoutDashboard },
-  { href: '/admin/users', label: 'Nguoi dung', icon: UserRound },
-  { href: '/admin/rooms', label: 'Phong kham', icon: Building2 },
-  { href: '/admin/medicines', label: 'Danh muc thuoc', icon: Pill },
-  { href: '/admin/services', label: 'Dich vu', icon: Activity },
-  { href: '/admin/reports', label: 'Bao cao', icon: ClipboardList },
+  { href: '/admin', label: 'Tông quan', icon: LayoutDashboard },
+  { href: '/admin/users', label: 'Người dùng', icon: UserRound },
+  { href: '/admin/rooms', label: 'Phòng khám', icon: Building2 },
+  { href: '/admin/medicines', label: 'Danh mục thuốc', icon: Pill },
+  { href: '/admin/services', label: 'Dịch vụ', icon: Activity },
+  { href: '/admin/reports', label: 'Báo cáo', icon: ClipboardList },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { username, logout } = useAuth();
 
-  const handleLogout = () => {
-    toast.success('Dang xuat thanh cong');
+  const handleLogout = async () => {
+    await logout();
+    toast.success('Đăng xuất thành công');
     router.push('/');
   };
 
   return (
     <div className={styles.pageLayout}>
       <aside className={styles.sidebar}>
-        <div className={styles.logoContainer}>
-          <div className={styles.logoIcon}>+</div>
-          <span className={styles.logoText}>PHONG KHAM</span>
-        </div>
+        <BrandLogo className={styles.logoContainer} />
 
         <nav className={styles.nav}>
           {navItems.map((item) => {
@@ -57,12 +58,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className={styles.userInfo}>
             <img src='https://github.com/shadcn.png' alt='Avatar' className={styles.avatar} />
             <div>
-              <div className={styles.userName}>Quan tri vien</div>
-              <div className={styles.userRole}>admin@phongkham.vn</div>
+              <div className={styles.userName}>{username || 'Quản trị viên'}</div>
+              <div className={styles.userRole}>ADMIN</div>
             </div>
           </div>
-          <button className={`${styles.navItem} ${styles.logoutButton}`} type='button' onClick={handleLogout}>
-            <LogOut size={20} /> Dang xuat
+          <button className={`${styles.navItem} ${styles.logoutButton}`} type='button' onClick={() => void handleLogout()}>
+            <LogOut size={20} /> Đăng xuất
           </button>
         </div>
       </aside>
