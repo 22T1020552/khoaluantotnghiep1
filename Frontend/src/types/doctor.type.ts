@@ -1,3 +1,10 @@
+export interface SelectedServiceItem {
+  service_id: number;
+  service_name: string;
+  quantity: number;
+  actual_price: number;
+  result_note?: string;
+}
 export type Gender = "male" | "female";
 
 export type AppointmentStatus = "pending" | "confirmed" | "completed" | "cancelled";
@@ -26,7 +33,10 @@ export interface Appointment {
   diagnosis?: string;
   doctor_advice?: string;
   prescription_items?: PrescriptionItem[];
+  service_items?: SelectedServiceItem[];
   total_medicine_cost?: number;
+  total_service_cost?: number;
+  total_exam_cost?: number;
 }
 
 export interface Medicine {
