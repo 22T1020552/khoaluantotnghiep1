@@ -176,14 +176,6 @@ export const getApiErrorMessage = (error: unknown, fallback = "Không thể kế
       return responseData;
     }
 
-    if (responseData?.message) {
-      return responseData.message;
-    }
-
-    if (responseData?.error) {
-      return responseData.error;
-    }
-
     if (responseData?.details) {
       if (typeof responseData.details === "string") {
         return responseData.details;
@@ -193,6 +185,14 @@ export const getApiErrorMessage = (error: unknown, fallback = "Không thể kế
       if (firstDetail) {
         return firstDetail;
       }
+    }
+
+    if (responseData?.message) {
+      return responseData.message;
+    }
+
+    if (responseData?.error) {
+      return responseData.error;
     }
 
     return error.message || fallback;
