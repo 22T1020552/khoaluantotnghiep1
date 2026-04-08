@@ -34,6 +34,13 @@ export interface DoctorMedicine {
   isActive: boolean;
 }
 
+export interface DoctorMedicalService {
+  id: number;
+  serviceName: string;
+  currentPrice: number;
+  isActive: boolean;
+}
+
 export interface MedicalRecordResponse {
   id: number;
   diagnosis: string;
@@ -195,5 +202,17 @@ export const doctorService = {
       `/api/doctors/appointments/${appointmentId}/patient-history/${medicalRecordId}`,
     );
     return response.data;
+  },
+
+  async getAvailableServices() {
+    const response = await api.get<DoctorMedicalService[]>('/api/doctors/me/services');
+    return response.data;
+  },
+
+  async upsertMedicalRecordServiceResult(
+    medicalRecordId: number,
+    payload: { serviceId: number; quantity: number; actualPrice: number; resultNote?: string },
+  ) {
+    await api.post(`/api/medical-records/${medicalRecordId}/service-results`, payload);
   },
 };
