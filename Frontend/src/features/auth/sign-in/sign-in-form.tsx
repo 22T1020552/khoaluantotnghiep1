@@ -119,9 +119,12 @@ export function Login() {
             </div>
 
             <div className={styles.inlineRow}>
-              <Link href="/signup" className={styles.link}>
-                Đăng ký
-              </Link>
+              <div className={styles.centerText} style={{ marginTop: '8px' }}>
+                Bạn chưa có tài khoản?{" "}
+                <Link href="/signup" className={styles.link}>
+                  Đăng ký ngay
+                </Link>
+            </div>
               <Link href="/forgotpassword" className={styles.link}>
                 Quên mật khẩu?
               </Link>

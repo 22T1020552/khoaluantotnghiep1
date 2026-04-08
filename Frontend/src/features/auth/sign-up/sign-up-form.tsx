@@ -23,6 +23,7 @@ type Notice = {
 export function Register() {
   const router = useRouter();
   const { registerPatient } = useAuth();
+  const usernamePattern = /^[a-zA-Z0-9._-]{4,50}$/;
   const [formData, setFormData] = useState({
     username: "",
     fullName: "",
@@ -49,6 +50,14 @@ export function Register() {
 
     if (formData.password.length < 6) {
       setNotice({ type: "error", message: "Mật khẩu phải có ít nhất 6 ký tự." });
+      return;
+    }
+
+    if (!usernamePattern.test(formData.username.trim())) {
+      setNotice({
+        type: "error",
+        message: "Tên đăng nhập phải từ 4-50 ký tự và không chứa khoảng trắng.",
+      });
       return;
     }
 
