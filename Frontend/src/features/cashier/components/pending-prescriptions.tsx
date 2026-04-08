@@ -17,8 +17,8 @@ function PendingPrescriptions({ prescriptions, onOpenPayment }: PendingPrescript
         Đơn thuốc chờ thanh toán ({prescriptions.length})
       </h2>
       <div className={styles.list}>
-        {prescriptions.map((prescription) => (
-          <Card key={prescription.id} className={styles.prescriptionCard}>
+        {prescriptions.map((prescription, idx) => (
+          <Card key={`${prescription.id}-${prescription.invoiceId ?? "na"}-${idx}`} className={styles.prescriptionCard}>
             <div className={styles.topRow}>
               <div className={styles.patientBlock}>
                 <div className={styles.avatarBadge}>

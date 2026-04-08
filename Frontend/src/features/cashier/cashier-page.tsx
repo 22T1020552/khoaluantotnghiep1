@@ -1,66 +1,167 @@
 'use client';
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Prescription } from "@/types/pharmacy.type";
 import PharmacyStats from "./components/pharmacy-stats";
 import PendingPrescriptions from "./components/pending-prescriptions";
 import DispensedPrescriptions from "./components/dispensed-prescriptions";
 import PaymentDialog from "./components/payment-dialog";
-import { initialPrescriptions } from "./mock-data";
+import { cashierService } from "@/services/cashierService";
+import { getApiErrorMessage } from "@/services/api";
 import styles from "@/styles/common.module.css";
 
 export function PharmacyDashboard() {
-  const [prescriptions, setPrescriptions] = useState<Prescription[]>(initialPrescriptions);
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentData, setPaymentData] = useState({
-    serviceFee: "50000",
-    insuranceDiscount: "",
+    serviceFee: "0",
+    insuranceDiscount: "0",
   });
+  const [paymentMethod, setPaymentMethod] = useState<"TIEN_MAT" | "CHUYEN_KHOAN" | "POS">("TIEN_MAT");
+  const [transferConfirmed, setTransferConfirmed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
 
   const pendingPrescriptions = prescriptions.filter((p) => p.status === "pending");
   const dispensedPrescriptions = prescriptions.filter((p) => p.status === "dispensed");
+
+  const toPrescription = (
+    detail: Awaited<ReturnType<typeof cashierService.searchPaymentRecord>>,
+    status: "pending" | "dispensed",
+    paidAt?: string,
+    paymentMethod?: string,
+  ): Prescription => {
+    const totalMedicationCost = Number(detail.totalMedicineFee || 0);
+    const serviceFee = Number(detail.totalServiceFee || 0);
+    const totalAmount = Number(detail.totalAmount || 0);
+    const insuranceDiscount = Math.max(totalMedicationCost + serviceFee - totalAmount, 0);
+
+    return {
+      id: `RX-${detail.invoiceId}`,
+      invoiceId: detail.invoiceId,
+      medicalRecordId: detail.medicalRecordId,
+      patientName: detail.patientName,
+      phone: detail.phoneNumber || "",
+      insuranceNumber: insuranceDiscount > 0 ? "Có áp dụng" : "",
+      doctor: `HS #${detail.medicalRecordId}`,
+      diagnosis: "Theo bệnh án từ bác sĩ",
+      treatment: "Thanh toán và cấp phát thuốc theo đơn",
+      prescriptionItems: (detail.medicines || []).map((item) => ({
+        medicationId: String(item.medicineId),
+        medicationName: item.medicineName,
+        dosage: "",
+        unit: "đv",
+        quantity: item.quantity,
+        price: Number(item.unitPrice || 0),
+        usage: item.usageInstructions || "Chưa cập nhật",
+      })),
+      totalMedicationCost,
+      date: paidAt || detail.appointmentTime,
+      status,
+      serviceFee,
+      insuranceDiscount,
+      totalAmount,
+      paymentMethod,
+    };
+  };
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [queue, history] = await Promise.all([
+        cashierService.getWaitingPaymentQueue(),
+        cashierService.getTransactionHistory(),
+      ]);
+
+      const pendingDetails = await Promise.all(
+        queue.map((item) => cashierService.searchPaymentRecord(String(item.invoiceId)).catch(() => null)),
+      );
+      const pendingMapped = pendingDetails
+        .filter((detail): detail is NonNullable<typeof detail> => Boolean(detail))
+        .map((detail) => toPrescription(detail, "pending"));
+
+      const paidDetails = await Promise.all(
+        (history.transactions || []).map((item) =>
+          cashierService
+            .getPaidInvoiceDetail(item.invoiceId)
+            .then((detail) => ({ detail, paidAt: item.paidAt, paymentMethod: item.paymentMethod }))
+            .catch(() => null),
+        ),
+      );
+      const paidMapped = paidDetails
+        .filter((row): row is NonNullable<typeof row> => Boolean(row))
+        .map((row) => toPrescription(row.detail, "dispensed", row.paidAt, row.paymentMethod));
+
+      const merged = [...pendingMapped, ...paidMapped];
+      const unique = new Map<string, Prescription>();
+      merged.forEach((item) => {
+        const key = `${item.invoiceId ?? item.id}-${item.status}`;
+        if (!unique.has(key)) {
+          unique.set(key, item);
+        }
+      });
+      setPrescriptions(Array.from(unique.values()));
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể tải dữ liệu thu ngân"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadDashboardData();
+  }, []);
 
   const totalRevenue = dispensedPrescriptions.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
 
   const openPaymentDialog = (prescription: Prescription) => {
     setSelectedPrescription(prescription);
-    
-    // Auto calculate insurance discount (70% if have insurance)
-    const insuranceDiscount = prescription.insuranceNumber 
-      ? Math.floor((prescription.totalMedicationCost + 50000) * 0.7)
-      : 0;
-    
+    setPaymentMethod("TIEN_MAT");
+    setTransferConfirmed(false);
     setPaymentData({
-      serviceFee: "50000",
-      insuranceDiscount: insuranceDiscount.toString(),
+      serviceFee: String(Math.floor(prescription.serviceFee || 0)),
+      insuranceDiscount: String(Math.floor(prescription.insuranceDiscount || 0)),
     });
     setIsPaymentOpen(true);
   };
 
   const handlePaymentDataChange = (field: string, value: string) => {
-    setPaymentData(prev => ({ ...prev, [field]: value }));
+    setPaymentData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handlePayment = () => {
-    if (!selectedPrescription) return;
+  const handlePayment = async () => {
+    if (!selectedPrescription?.invoiceId) return;
 
-    const serviceFee = parseFloat(paymentData.serviceFee) || 0;
-    const insuranceDiscount = parseFloat(paymentData.insuranceDiscount) || 0;
-    const totalAmount = selectedPrescription.totalMedicationCost + serviceFee - insuranceDiscount;
+    if (paymentMethod === "CHUYEN_KHOAN" && !transferConfirmed) {
+      toast.error("Vui lòng xác nhận đã nhận chuyển khoản trước khi thanh toán");
+      return;
+    }
 
-    setPrescriptions(
-      prescriptions.map((p) =>
-        p.id === selectedPrescription.id
-          ? { ...p, status: "dispensed", serviceFee, insuranceDiscount, totalAmount }
-          : p
-      )
-    );
+    if (paymentMethod === "POS" && !transferConfirmed) {
+      toast.error("Vui lòng xác nhận giao dịch POS thành công trước khi thanh toán");
+      return;
+    }
 
-    toast.success(`Thanh toán thành công! Tổng tiền: ${totalAmount.toLocaleString("vi-VN")}đ`);
-    setIsPaymentOpen(false);
-    setSelectedPrescription(null);
+    try {
+      setProcessing(true);
+      const response = await cashierService.processPayment(selectedPrescription.invoiceId, {
+        paymentMethod,
+        paymentSuccessful: paymentMethod === "TIEN_MAT" ? true : transferConfirmed,
+        exportInvoice: false,
+        applyHealthInsurance: Number(paymentData.insuranceDiscount || 0) > 0,
+      });
+
+      toast.success(response.message || "Thanh toán thành công");
+      setIsPaymentOpen(false);
+      setSelectedPrescription(null);
+      await loadDashboardData();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Thanh toán thất bại"));
+    } finally {
+      setProcessing(false);
+    }
   };
 
   return (
@@ -71,20 +172,26 @@ export function PharmacyDashboard() {
             <p>Kê thuốc theo đơn và thanh toán viện phí</p>
           </div>
 
-          <PharmacyStats 
-            pendingCount={pendingPrescriptions.length}
-            dispensedCount={dispensedPrescriptions.length}
-            totalRevenue={totalRevenue}
-          />
+          {loading && <div className={styles.emptyBox}>Đang tải dữ liệu...</div>}
 
-          <PendingPrescriptions 
-            prescriptions={pendingPrescriptions}
-            onOpenPayment={openPaymentDialog}
-          />
+          {!loading && (
+            <>
+              <PharmacyStats 
+                pendingCount={pendingPrescriptions.length}
+                dispensedCount={dispensedPrescriptions.length}
+                totalRevenue={totalRevenue}
+              />
 
-          <DispensedPrescriptions 
-            prescriptions={dispensedPrescriptions}
-          />
+              <PendingPrescriptions 
+                prescriptions={pendingPrescriptions}
+                onOpenPayment={openPaymentDialog}
+              />
+
+              <DispensedPrescriptions 
+                prescriptions={dispensedPrescriptions}
+              />
+            </>
+          )}
 
           <PaymentDialog 
             isOpen={isPaymentOpen}
@@ -92,7 +199,12 @@ export function PharmacyDashboard() {
             prescription={selectedPrescription}
             paymentData={paymentData}
             onPaymentDataChange={handlePaymentDataChange}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
+            transferConfirmed={transferConfirmed}
+            onTransferConfirmedChange={setTransferConfirmed}
             onConfirm={handlePayment}
+            isProcessing={processing}
           />
         </div>
       </main>

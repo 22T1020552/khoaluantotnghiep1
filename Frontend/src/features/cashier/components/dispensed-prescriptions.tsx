@@ -15,8 +15,8 @@ function DispensedPrescriptions({ prescriptions }: DispensedPrescriptionsProps) 
         Đã thanh toán ({prescriptions.length})
       </h2>
       <div className={styles.doneGrid}>
-        {prescriptions.map((prescription) => (
-          <Card key={prescription.id} className={styles.doneCard}>
+        {prescriptions.map((prescription, idx) => (
+          <Card key={`${prescription.id}-${prescription.invoiceId ?? "na"}-${idx}`} className={styles.doneCard}>
             <div className={styles.doneHeader}>
               <div>
                 <h3 className={styles.doneName}>{prescription.patientName}</h3>
