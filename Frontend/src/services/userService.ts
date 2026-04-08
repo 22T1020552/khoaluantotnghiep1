@@ -4,12 +4,19 @@ import type { AuthRole } from "@/types/auth";
 export interface AdminUserResponse {
   id: number;
   username: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string;
   role: AuthRole;
   isActive: boolean;
+  createdAt: string;
 }
 
 export interface AdminCreateUserRequest {
   username: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string;
   password: string;
   role: AuthRole;
   isActive?: boolean;
@@ -17,6 +24,9 @@ export interface AdminCreateUserRequest {
 
 export interface AdminUpdateUserRequest {
   username?: string;
+  fullName?: string;
+  email?: string;
+  phoneNumber?: string;
   password?: string;
   role?: AuthRole;
   isActive?: boolean;
