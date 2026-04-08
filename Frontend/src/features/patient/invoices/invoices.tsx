@@ -21,7 +21,9 @@ interface PatientInvoiceItem {
   paidAt: string | null;
   doctorUsername: string | null;
   diagnosis: string | null;
+  serviceTotal: number;
   medicineTotal: number;
+  totalAmount: number;
   medicineCount: number;
 }
 
@@ -45,10 +47,6 @@ const toLocaleDateTime = (raw: string | null) => {
     minute: "2-digit",
     hour12: false,
   });
-};
-
-const sumMedicineFee = (detail: PatientMedicalRecordDetailResponse) => {
-  return detail.prescriptionItems.reduce((sum, item) => sum + (item.totalPrice ?? 0), 0);
 };
 
 export function PatientInvoices() {
@@ -106,7 +104,7 @@ export function PatientInvoices() {
   }, [invoices, query]);
 
   const totalPaid = useMemo(() => {
-    return invoices.reduce((sum, item) => sum + item.medicineTotal, 0);
+    return invoices.reduce((sum, item) => sum + item.totalAmount, 0);
   }, [invoices]);
 
   return (
@@ -124,7 +122,7 @@ export function PatientInvoices() {
           <p className={styles.statValue}>{invoices.length}</p>
         </Card>
         <Card className={styles.statCard}>
-          <p className={styles.statLabel}>Tổng đã thanh toán (thuốc)</p>
+          <p className={styles.statLabel}>Tổng đã thanh toán</p>
           <p className={styles.statValue}>{totalPaid.toLocaleString("vi-VN")}đ</p>
         </Card>
       </section>
@@ -165,8 +163,18 @@ export function PatientInvoices() {
                 <p className={styles.diagnosis}>Chẩn đoán: {invoice.diagnosis ?? "Chưa cập nhật"}</p>
 
                 <div className={styles.amountRow}>
+                  <span>Tiền dịch vụ</span>
+                  <strong>{invoice.serviceTotal.toLocaleString("vi-VN")}đ</strong>
+                </div>
+
+                <div className={styles.amountRow}>
                   <span>Chi phí thuốc ({invoice.medicineCount} mục)</span>
                   <strong>{invoice.medicineTotal.toLocaleString("vi-VN")}đ</strong>
+                </div>
+
+                <div className={styles.amountRow}>
+                  <span>Tổng đã thanh toán</span>
+                  <strong>{invoice.totalAmount.toLocaleString("vi-VN")}đ</strong>
                 </div>
               </article>
             ))}
@@ -181,17 +189,21 @@ function mapToInvoiceItem(
   history: PatientMedicalRecordHistoryItemResponse,
   detail: PatientMedicalRecordDetailResponse | null
 ): PatientInvoiceItem {
-  const medicineTotal = detail ? sumMedicineFee(detail) : 0;
+  const medicineTotal = Number(detail?.totalMedicineFee ?? history.totalMedicineFee ?? 0);
+  const serviceTotal = Number(detail?.totalServiceFee ?? history.totalServiceFee ?? 0);
+  const totalAmount = Number(detail?.totalAmount ?? history.totalAmount ?? medicineTotal + serviceTotal);
   const medicineCount = detail?.prescriptionItems.length ?? history.prescriptionItemCount ?? 0;
 
   return {
-    invoiceCode: `HD-${history.medicalRecordId}`,
+    invoiceCode: `HD-${history.invoiceId ?? history.medicalRecordId}`,
     medicalRecordId: history.medicalRecordId,
     appointmentId: history.appointmentId,
-    paidAt: history.createdAt,
+    paidAt: history.paidAt ?? history.createdAt,
     doctorUsername: detail?.doctorUsername ?? history.doctorUsername,
     diagnosis: detail?.diagnosis ?? history.diagnosis,
+    serviceTotal,
     medicineTotal,
+    totalAmount,
     medicineCount,
   };
 }

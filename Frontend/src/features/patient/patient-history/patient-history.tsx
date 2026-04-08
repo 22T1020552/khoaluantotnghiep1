@@ -121,7 +121,7 @@ export function PatientHistory() {
       return 0;
     }
 
-    return detail.prescriptionItems.reduce((sum, item) => sum + (item.totalPrice ?? 0), 0);
+    return Number(detail.totalAmount ?? detail.totalMedicineFee ?? 0);
   };
 
   return (
@@ -200,7 +200,7 @@ export function PatientHistory() {
                 </div>
               </div>
               <div className={styles.costRight}>
-                <p className={styles.costLabel}>Tổng tiền thuốc</p>
+                <p className={styles.costLabel}>Tổng tiền đã thanh toán</p>
                 <p className={styles.costValue}>
                   {totalCost.toLocaleString("vi-VN")}đ
                 </p>
