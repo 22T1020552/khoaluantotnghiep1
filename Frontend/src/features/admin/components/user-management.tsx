@@ -1,106 +1,210 @@
 'use client';
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Edit, Lock, Plus, Search, Trash2, Unlock } from "lucide-react";
 import { toast } from "sonner";
-import type { User } from "@/types/user.type";
+
+import { getApiErrorMessage } from "@/services/api";
+import { adminService, type AdminRole, type AdminUser } from "@/services/adminService";
 import styles from "../admin.module.css";
 
-const initialUsers: User[] = [
-  { id: 1, username: "admin", password: "********", role: "admin", is_active: true },
-  { id: 2, username: "doctor.hung", password: "********", role: "doctor", is_active: true },
-  { id: 3, username: "le.tan.mai", password: "********", role: "receptionist", is_active: true },
-  { id: 4, username: "thu.ngan.tuan", password: "********", role: "cashier", is_active: false },
-];
+const roleLabels: Record<AdminRole, string> = {
+  ADMIN: "Quản trị viên",
+  DOCTOR: "Bác sĩ",
+  RECEPTIONIST: "Lễ tân",
+  CASHIER: "Thu ngân",
+  PATIENT: "Bệnh nhân",
+};
 
-const roleLabels: Record<User["role"], string> = {
-  admin: "Quan tri vien",
-  doctor: "Bac si",
-  receptionist: "Le tan",
-  cashier: "Thu ngan",
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const toUsernameFromEmail = (email: string) => {
+  const local = email.split("@")[0] ?? "";
+  const normalized = local
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "")
+    .replace(/^[._-]+|[._-]+$/g, "");
+
+  if (normalized.length >= 4) {
+    return normalized.slice(0, 50);
+  }
+
+  return `${normalized || "user"}${Date.now().toString().slice(-4)}`.slice(0, 50);
 };
 
 export function UsersManagement() {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterRole, setFilterRole] = useState<"all" | User["role"]>("all");
+  const [filterRole, setFilterRole] = useState<"all" | AdminRole>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [formData, setFormData] = useState({
-    username: "",
-    role: "doctor" as User["role"],
-    password: "",
+    fullName: "",
+    email: "",
+    phoneNumber: "",
+    role: "DOCTOR" as AdminRole,
   });
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await adminService.getUsers();
+      setUsers(data);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể tải danh sách người dùng"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadUsers();
+  }, []);
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
-      const matchesSearch = user.username.toLowerCase().includes(searchQuery.toLowerCase());
+      const fullName = user.fullName.toLowerCase();
+      const email = user.email.toLowerCase();
+      const phone = user.phoneNumber.toLowerCase();
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = fullName.includes(query) || email.includes(query) || phone.includes(query);
       const matchesRole = filterRole === "all" || filterRole === user.role;
       return matchesSearch && matchesRole;
     });
   }, [users, searchQuery, filterRole]);
 
-  const openModal = (user?: User) => {
+  const formatDate = (iso?: string) => {
+    if (!iso) {
+      return "-";
+    }
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) {
+      return "-";
+    }
+    return date.toLocaleDateString("vi-VN");
+  };
+
+  const openModal = (user?: AdminUser) => {
     if (user) {
       setEditingUser(user);
-      setFormData({ username: user.username, role: user.role, password: user.password });
+      setFormData({
+        fullName: user.fullName,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        role: user.role,
+      });
     } else {
       setEditingUser(null);
-      setFormData({ username: "", role: "doctor", password: "" });
+      setFormData({ fullName: "", email: "", phoneNumber: "", role: "DOCTOR" });
     }
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (!formData.username.trim()) {
-      toast.error("Vui long nhap ten dang nhap");
+  const handleSave = async () => {
+    if (!formData.fullName.trim()) {
+      toast.error("Vui lòng nhập họ và tên");
       return;
     }
 
-    if (editingUser) {
-      setUsers((prev) =>
-        prev.map((user) =>
-          user.id === editingUser.id
-            ? { ...user, username: formData.username.trim(), role: formData.role }
-            : user,
-        ),
-      );
-      toast.success("Da cap nhat tai khoan");
-    } else {
-      const newUser: User = {
-        id: Date.now(),
-        username: formData.username.trim(),
-        role: formData.role,
-        is_active: true,
-        password: formData.password || "********",
-      };
-      setUsers((prev) => [newUser, ...prev]);
-      toast.success("Da them tai khoan");
-    }
-    setIsModalOpen(false);
-  };
-
-  const handleDelete = (id: number) => {
-    if (!confirm("Ban co chac muon xoa tai khoan nay?")) {
+    if (!emailPattern.test(formData.email.trim())) {
+      toast.error("Email không hợp lệ");
       return;
     }
-    setUsers((prev) => prev.filter((user) => user.id !== id));
-    toast.success("Da xoa tai khoan");
+
+    const normalizedPhone = formData.phoneNumber.replace(/\D/g, "");
+    if (normalizedPhone.length < 6) {
+      toast.error("Số điện thoại phải có ít nhất 6 chữ số");
+      return;
+    }
+
+    if (formData.role === "ADMIN") {
+      toast.error("Không thể tạo hoặc chỉnh vai trò Quản trị viên tại popup này");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const username = editingUser?.username ?? toUsernameFromEmail(formData.email.trim());
+      const initialPassword = normalizedPhone;
+
+      if (editingUser) {
+        const payload: {
+          username?: string;
+          fullName?: string;
+          email?: string;
+          phoneNumber?: string;
+          role?: AdminRole;
+        } = {
+          username,
+          fullName: formData.fullName.trim(),
+          email: formData.email.trim(),
+          phoneNumber: formData.phoneNumber.trim(),
+          role: formData.role,
+        };
+
+        await adminService.updateUser(editingUser.id, payload);
+        toast.success("Đã cập nhật tài khoản");
+      } else {
+        if (initialPassword.length < 6) {
+          toast.error("Số điện thoại phải có ít nhất 6 chữ số để làm mật khẩu mặc định");
+          return;
+        }
+
+        await adminService.createUser({
+          username,
+          fullName: formData.fullName.trim(),
+          email: formData.email.trim(),
+          phoneNumber: formData.phoneNumber.trim(),
+          role: formData.role,
+          password: initialPassword,
+          isActive: true,
+        });
+        toast.success("Đã thêm tài khoản");
+      }
+
+      setIsModalOpen(false);
+      await loadUsers();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể lưu tài khoản"));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleToggleStatus = (id: number) => {
-    setUsers((prev) =>
-      prev.map((user) => (user.id === id ? { ...user, is_active: !user.is_active } : user)),
-    );
-    toast.success("Da cap nhat trang thai");
+  const handleDelete = async (id: number) => {
+    if (!confirm("Bạn có chắc muốn vô hiệu hóa tài khoản này?")) {
+      return;
+    }
+
+    try {
+      await adminService.deleteUser(id);
+      toast.success("Đã vô hiệu hóa tài khoản");
+      await loadUsers();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể xóa tài khoản"));
+    }
+  };
+
+  const handleToggleStatus = async (user: AdminUser) => {
+    try {
+      await adminService.updateUser(user.id, { isActive: !user.isActive });
+      toast.success("Đã cập nhật trạng thái");
+      await loadUsers();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể cập nhật trạng thái"));
+    }
   };
 
   return (
     <main className={styles.mainArea}>
       <div className={styles.container}>
         <div className={styles.header}>
-          <h1>Quan ly nguoi dung</h1>
-          <p>Them, sua, khoa va xoa tai khoan he thong.</p>
+          <h1>Quản lý người dùng</h1>
+          <p>Thêm, sửa, khóa và vô hiệu hóa tài khoản hệ thống.</p>
         </div>
 
         <div className={styles.toolbar}>
@@ -108,7 +212,7 @@ export function UsersManagement() {
             <Search className={styles.searchIcon} size={18} />
             <input
               className={styles.searchInput}
-              placeholder="Tim theo ten dang nhap..."
+              placeholder="Tìm kiếm theo tên, email hoặc số điện thoại..."
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
@@ -118,64 +222,75 @@ export function UsersManagement() {
             <select
               className={styles.selectInput}
               value={filterRole}
-              onChange={(event) => setFilterRole(event.target.value as "all" | User["role"])}
+              onChange={(event) => setFilterRole(event.target.value as "all" | AdminRole)}
             >
-              <option value="all">Tat ca vai tro</option>
-              <option value="admin">Quan tri vien</option>
-              <option value="doctor">Bac si</option>
-              <option value="receptionist">Le tan</option>
-              <option value="cashier">Thu ngan</option>
+              <option value="all">Tất cả vai trò</option>
+              <option value="ADMIN">Quản trị viên</option>
+              <option value="DOCTOR">Bác sĩ</option>
+              <option value="RECEPTIONIST">Lễ tân</option>
+              <option value="CASHIER">Thu ngân</option>
+              <option value="PATIENT">Bệnh nhân</option>
             </select>
           </div>
 
           <button type="button" className={styles.primaryButton} onClick={() => openModal()}>
-            <Plus size={16} /> Them nguoi dung
+            <Plus size={16} /> Thêm người dùng
           </button>
         </div>
 
         <section className={styles.card}>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Ten dang nhap</th>
-                  <th>Vai tro</th>
-                  <th>Trang thai</th>
-                  <th style={{ textAlign: "right" }}>Thao tac</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((user) => (
-                  <tr key={user.id}>
-                    <td>{user.username}</td>
-                    <td>
-                      <span className={`${styles.badge} ${styles.badgeBlue}`}>{roleLabels[user.role]}</span>
-                    </td>
-                    <td>
-                      <span className={`${styles.badge} ${user.is_active ? styles.badgeGreen : styles.badgeGray}`}>
-                        {user.is_active ? "Hoat dong" : "Tam khoa"}
-                      </span>
-                    </td>
-                    <td>
-                      <div className={styles.tableActions}>
-                        <button type="button" className={styles.iconButton} onClick={() => openModal(user)}>
-                          <Edit size={16} />
-                        </button>
-                        <button type="button" className={styles.iconButton} onClick={() => handleToggleStatus(user.id)}>
-                          {user.is_active ? <Lock size={16} /> : <Unlock size={16} />}
-                        </button>
-                        <button type="button" className={styles.iconButton} onClick={() => handleDelete(user.id)}>
-                          <Trash2 size={16} color="#dc2626" />
-                        </button>
-                      </div>
-                    </td>
+          {loading ? (
+            <div className={styles.emptyBox}>Đang tải dữ liệu...</div>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Họ tên</th>
+                    <th>Email</th>
+                    <th>Số điện thoại</th>
+                    <th>Vai trò</th>
+                    <th>Trạng thái</th>
+                    <th>Ngày tạo</th>
+                    <th style={{ textAlign: "right" }}>Thao tác</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filteredUsers.map((user) => (
+                    <tr key={user.id}>
+                      <td>{user.fullName}</td>
+                      <td>{user.email}</td>
+                      <td>{user.phoneNumber}</td>
+                      <td>
+                        <span className={`${styles.badge} ${styles.badgeBlue}`}>{roleLabels[user.role]}</span>
+                      </td>
+                      <td>
+                        <span className={`${styles.badge} ${user.isActive ? styles.badgeGreen : styles.badgeGray}`}>
+                          {user.isActive ? "Hoạt động" : "Tạm khóa"}
+                        </span>
+                      </td>
+                      <td>{formatDate(user.createdAt)}</td>
+                      <td>
+                        <div className={styles.tableActions}>
+                          <button type="button" className={styles.iconButton} onClick={() => openModal(user)}>
+                            <Edit size={16} />
+                          </button>
+                          <button type="button" className={styles.iconButton} onClick={() => void handleToggleStatus(user)}>
+                            {user.isActive ? <Lock size={16} /> : <Unlock size={16} />}
+                          </button>
+                          <button type="button" className={styles.iconButton} onClick={() => void handleDelete(user.id)}>
+                            <Trash2 size={16} color="#dc2626" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-            {filteredUsers.length === 0 && <div className={styles.emptyBox}>Khong tim thay nguoi dung.</div>}
-          </div>
+              {filteredUsers.length === 0 && <div className={styles.emptyBox}>Không tìm thấy người dùng.</div>}
+            </div>
+          )}
         </section>
       </div>
 
@@ -183,50 +298,60 @@ export function UsersManagement() {
         <>
           <div className={styles.modalOverlay} onClick={() => setIsModalOpen(false)} />
           <div className={styles.modal}>
-            <h2 className={styles.modalTitle}>{editingUser ? "Chinh sua tai khoan" : "Them tai khoan"}</h2>
-            <div className={styles.formGrid}>
+            <h2 className={styles.modalTitle}>{editingUser ? "Chỉnh sửa người dùng" : "Thêm người dùng mới"}</h2>
+            <div style={{ display: "grid", gap: "0.9rem" }}>
               <div>
-                <label className={styles.fieldLabel} htmlFor="username">Ten dang nhap</label>
+                <label className={styles.fieldLabel} htmlFor="fullName">Họ và tên *</label>
                 <input
-                  id="username"
+                  id="fullName"
                   className={styles.textInput}
-                  value={formData.username}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, username: event.target.value }))}
+                  placeholder="Nguyễn Văn A"
+                  value={formData.fullName}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, fullName: event.target.value }))}
                 />
               </div>
               <div>
-                <label className={styles.fieldLabel} htmlFor="role">Vai tro</label>
+                <label className={styles.fieldLabel} htmlFor="email">Email *</label>
+                <input
+                  id="email"
+                  type="email"
+                  className={styles.textInput}
+                  placeholder="email@phongkham.vn"
+                  value={formData.email}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, email: event.target.value }))}
+                />
+              </div>
+              <div>
+                <label className={styles.fieldLabel} htmlFor="phone">Số điện thoại *</label>
+                <input
+                  id="phone"
+                  className={styles.textInput}
+                  placeholder="0123456789"
+                  value={formData.phoneNumber}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, phoneNumber: event.target.value }))}
+                />
+              </div>
+              <div>
+                <label className={styles.fieldLabel} htmlFor="role">Vai trò *</label>
                 <select
                   id="role"
                   className={styles.selectInput}
                   value={formData.role}
-                  onChange={(event) =>
-                    setFormData((prev) => ({ ...prev, role: event.target.value as User["role"] }))
-                  }
+                  onChange={(event) => setFormData((prev) => ({ ...prev, role: event.target.value as AdminRole }))}
                 >
-                  <option value="admin">Quan tri vien</option>
-                  <option value="doctor">Bac si</option>
-                  <option value="receptionist">Le tan</option>
-                  <option value="cashier">Thu ngan</option>
+                  <option value="DOCTOR">Bác sĩ</option>
+                  <option value="RECEPTIONIST">Lễ tân</option>
+                  <option value="CASHIER">Thu ngân</option>
+                  <option value="PATIENT">Bệnh nhân</option>
                 </select>
-              </div>
-              <div>
-                <label className={styles.fieldLabel} htmlFor="password">Mat khau</label>
-                <input
-                  id="password"
-                  type="password"
-                  className={styles.textInput}
-                  value={formData.password}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, password: event.target.value }))}
-                />
               </div>
             </div>
             <div className={styles.modalActions}>
-              <button type="button" className={styles.primaryButton} onClick={handleSave}>
-                {editingUser ? "Cap nhat" : "Them moi"}
+              <button type="button" className={styles.primaryButton} onClick={() => void handleSave()} disabled={submitting}>
+                {editingUser ? "Cập nhật" : "Thêm mới"}
               </button>
-              <button type="button" className={styles.outlineButton} onClick={() => setIsModalOpen(false)}>
-                Huy
+              <button type="button" className={styles.outlineButton} onClick={() => setIsModalOpen(false)} disabled={submitting}>
+                Hủy
               </button>
             </div>
           </div>
