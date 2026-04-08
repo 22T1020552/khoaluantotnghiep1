@@ -36,6 +36,13 @@ export interface PatientMedicalRecordHistoryItemResponse {
   doctorAdvice: string | null;
   createdAt: string | null;
   prescriptionItemCount: number;
+  invoiceId: number | null;
+  totalServiceFee: number;
+  totalMedicineFee: number;
+  totalAmount: number;
+  paid: boolean;
+  paidAt: string | null;
+  paymentMethod: string | null;
 }
 
 export interface PatientPrescriptionHistoryItemResponse {
@@ -57,6 +64,13 @@ export interface PatientMedicalRecordDetailResponse {
   diagnosis: string | null;
   doctorAdvice: string | null;
   createdAt: string | null;
+  invoiceId: number | null;
+  totalServiceFee: number;
+  totalMedicineFee: number;
+  totalAmount: number;
+  paid: boolean;
+  paidAt: string | null;
+  paymentMethod: string | null;
   prescriptionItems: PatientPrescriptionHistoryItemResponse[];
 }
 
