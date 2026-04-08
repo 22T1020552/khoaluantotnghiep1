@@ -1,12 +1,18 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle, Clock, Stethoscope, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { getApiErrorMessage } from "@/services/api";
-import { doctorService, type PrescriptionCatalogMedicine } from "@/services/doctorService";
-import type { Appointment, MedicalRecordInput, Medicine, PrescriptionItem } from "@/types/doctor.type";
+import { doctorService, type DoctorMedicalService, type PrescriptionCatalogMedicine } from "@/services/doctorService";
+import type {
+  Appointment,
+  MedicalRecordInput,
+  Medicine,
+  PrescriptionItem,
+  SelectedServiceItem,
+} from "@/types/doctor.type";
 import styles from "@/styles/common.module.css";
 
 const formatDate = (value?: string | null) => {
@@ -41,6 +47,30 @@ const mapCatalogToMedicine = (item: PrescriptionCatalogMedicine): Medicine => ({
   selling_price: item.sellingPrice || 0,
 });
 
+const mapDoctorAppointmentToUi = (
+  item: Awaited<ReturnType<typeof doctorService.getWaitingPatients>>[number],
+  queueNumber: number,
+  status: "confirmed" | "completed",
+): Appointment => ({
+  id: item.id,
+  patient: {
+    id: item.patient.id,
+    full_name: item.patient.fullName || "Chưa cập nhật",
+    date_of_birth: "",
+    phone_number: item.patient.phoneNumber || "",
+    hometown: "",
+    national_id: item.patient.nationalId || "",
+    insurance_number: item.patient.healthInsuranceNumber || "",
+    gender: item.patient.gender?.toUpperCase() === "FEMALE" ? "female" : "male",
+  },
+  doctor_name: item.doctor?.username || "BS phụ trách",
+  symptoms: item.symptoms || "",
+  scheduled_time: formatTime(item.appointmentTime),
+  appointment_time: item.appointmentTime,
+  queue_number: queueNumber,
+  status,
+});
+
 export function DoctorQueue() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
@@ -49,13 +79,42 @@ export function DoctorQueue() {
   const [medicalRecord, setMedicalRecord] = useState<MedicalRecordInput>({ diagnosis: "", doctor_advice: "" });
   const [prescriptions, setPrescriptions] = useState<PrescriptionItem[]>([]);
   const [availableMedicines, setAvailableMedicines] = useState<Medicine[]>([]);
+  const [availableServices, setAvailableServices] = useState<DoctorMedicalService[]>([]);
+  const [selectedServices, setSelectedServices] = useState<SelectedServiceItem[]>([]);
+  const [activeMedicineCategory, setActiveMedicineCategory] = useState<string>("");
   const [medicalRecordId, setMedicalRecordId] = useState<number | null>(null);
+  const [historyRows, setHistoryRows] = useState<Awaited<ReturnType<typeof doctorService.getPatientHistorySummary>>["histories"]>([]);
+  const [historyDetail, setHistoryDetail] = useState<Awaited<ReturnType<typeof doctorService.getPatientHistoryDetail>> | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyDetailLoading, setHistoryDetailLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const waitingAppointments = appointments.filter((a) => a.status === "confirmed");
   const examiningAppointments = appointments.filter((a) => a.status === "pending");
   const completedAppointments = appointments.filter((a) => a.status === "completed");
+  const medicineCategories = useMemo(
+    () => Array.from(new Set(availableMedicines.map((medicine) => medicine.category))),
+    [availableMedicines],
+  );
+  const filteredMedicines = useMemo(
+    () =>
+      availableMedicines.filter((medicine) =>
+        activeMedicineCategory ? medicine.category === activeMedicineCategory : true,
+      ),
+    [activeMedicineCategory, availableMedicines],
+  );
+
+  useEffect(() => {
+    if (!medicineCategories.length) {
+      setActiveMedicineCategory("");
+      return;
+    }
+
+    if (!activeMedicineCategory || !medicineCategories.includes(activeMedicineCategory)) {
+      setActiveMedicineCategory(medicineCategories[0]);
+    }
+  }, [activeMedicineCategory, medicineCategories]);
 
   const loadAppointments = async () => {
     try {
@@ -66,45 +125,72 @@ export function DoctorQueue() {
       ]);
 
       let queue = 1;
-      const waitingMapped: Appointment[] = waiting.map((item) => ({
-        id: item.id,
-        patient: {
-          id: item.patient.id,
-          full_name: item.patient.fullName || "Chưa cập nhật",
-          date_of_birth: "",
-          phone_number: item.patient.phoneNumber || "",
-          hometown: "",
-          national_id: item.patient.nationalId || "",
-          insurance_number: item.patient.healthInsuranceNumber || "",
-          gender: item.patient.gender?.toUpperCase() === "FEMALE" ? "female" : "male",
-        },
-        doctor_name: item.doctor?.username || "BS phụ trách",
-        symptoms: item.symptoms || "",
-        scheduled_time: formatTime(item.appointmentTime),
-        appointment_time: item.appointmentTime,
-        queue_number: queue++,
-        status: "confirmed",
-      }));
+      const waitingMapped: Appointment[] = waiting.map((item) => mapDoctorAppointmentToUi(item, queue++, "confirmed"));
 
-      const completedMapped: Appointment[] = completed.map((item) => ({
-        id: item.id,
-        patient: {
-          id: item.patient.id,
-          full_name: item.patient.fullName || "Chưa cập nhật",
-          date_of_birth: "",
-          phone_number: item.patient.phoneNumber || "",
-          hometown: "",
-          national_id: item.patient.nationalId || "",
-          insurance_number: item.patient.healthInsuranceNumber || "",
-          gender: item.patient.gender?.toUpperCase() === "FEMALE" ? "female" : "male",
-        },
-        doctor_name: item.doctor?.username || "BS phụ trách",
-        symptoms: item.symptoms || "",
-        scheduled_time: formatTime(item.appointmentTime),
-        appointment_time: item.appointmentTime,
-        queue_number: 0,
-        status: "completed",
-      }));
+      const completedMappedBase: Appointment[] = completed.map((item) =>
+        mapDoctorAppointmentToUi(item, 0, "completed"),
+      );
+
+      const completedMapped = await Promise.all(
+        completedMappedBase.map(async (appointment) => {
+          try {
+            const record = await doctorService.getMedicalRecordByAppointment(appointment.id);
+            const [workspace, detail] = await Promise.all([
+              doctorService.getPrescriptionWorkspace(record.id).catch(() => null),
+              doctorService.getPatientHistoryDetail(appointment.id, record.id).catch(() => null),
+            ]);
+
+            const mappedMeds = (workspace?.medicineCatalog || []).map(mapCatalogToMedicine);
+            const byId = new Map<number, Medicine>(mappedMeds.map((m) => [m.id, m]));
+            const prescriptionItems: PrescriptionItem[] = (workspace?.prescribedMedicines || []).map((line) => ({
+              medicine_id: line.medicineId,
+              quantity: line.quantity,
+              usage_instructions: line.usageInstructions,
+              medicine:
+                byId.get(line.medicineId) ||
+                ({
+                  id: line.medicineId,
+                  medicine_name: line.medicineName,
+                  dosage: "",
+                  category: "Khác",
+                  unit: line.unit || "đv",
+                  stock_quantity: 0,
+                  selling_price: line.sellingPrice,
+                } as Medicine),
+            }));
+
+            const serviceItems: SelectedServiceItem[] = (detail?.services || []).map((service) => ({
+              service_id: service.serviceId,
+              service_name: service.serviceName,
+              quantity: service.quantity,
+              actual_price: service.actualPrice,
+              result_note: service.resultNote || "",
+            }));
+
+            const totalMedicineCost = prescriptionItems.reduce(
+              (sum, item) => sum + (item.medicine?.selling_price || 0) * item.quantity,
+              0,
+            );
+            const totalServiceCost = serviceItems.reduce(
+              (sum, item) => sum + item.actual_price * item.quantity,
+              0,
+            );
+
+            return {
+              ...appointment,
+              diagnosis: record.diagnosis || detail?.diagnosis || "",
+              doctor_advice: record.doctorAdvice || detail?.doctorAdvice || "",
+              prescription_items: prescriptionItems,
+              service_items: serviceItems,
+              total_medicine_cost: totalMedicineCost,
+              total_service_cost: totalServiceCost,
+              total_exam_cost: totalMedicineCost + totalServiceCost,
+            };
+          } catch {
+            return appointment;
+          }
+        }),
+      );
 
       setAppointments([...waitingMapped, ...completedMapped]);
     } catch (error) {
@@ -126,11 +212,26 @@ export function DoctorQueue() {
       );
       setSelectedAppointment(appointment);
       setIsExamining(true);
+      setHistoryRows([]);
+      setHistoryDetail(null);
       setMedicalRecord({
         diagnosis: appointment.diagnosis ?? "",
         doctor_advice: appointment.doctor_advice ?? "",
       });
       setPrescriptions(appointment.prescription_items ?? []);
+      setSelectedServices(appointment.service_items ?? []);
+      const services = await doctorService.getAvailableServices();
+      setAvailableServices(services.filter((item) => item.isActive));
+
+      setHistoryLoading(true);
+      try {
+        const history = await doctorService.getPatientHistorySummary(appointment.id);
+        setHistoryRows(history.histories || []);
+      } catch {
+        setHistoryRows([]);
+      } finally {
+        setHistoryLoading(false);
+      }
 
       const record = await doctorService.getMedicalRecordByAppointment(appointment.id).catch(() => null);
       if (record) {
@@ -162,8 +263,20 @@ export function DoctorQueue() {
               } as Medicine),
           })),
         );
+
+        const recordDetail = await doctorService.getPatientHistoryDetail(appointment.id, record.id).catch(() => null);
+        setSelectedServices(
+          (recordDetail?.services || []).map((service) => ({
+            service_id: service.serviceId,
+            service_name: service.serviceName,
+            quantity: service.quantity,
+            actual_price: service.actualPrice,
+            result_note: service.resultNote || "",
+          })),
+        );
       } else {
         setMedicalRecordId(null);
+        setSelectedServices([]);
         const medicines = await doctorService.getAvailableMedicines();
         setAvailableMedicines(
           medicines
@@ -238,8 +351,48 @@ export function DoctorQueue() {
     setPrescriptions((prev) => prev.filter((p) => p.medicine_id !== medicineId));
   };
 
+  const handleAddService = (service: DoctorMedicalService) => {
+    if (selectedServices.find((item) => item.service_id === service.id)) {
+      toast.error("Dịch vụ này đã được thêm");
+      return;
+    }
+
+    setSelectedServices((prev) => [
+      ...prev,
+      {
+        service_id: service.id,
+        service_name: service.serviceName,
+        quantity: 1,
+        actual_price: Number(service.currentPrice || 0),
+        result_note: "",
+      },
+    ]);
+  };
+
+  const handleUpdateSelectedService = (
+    serviceId: number,
+    field: "quantity" | "actual_price" | "result_note",
+    value: number | string,
+  ) => {
+    setSelectedServices((prev) =>
+      prev.map((item) => (item.service_id === serviceId ? { ...item, [field]: value } : item)),
+    );
+  };
+
+  const handleRemoveService = (serviceId: number) => {
+    setSelectedServices((prev) => prev.filter((item) => item.service_id !== serviceId));
+  };
+
   const getTotalMedicineCost = () => {
     return prescriptions.reduce((sum, p) => sum + (p.medicine?.selling_price || 0) * p.quantity, 0);
+  };
+
+  const getTotalServiceCost = () => {
+    return selectedServices.reduce((sum, item) => sum + item.actual_price * item.quantity, 0);
+  };
+
+  const getGrandTotalCost = () => {
+    return getTotalMedicineCost() + getTotalServiceCost();
   };
 
   const handleCompleteExam = async () => {
@@ -253,6 +406,10 @@ export function DoctorQueue() {
     }
     if (prescriptions.length > 0 && prescriptions.some((p) => !p.usage_instructions.trim())) {
       toast.error("Vui lòng nhập hướng dẫn sử dụng cho tất cả thuốc");
+      return;
+    }
+    if (selectedServices.some((item) => item.quantity < 1 || item.actual_price <= 0)) {
+      toast.error("Số lượng dịch vụ phải >= 1 và đơn giá phải > 0");
       return;
     }
 
@@ -289,7 +446,18 @@ export function DoctorQueue() {
         }
       }
 
-      await doctorService.savePrescription(recordId);
+      for (const service of selectedServices) {
+        await doctorService.upsertMedicalRecordServiceResult(recordId, {
+          serviceId: service.service_id,
+          quantity: service.quantity,
+          actualPrice: service.actual_price,
+          resultNote: service.result_note?.trim() || undefined,
+        });
+      }
+
+      if (prescriptions.length > 0) {
+        await doctorService.savePrescription(recordId);
+      }
       await doctorService.completeMedicalRecord(recordId);
 
       setAppointments((prev) =>
@@ -301,7 +469,10 @@ export function DoctorQueue() {
                 diagnosis: medicalRecord.diagnosis,
                 doctor_advice: medicalRecord.doctor_advice,
                 prescription_items: prescriptions,
+                service_items: selectedServices,
                 total_medicine_cost: getTotalMedicineCost(),
+                total_service_cost: getTotalServiceCost(),
+                total_exam_cost: getGrandTotalCost(),
               }
             : a,
         ),
@@ -311,6 +482,7 @@ export function DoctorQueue() {
       setMedicalRecordId(null);
       setMedicalRecord({ diagnosis: "", doctor_advice: "" });
       setPrescriptions([]);
+      setSelectedServices([]);
       toast.success("Đã hoàn thành khám bệnh và gửi đơn thuốc");
       await loadAppointments();
     } catch (error) {
@@ -335,6 +507,27 @@ export function DoctorQueue() {
     setMedicalRecordId(null);
     setMedicalRecord({ diagnosis: "", doctor_advice: "" });
     setPrescriptions([]);
+    setSelectedServices([]);
+    setHistoryRows([]);
+    setHistoryDetail(null);
+    setHistoryLoading(false);
+    setHistoryDetailLoading(false);
+  };
+
+  const handleViewHistoryDetail = async (appointmentId: number, historyMedicalRecordId: number) => {
+    if (!selectedAppointment) {
+      return;
+    }
+
+    try {
+      setHistoryDetailLoading(true);
+      const detail = await doctorService.getPatientHistoryDetail(appointmentId, historyMedicalRecordId);
+      setHistoryDetail(detail);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể tải chi tiết hồ sơ cũ"));
+    } finally {
+      setHistoryDetailLoading(false);
+    }
   };
 
   return (
@@ -397,40 +590,78 @@ export function DoctorQueue() {
         {!loading && activeTab === "waiting" && (
           <div className={styles.card}>
             <h2 className={styles.mb3}>Danh sách bệnh nhân chờ khám</h2>
+            
             {waitingAppointments.map((appointment) => (
               <div key={appointment.id} className={styles.appointmentCard}>
-                <div className={styles.flexBetweenStart}>
-                  <div className={styles.queueBadge}>{appointment.queue_number}</div>
+                <div className={styles.cardLayout}>
+                  
+                  {/* Cột trái: Số thứ tự */}
+                  <div className={styles.queueColumn}>
+                    <div className={styles.queueBadge}>{appointment.queue_number}</div>
+                  </div>
+
+                  {/* Cột phải: Thông tin */}
                   <div className={styles.appointmentMain}>
-                    <div className={styles.flexBetween}>
+                    
+                    {/* Header: Tên BN, Bác sĩ & Giờ khám */}
+                    <div className={styles.cardHeader}>
                       <div>
                         <h3 className={styles.appointmentName}>{appointment.patient.full_name}</h3>
-                        <p className={styles.textSmall}>BS phụ trách: {appointment.doctor_name}</p>
+                        {/* Đã tách tên bác sĩ xuống, thêm icon và căn lề */}
+                        <div className={styles.doctorInfo}>
+                          <Stethoscope size={16} />
+                          <span>BS phụ trách: <strong>{appointment.doctor_name}</strong></span>
+                        </div>
                       </div>
-                      <span className={styles.timeBadge}>{appointment.scheduled_time}</span>
+                      
+                      <span className={styles.timeBadge}>
+                        <Clock size={14} style={{ marginRight: '6px' }} />
+                        {appointment.scheduled_time}
+                      </span>
                     </div>
 
-                    <div className={styles.infoGrid}>
-                      <p className={styles.textSmall}>SĐT: {appointment.patient.phone_number}</p>
-                      <p className={styles.textSmall}>Ngày sinh: {formatDate(appointment.patient.date_of_birth) || "Chưa cập nhật"}</p>
-                      <p className={styles.textSmall}>Quê quán: {appointment.patient.hometown || "Chưa cập nhật"}</p>
-                      <p className={styles.textSmall}>CCCD: {appointment.patient.national_id || "Chưa cập nhật"}</p>
+                    {/* Lưới thông tin */}
+                    <div className={styles.infoGridWrapper}>
+                      <div className={styles.infoItem}>
+                        <span className={styles.infoLabel}>SĐT:</span>
+                        <span className={styles.infoValue}>{appointment.patient.phone_number}</span>
+                      </div>
+                      <div className={styles.infoItem}>
+                        <span className={styles.infoLabel}>Ngày sinh:</span>
+                        <span className={styles.infoValue}>{formatDate(appointment.patient.date_of_birth) || "Chưa cập nhật"}</span>
+                      </div>
+                      <div className={styles.infoItem}>
+                        <span className={styles.infoLabel}>Quê quán:</span>
+                        <span className={styles.infoValue}>{appointment.patient.hometown || "Chưa cập nhật"}</span>
+                      </div>
+                      <div className={styles.infoItem}>
+                        <span className={styles.infoLabel}>CCCD:</span>
+                        <span className={styles.infoValue}>{appointment.patient.national_id || "Chưa cập nhật"}</span>
+                      </div>
                     </div>
 
+                    {/* Hộp triệu chứng */}
                     <div className={styles.reasonBox}>
-                      <p className={styles.textSmall}><strong>Triệu chứng:</strong> {appointment.symptoms || "Chưa cập nhật"}</p>
+                      <span className={styles.reasonLabel}>Triệu chứng:</span>
+                      <span className={styles.reasonText}>{appointment.symptoms || "Chưa cập nhật"}</span>
                     </div>
 
-                    <div className={styles.flexBetween}>
+                    {/* Footer: BHYT và Nút bấm */}
+                    <div className={styles.cardFooter}>
                       <div>
                         {!!appointment.patient.insurance_number && (
                           <span className={styles.insuranceBadge}>BHYT: {appointment.patient.insurance_number}</span>
                         )}
                       </div>
-                      <button className={`${styles.button} ${styles.primary}`} onClick={() => void handleStartExam(appointment)} disabled={saving}>
+                      <button 
+                        className={`${styles.button} ${styles.primary} ${styles.examBtn}`} 
+                        onClick={() => void handleStartExam(appointment)} 
+                        disabled={saving}
+                      >
                         Bắt đầu khám
                       </button>
                     </div>
+
                   </div>
                 </div>
               </div>
@@ -487,6 +718,32 @@ export function DoctorQueue() {
                     </div>
                   </div>
                 )}
+
+                {!!appointment.service_items?.length && (
+                  <div className={styles.noteBlue}>
+                    <div className={styles.flexBetween}>
+                      <p className={styles.textSmall}><strong>Dịch vụ bổ sung</strong></p>
+                      <p className={styles.textSmall}><strong>Tổng: {appointment.total_service_cost?.toLocaleString("vi-VN")}đ</strong></p>
+                    </div>
+                    <div className={styles.rowStack}>
+                      {appointment.service_items.map((item) => (
+                        <div key={item.service_id} className={styles.itemCard}>
+                          <div className={styles.flexBetween}>
+                            <span className={styles.textSmall}>{item.service_name}</span>
+                            <span className={styles.textSmall}>{(item.actual_price * item.quantity).toLocaleString("vi-VN")}đ</span>
+                          </div>
+                          <p className={styles.textSmall}>Số lượng: {item.quantity} - Đơn giá: {item.actual_price.toLocaleString("vi-VN")}đ</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!!appointment.total_exam_cost && (
+                  <div className={styles.summaryCard}>
+                    <p className={styles.textSmall}><strong>Tổng chi phí (thuốc + dịch vụ): {appointment.total_exam_cost.toLocaleString("vi-VN")}đ</strong></p>
+                  </div>
+                )}
               </div>
             ))}
 
@@ -540,6 +797,144 @@ export function DoctorQueue() {
                     onChange={(e) => handleMedicalRecordChange("doctor_advice", e.target.value)}
                     placeholder="Nhập lời khuyên điều trị..."
                   />
+                </div>
+
+                <div className={styles.panelBorder}>
+                  <div className={`${styles.flexBetween} ${styles.mb2}`}>
+                    <h4 className={styles.titleSmall}>Hồ sơ bệnh án cũ của bệnh nhân</h4>
+                    <span className={styles.textSmall}>Đối chiếu tiền sử khám</span>
+                  </div>
+
+                  {historyLoading && <p className={styles.textSmall}>Đang tải lịch sử bệnh án...</p>}
+
+                  {!historyLoading && historyRows.length === 0 && (
+                    <p className={styles.textSmall}>Bệnh nhân chưa có hồ sơ khám cũ tại phòng khám.</p>
+                  )}
+
+                  {!historyLoading && historyRows.length > 0 && (
+                    <div className={styles.rowStack}>
+                      {historyRows.map((row) => (
+                        <div key={row.medicalRecordId} className={styles.itemCard}>
+                          <div className={styles.flexBetween}>
+                            <div>
+                              <p className={styles.textSmall}><strong>Ngày khám:</strong> {formatDate(row.appointmentTime)}</p>
+                              <p className={styles.textSmall}><strong>Chẩn đoán cũ:</strong> {row.oldDiagnosis || "-"}</p>
+                            </div>
+                            <button
+                              type="button"
+                              className={`${styles.button} ${styles.outline}`}
+                              onClick={() => selectedAppointment && void handleViewHistoryDetail(selectedAppointment.id, row.medicalRecordId)}
+                            >
+                              Xem chi tiết
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {historyDetailLoading && <p className={styles.textSmall}>Đang tải chi tiết hồ sơ...</p>}
+
+                  {historyDetail && (
+                    <div className={`${styles.panelMuted} ${styles.mb2}`}>
+                      <p className={styles.textSmall}><strong>Chẩn đoán:</strong> {historyDetail.diagnosis || "-"}</p>
+                      <p className={styles.textSmall}><strong>Lời dặn:</strong> {historyDetail.doctorAdvice || "-"}</p>
+
+                      <div className={styles.mb2}>
+                        <p className={styles.textSmall}><strong>Thuốc đã kê:</strong></p>
+                        {historyDetail.prescriptions.length > 0 ? (
+                          <div className={styles.rowStack}>
+                            {historyDetail.prescriptions.map((item) => (
+                              <div key={item.medicineId} className={styles.itemCard}>
+                                <p className={styles.textSmall}>{item.medicineName} - SL: {item.quantity}</p>
+                                <p className={styles.textSmall}>{item.usageInstructions || "-"}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className={styles.textSmall}>Không có thuốc.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className={styles.panelBorder}>
+                  <div className={`${styles.flexBetween} ${styles.mb2}`}>
+                    <h4 className={styles.titleSmall}>Dịch vụ bổ sung trong phòng khám</h4>
+                    <span className={styles.textSmall}>Tổng dịch vụ: {getTotalServiceCost().toLocaleString("vi-VN")}đ</span>
+                  </div>
+
+                  {selectedServices.length > 0 && (
+                    <div className={`${styles.rowStack} ${styles.mb2}`}>
+                      {selectedServices.map((item) => (
+                        <div key={item.service_id} className={styles.itemCard}>
+                          <div className={`${styles.flexBetween} ${styles.mb1}`}>
+                            <span className={styles.titleSmall}>{item.service_name}</span>
+                            <span>{(item.actual_price * item.quantity).toLocaleString("vi-VN")}đ</span>
+                          </div>
+
+                          <div className={`${styles.grid2} ${styles.mb1}`}>
+                            <div>
+                              <label className={`${styles.textSmall} ${styles.textMuted}`}>Số lượng</label>
+                              <input
+                                type="number"
+                                className={`${styles.input} ${styles.compactInput}`}
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => handleUpdateSelectedService(item.service_id, "quantity", parseInt(e.target.value, 10) || 1)}
+                              />
+                            </div>
+                            <div>
+                              <label className={`${styles.textSmall} ${styles.textMuted}`}>Đơn giá thực tế (VNĐ)</label>
+                              <input
+                                type="number"
+                                className={`${styles.input} ${styles.compactInput}`}
+                                min="1"
+                                value={item.actual_price}
+                                onChange={(e) => handleUpdateSelectedService(item.service_id, "actual_price", parseInt(e.target.value, 10) || 0)}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className={`${styles.textSmall} ${styles.textMuted}`}>Ghi chú dịch vụ</label>
+                            <input
+                              className={`${styles.input} ${styles.compactInput}`}
+                              placeholder="VD: Chuyển phòng X-quang"
+                              value={item.result_note || ""}
+                              onChange={(e) => handleUpdateSelectedService(item.service_id, "result_note", e.target.value)}
+                            />
+                          </div>
+
+                          <button
+                            className={`${styles.button} ${styles.outline} ${styles.fullButton} ${styles.textDanger}`}
+                            onClick={() => handleRemoveService(item.service_id)}
+                          >
+                            Xóa dịch vụ
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className={styles.serviceGrid}>
+                    {availableServices.map((service) => (
+                      <button
+                        key={service.id}
+                        type="button"
+                        className={styles.serviceItem}
+                        onClick={() => handleAddService(service)}
+                      >
+                        <p className={`${styles.textMedium} ${styles.textSmall}`}>{service.serviceName}</p>
+                        <p className={`${styles.textSmall} ${styles.textMuted}`}>{Number(service.currentPrice || 0).toLocaleString("vi-VN")}đ</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  {availableServices.length === 0 && (
+                    <p className={styles.textSmall}>Chưa có dịch vụ active trong hệ thống.</p>
+                  )}
                 </div>
 
                 <div>
@@ -606,13 +1001,20 @@ export function DoctorQueue() {
                   <div className={styles.panelBorder}>
                     <h4 className={styles.mb2}>Danh mục thuốc</h4>
                     <div className={styles.categoryTabs}>
-                      {Array.from(new Set(availableMedicines.map((medicine) => medicine.category))).map((category) => (
-                        <span key={category} className={`${styles.categoryTab} ${styles.categoryTabActive}`}>{category}</span>
+                      {medicineCategories.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          className={`${styles.categoryTab} ${activeMedicineCategory === category ? styles.categoryTabActive : ""}`}
+                          onClick={() => setActiveMedicineCategory(category)}
+                        >
+                          {category}
+                        </button>
                       ))}
                     </div>
 
                     <div className={styles.medicineGrid}>
-                      {availableMedicines.map((medicine) => (
+                      {filteredMedicines.map((medicine) => (
                         <div
                           key={medicine.id}
                           className={styles.medicineItem}
@@ -632,6 +1034,12 @@ export function DoctorQueue() {
                       )}
                     </div>
                   </div>
+                </div>
+
+                <div className={styles.summaryCard}>
+                  <p className={styles.textSmall}>Tiền thuốc: {getTotalMedicineCost().toLocaleString("vi-VN")}đ</p>
+                  <p className={styles.textSmall}>Tiền dịch vụ: {getTotalServiceCost().toLocaleString("vi-VN")}đ</p>
+                  <p className={styles.textSmall}><strong>Tổng tạm tính: {getGrandTotalCost().toLocaleString("vi-VN")}đ</strong></p>
                 </div>
               </div>
 
