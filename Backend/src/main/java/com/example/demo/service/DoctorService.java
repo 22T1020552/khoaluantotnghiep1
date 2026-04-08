@@ -11,11 +11,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.example.demo.dto.DoctorResponse;
 import com.example.demo.entity.Appointment;
+import com.example.demo.entity.MedicalService;
 import com.example.demo.entity.Medicine;
 import com.example.demo.entity.Role;
 import com.example.demo.entity.Room;
 import com.example.demo.entity.User;
 import com.example.demo.repository.AppointmentRepository;
+import com.example.demo.repository.MedicalServiceRepository;
 import com.example.demo.repository.MedicineRepository;
 import com.example.demo.repository.RoomRepository;
 import com.example.demo.repository.UserRepository;
@@ -33,6 +35,7 @@ public class DoctorService {
     private final AppointmentRepository appointmentRepository;
     private final RoomRepository roomRepository;
     private final MedicineRepository medicineRepository;
+    private final MedicalServiceRepository medicalServiceRepository;
 
     // Chức năng: lấy danh sách tất cả bác sĩ.
     public List<DoctorResponse> getAllDoctors() {
@@ -115,6 +118,11 @@ public class DoctorService {
     // Chức năng: lấy danh mục thuốc đang hoạt động cho bác sĩ kê đơn.
     public List<Medicine> getAvailableMedicines() {
         return medicineRepository.findByIsActiveTrueOrderByMedicineNameAsc();
+    }
+
+    // Chức năng: lấy danh mục dịch vụ đang hoạt động cho bác sĩ chỉ định thêm.
+    public List<MedicalService> getAvailableServices() {
+        return medicalServiceRepository.findByIsActiveTrueOrderByServiceNameAsc();
     }
 
     // Chức năng: lời khuyên của bác sĩ.

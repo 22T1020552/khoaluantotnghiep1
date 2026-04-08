@@ -18,6 +18,7 @@ import com.example.demo.dto.DoctorPatientHistoryDetailResponse;
 import com.example.demo.dto.DoctorPatientHistoryResponse;
 import com.example.demo.dto.DoctorResponse;
 import com.example.demo.entity.Appointment;
+import com.example.demo.entity.MedicalService;
 import com.example.demo.entity.Medicine;
 import com.example.demo.service.DoctorService;
 import com.example.demo.service.MedicalRecordService;
@@ -65,6 +66,12 @@ public class DoctorController {
     @Operation(summary = "Danh mục thuốc cho bác sĩ", description = "Lấy danh mục thuốc đang hoạt động để bác sĩ kê đơn.")
     public List<Medicine> getAvailableMedicines() {
         return doctorService.getAvailableMedicines();
+    }
+
+    @GetMapping("/me/services")
+    @Operation(summary = "Danh mục dịch vụ cho bác sĩ", description = "Lấy danh mục dịch vụ đang hoạt động để bác sĩ chỉ định thêm.")
+    public List<MedicalService> getAvailableServices() {
+        return doctorService.getAvailableServices();
     }
 
     @PutMapping("/{doctorId}/clinic-room")
