@@ -46,12 +46,14 @@ import com.example.demo.entity.Appointment;
 import com.example.demo.entity.Invoice;
 import com.example.demo.entity.MedicalRecord;
 import com.example.demo.entity.MedicalRecordServiceDetail;
+import com.example.demo.entity.MedicalService;
 import com.example.demo.entity.Medicine;
 import com.example.demo.entity.Patient;
 import com.example.demo.entity.PrescriptionDetail;
 import com.example.demo.repository.InvoiceRepository;
 import com.example.demo.repository.MedicalRecordRepository;
 import com.example.demo.repository.MedicalRecordServiceDetailRepository;
+import com.example.demo.repository.MedicalServiceRepository;
 import com.example.demo.repository.MedicineRepository;
 import com.example.demo.repository.PrescriptionDetailRepository;
 
@@ -69,10 +71,17 @@ public class InvoiceService {
     private static final DateTimeFormatter RECEIPT_TIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final Set<String> SUPPORTED_PAYMENT_METHODS = Set.of("TIEN_MAT", "CHUYEN_KHOAN", "POS");
     private static final BigDecimal HEALTH_INSURANCE_DISCOUNT_RATE = new BigDecimal("0.70");
+    private static final List<String> DEFAULT_CONSULTATION_SERVICE_KEYWORDS = List.of(
+            "khám bệnh",
+            "kham benh",
+            "khám",
+            "kham",
+            "consultation");
 
     private final InvoiceRepository invoiceRepository;
     private final MedicalRecordRepository medicalRecordRepository;
     private final MedicalRecordServiceDetailRepository medicalRecordServiceDetailRepository;
+    private final MedicalServiceRepository medicalServiceRepository;
     private final PrescriptionDetailRepository prescriptionDetailRepository;
     private final MedicineRepository medicineRepository;
 
@@ -209,6 +218,7 @@ public class InvoiceService {
         BigDecimal totalServiceFee = serviceDetails.stream()
                 .map(this::serviceLineTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        totalServiceFee = totalServiceFee.add(resolveDefaultConsultationFee(medicalRecord, serviceDetails));
 
         List<PrescriptionDetail> prescriptionDetails = prescriptionDetailRepository
                 .findByMedicalRecord_Id(medicalRecordId);
@@ -230,6 +240,38 @@ public class InvoiceService {
         }
 
         return invoiceRepository.save(invoice);
+    }
+
+    // Chức năng: xử lý cộng phí khám ban đầu của bác sĩ chính nếu chưa có trong danh
+    // sách dịch vụ.
+    private BigDecimal resolveDefaultConsultationFee(
+            MedicalRecord medicalRecord,
+            List<MedicalRecordServiceDetail> serviceDetails) {
+        Appointment appointment = medicalRecord == null ? null : medicalRecord.getAppointment();
+        if (appointment == null || appointment.getDoctor() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        Set<Long> existingServiceIds = serviceDetails.stream()
+                .map(detail -> detail.getService() == null ? null : detail.getService().getId())
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+
+        for (String keyword : DEFAULT_CONSULTATION_SERVICE_KEYWORDS) {
+            List<MedicalService> matchedServices = medicalServiceRepository
+                    .findByIsActiveTrueAndServiceNameContainingIgnoreCaseOrderByServiceNameAsc(keyword);
+            for (MedicalService service : matchedServices) {
+                if (service == null || service.getId() == null) {
+                    continue;
+                }
+                if (existingServiceIds.contains(service.getId())) {
+                    return BigDecimal.ZERO;
+                }
+                return defaultAmount(service.getCurrentPrice());
+            }
+        }
+
+        return BigDecimal.ZERO;
     }
 
     @Transactional

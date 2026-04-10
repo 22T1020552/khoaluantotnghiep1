@@ -120,8 +120,9 @@ public class MedicalRecordService {
         detail.setActualPrice(request.getActualPrice());
         detail.setResultNote(normalizeOptionalResultNote(request.getResultNote()));
 
+        MedicalRecordServiceDetail savedDetail = medicalRecordServiceDetailRepository.save(detail);
         invoiceService.aggregateInvoiceAmount(medicalRecordId);
-        return medicalRecordServiceDetailRepository.save(detail);
+        return savedDetail;
     }
 
     // Chức năng: xử lý get by id.
