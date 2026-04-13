@@ -87,8 +87,8 @@ public class MedicalRecordService {
         return medicalRecordRepository.findAll();
     }
 
-    // Chức năng: xử lý upsert medical record service result from assigned doctor
-    // room.
+    // Chức năng: xử lý Cập nhật kết quả dịch vụ hồ sơ y tế từ phòng khám của bác sĩ
+    // được chỉ định.
     public MedicalRecordServiceDetail upsertMedicalRecordServiceResult(
             String username,
             Long medicalRecordId,

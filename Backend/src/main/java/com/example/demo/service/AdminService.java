@@ -98,8 +98,7 @@ public class AdminService {
         res.setTodayAppointments(
                 appointmentRepository.countByAppointmentTimeBetween(
                         LocalDate.now().atStartOfDay(),
-                        LocalDate.now().plusDays(1).atStartOfDay())
-        );
+                        LocalDate.now().plusDays(1).atStartOfDay()));
 
         // Theo trang thai
         res.setPendingAppointments(appointmentRepository.countByStatus("PENDING"));
@@ -121,7 +120,8 @@ public class AdminService {
         return res;
     }
 
-    // Chức năng: xử lý Nhận báo cáo tài chính quản trị với các bộ lọc và dữ liệu biểu đồ.
+    // Chức năng: xử lý Nhận báo cáo tài chính quản trị với các bộ lọc và dữ liệu
+    // biểu đồ.
     public AdminRevenueReportResponse getRevenueReport(
             LocalDateTime startTime,
             LocalDateTime endTime,
@@ -140,7 +140,8 @@ public class AdminService {
         }
 
         if (resolvedStart.isAfter(resolvedEnd)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thời gian bắt đầu phải trước thời gian kết thúc");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Thời gian bắt đầu phải trước thời gian kết thúc");
         }
 
         String normalizedGroupBy = normalizeGroupBy(groupBy);
@@ -168,8 +169,7 @@ public class AdminService {
                     BigDecimal.ZERO,
                     List.of(),
                     List.of(),
-                    "Không có du lieu trong khoang thoi gian nay"
-            );
+                    "Không có du lieu trong khoang thoi gian nay");
         }
 
         BigDecimal totalRevenue = items.stream()
@@ -201,8 +201,7 @@ public class AdminService {
                 totalMedicineRevenue,
                 items,
                 chart,
-                "OK"
-        );
+                "OK");
     }
 
     // Chức năng: xử lý xuất báo cáo doanh thu quản trị sang CSV/PDF.
@@ -213,7 +212,8 @@ public class AdminService {
             String medicineFilter,
             String groupBy,
             String format) {
-        AdminRevenueReportResponse report = getRevenueReport(startTime, endTime, serviceFilter, medicineFilter, groupBy);
+        AdminRevenueReportResponse report = getRevenueReport(startTime, endTime, serviceFilter, medicineFilter,
+                groupBy);
         String normalizedFormat = format == null ? "CSV" : format.trim().toUpperCase(Locale.ROOT);
 
         if ("PDF".equals(normalizedFormat)) {
@@ -235,13 +235,27 @@ public class AdminService {
     // Chức năng: xử lý tạo user.
     public AdminUserResponse createUser(AdminCreateUserRequest request) {
         String username = request.getUsername().trim();
+        String phoneNumber = normalizeOptionalText(request.getPhoneNumber());
+        String email = normalizeOptionalEmail(request.getEmail());
+
         if (userRepository.existsByUsername(username)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại");
+        }
+
+        if (phoneNumber != null && userRepository.existsByPhoneNumber(phoneNumber)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Số điện thoại đã tồn tại");
+        }
+
+        if (email != null && userRepository.existsByEmailIgnoreCase(email)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email đã tồn tại");
         }
 
         User user = new User();
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setFullName(normalizeOptionalText(request.getFullName()));
+        user.setPhoneNumber(phoneNumber);
+        user.setEmail(email);
         user.setRole(request.getRole());
         Boolean active = request.getIsActive();
         user.setIsActive(active == null ? Boolean.TRUE : active);
@@ -265,6 +279,29 @@ public class AdminService {
 
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        }
+
+        if (request.getFullName() != null) {
+            user.setFullName(normalizeOptionalText(request.getFullName()));
+        }
+
+        if (request.getPhoneNumber() != null) {
+            String phoneNumber = normalizeOptionalText(request.getPhoneNumber());
+            if (phoneNumber != null && !phoneNumber.equals(user.getPhoneNumber())
+                    && userRepository.existsByPhoneNumber(phoneNumber)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Số điện thoại đã tồn tại");
+            }
+            user.setPhoneNumber(phoneNumber);
+        }
+
+        if (request.getEmail() != null) {
+            String email = normalizeOptionalEmail(request.getEmail());
+            boolean emailChanged = (user.getEmail() == null && email != null)
+                    || (user.getEmail() != null && (email == null || !user.getEmail().equalsIgnoreCase(email)));
+            if (email != null && emailChanged && userRepository.existsByEmailIgnoreCase(email)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email đã tồn tại");
+            }
+            user.setEmail(email);
         }
 
         if (request.getRole() != null) {
@@ -477,6 +514,12 @@ public class AdminService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    // Chức năng: xử lý chuẩn hóa email tùy chọn.
+    private String normalizeOptionalEmail(String value) {
+        String normalized = normalizeOptionalText(value);
+        return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
+    }
+
     // Chức năng: xử lý chuyển đổi response phòng khám.
     private AdminRoomResponse toAdminRoomResponse(Room room) {
         User doctor = room.getCurrentDoctor();
@@ -484,8 +527,7 @@ public class AdminService {
                 room.getId(),
                 room.getRoomName(),
                 doctor == null ? null : doctor.getId(),
-                doctor == null ? null : doctor.getUsername()
-        );
+                doctor == null ? null : doctor.getUsername());
     }
 
     // Chức năng: xử lý chuyển đổi response thuốc.
@@ -496,8 +538,7 @@ public class AdminService {
                 medicine.getUnit(),
                 medicine.getSellingPrice(),
                 medicine.getStockQuantity(),
-                medicine.getIsActive()
-        );
+                medicine.getIsActive());
     }
 
     // Chức năng: xử lý chuyển đổi response dịch vụ.
@@ -506,8 +547,7 @@ public class AdminService {
                 medicalService.getId(),
                 medicalService.getServiceName(),
                 medicalService.getCurrentPrice(),
-                medicalService.getIsActive()
-        );
+                medicalService.getIsActive());
     }
 
     // Chức năng: xử lý chuyển đổi response người dùng.
@@ -515,9 +555,11 @@ public class AdminService {
         return new AdminUserResponse(
                 user.getId(),
                 user.getUsername(),
+                user.getFullName(),
+                user.getPhoneNumber(),
+                user.getEmail(),
                 user.getRole(),
-                user.getIsActive()
-        );
+                user.getIsActive());
     }
 
     // Chức năng: xử lý tùy chọn nhóm theo báo cáo chuẩn hóa.
@@ -543,7 +585,8 @@ public class AdminService {
     // Chức năng: xử lý ánh xạ hóa đơn vào dòng báo cáo.
     private AdminRevenueReportItemResponse toRevenueReportItem(Invoice invoice) {
         Long medicalRecordId = invoice.getMedicalRecord() == null ? null : invoice.getMedicalRecord().getId();
-        Appointment appointment = invoice.getMedicalRecord() == null ? null : invoice.getMedicalRecord().getAppointment();
+        Appointment appointment = invoice.getMedicalRecord() == null ? null
+                : invoice.getMedicalRecord().getAppointment();
         Patient patient = appointment == null ? null : appointment.getPatient();
 
         List<String> services = medicalRecordId == null
@@ -574,8 +617,7 @@ public class AdminService {
                 invoice.getTotalMedicineFee(),
                 invoice.getTotalAmount(),
                 services,
-                medicines
-        );
+                medicines);
     }
 
     // Chức năng: xử lý áp dụng bộ lọc dịch vụ/thuốc.
@@ -634,14 +676,16 @@ public class AdminService {
     // Chức năng: xử lý xuất báo cáo sang định dạng CSV byte.
     private byte[] exportRevenueReportCsv(AdminRevenueReportResponse report) {
         StringBuilder builder = new StringBuilder();
-        builder.append("InvoiceId,MedicalRecordId,PatientName,PaymentMethod,PaidAt,ServiceRevenue,MedicineRevenue,TotalRevenue,Services,Medicines\n");
+        builder.append(
+                "InvoiceId,MedicalRecordId,PatientName,PaymentMethod,PaidAt,ServiceRevenue,MedicineRevenue,TotalRevenue,Services,Medicines\n");
 
         for (AdminRevenueReportItemResponse item : report.getItems()) {
             builder.append(nullSafe(item.getInvoiceId())).append(',')
                     .append(nullSafe(item.getMedicalRecordId())).append(',')
                     .append(csvEscape(item.getPatientName())).append(',')
                     .append(csvEscape(item.getPaymentMethod())).append(',')
-                    .append(csvEscape(item.getPaidAt() == null ? null : item.getPaidAt().format(DATETIME_FORMAT))).append(',')
+                    .append(csvEscape(item.getPaidAt() == null ? null : item.getPaidAt().format(DATETIME_FORMAT)))
+                    .append(',')
                     .append(nullSafe(item.getTotalServiceFee())).append(',')
                     .append(nullSafe(item.getTotalMedicineFee())).append(',')
                     .append(nullSafe(item.getTotalAmount())).append(',')
@@ -691,7 +735,8 @@ public class AdminService {
                         content.newLine();
                     }
                     if (report.getItems().size() > limit) {
-                        content.showText("... con " + (report.getItems().size() - limit) + " dong, vui long dung file CSV de xem day du.");
+                        content.showText("... con " + (report.getItems().size() - limit)
+                                + " dong, vui long dung file CSV de xem day du.");
                     }
                 }
 
@@ -720,4 +765,3 @@ public class AdminService {
     }
 
 }
-

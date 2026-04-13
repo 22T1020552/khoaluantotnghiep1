@@ -64,8 +64,9 @@ public class AuthService {
 
     // Chức năng: xử lý login.
     public AuthResponse login(String username, String password) {
-
-        User user = userRepository.findByUsername(username)
+        String loginKey = trimToNull(username);
+        User user = userRepository.findByUsername(loginKey)
+                .or(() -> userRepository.findByEmailIgnoreCase(loginKey))
                 .orElseThrow(
                         () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sai tên đăng nhập hoặc mật khẩu"));
 
@@ -100,7 +101,11 @@ public class AuthService {
 
     // Chức năng: xử lý register patient.
     public AuthResponse registerPatient(PatientRegisterRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) {
+        String normalizedUsername = request.getUsername().trim();
+        String normalizedPhoneNumber = trimToNull(request.getPhoneNumber());
+        String normalizedEmail = normalizeEmailOptional(request.getEmail());
+
+        if (userRepository.existsByUsername(normalizedUsername)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại");
         }
 
@@ -110,20 +115,23 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Số CCCD/CMND đã tồn tại");
         }
 
-        if (request.getPhoneNumber() != null
-                && !request.getPhoneNumber().isBlank()
-                && patientRepository.existsByPhoneNumber(request.getPhoneNumber().trim())) {
+        if (normalizedPhoneNumber != null
+                && (userRepository.existsByPhoneNumber(normalizedPhoneNumber)
+                        || patientRepository.existsByPhoneNumber(normalizedPhoneNumber))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Số điện thoại đã tồn tại");
         }
 
-        if (request.getGmail() != null
-                && !request.getGmail().isBlank()
-                && patientRepository.existsByGmail(request.getGmail().trim().toLowerCase())) {
+        if (normalizedEmail != null
+                && (userRepository.existsByEmailIgnoreCase(normalizedEmail)
+                        || patientRepository.existsByGmail(normalizedEmail))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email đã tồn tại");
         }
 
         User user = new User();
-        user.setUsername(request.getUsername().trim());
+        user.setUsername(normalizedUsername);
+        user.setFullName(request.getFullName().trim());
+        user.setPhoneNumber(normalizedPhoneNumber);
+        user.setEmail(normalizedEmail);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(Role.PATIENT);
         user.setIsActive(true);
@@ -135,8 +143,8 @@ public class AuthService {
         patient.setGender(trimToNull(request.getGender()));
         patient.setNationalId(trimToNull(request.getNationalId()));
         patient.setHealthInsuranceNumber(trimToNull(request.getHealthInsuranceNumber()));
-        patient.setPhoneNumber(trimToNull(request.getPhoneNumber()));
-        patient.setGmail(normalizeGmail(request.getGmail()));
+        patient.setPhoneNumber(normalizedPhoneNumber);
+        patient.setGmail(normalizedEmail);
         patientRepository.save(patient);
 
         return issueAuthTokens(user);
@@ -272,6 +280,9 @@ public class AuthService {
         response.setToken(accessToken);
         response.setRefreshToken(refreshToken);
         response.setUsername(user.getUsername());
+        response.setFullName(user.getFullName());
+        response.setPhoneNumber(user.getPhoneNumber());
+        response.setEmail(user.getEmail());
         response.setRole(user.getRole());
         return response;
     }
@@ -285,24 +296,30 @@ public class AuthService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    // Chức năng: xử lý chuẩn hóa gmail để lưu và kiểm tra trùng không phân biệt hoa
-    // thường.
-    private String normalizeGmail(String value) {
+    // Chức năng: chuẩn hóa email tùy chọn để lưu và kiểm tra trùng.
+    private String normalizeEmailOptional(String value) {
         String normalized = trimToNull(value);
         return normalized == null ? null : normalized.toLowerCase();
     }
 
     // Chức năng: chuẩn hóa email để tìm người dùng quên mật khẩu.
     private String normalizeEmail(String email) {
-        String normalized = trimToNull(email);
+        String normalized = normalizeEmailOptional(email);
         if (normalized == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email là bắt buộc");
         }
-        return normalized.toLowerCase();
+        return normalized;
     }
 
-    // Chức năng: tìm user theo email bệnh nhân hoặc username dạng email.
+    // Chức năng: tìm user theo email người dùng, email bệnh nhân hoặc username dạng
+    // email.
     private User findUserByEmailForReset(String normalizedEmail) {
+        User userByEmail = userRepository.findByEmailIgnoreCase(normalizedEmail)
+                .orElse(null);
+        if (userByEmail != null) {
+            return userByEmail;
+        }
+
         Patient patient = patientRepository.findByGmailIgnoreCase(normalizedEmail)
                 .orElse(null);
         if (patient != null && patient.getUser() != null) {

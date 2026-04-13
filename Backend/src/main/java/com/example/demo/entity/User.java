@@ -35,6 +35,15 @@ public class User {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
+    @Column(name = "full_name", length = 100)
+    private String fullName;
+
+    @Column(name = "phone_number", length = 15)
+    private String phoneNumber;
+
+    @Column(name = "email", length = 100)
+    private String email;
+
     @Column(name = "password", nullable = false, length = 255)
     @JsonIgnore
     private String passwordHash;
