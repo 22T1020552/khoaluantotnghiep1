@@ -12,7 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import com.example.demo.exception.AppException;
 
 import com.example.demo.dto.AuthResponse;
 import com.example.demo.dto.ForgotPasswordRequest;
@@ -68,10 +68,10 @@ public class AuthService {
         User user = userRepository.findByUsername(loginKey)
                 .or(() -> userRepository.findByEmailIgnoreCase(loginKey))
                 .orElseThrow(
-                        () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sai tên đăng nhập hoặc mật khẩu"));
+                        () -> AppException.of(HttpStatus.UNAUTHORIZED, "Sai tên đăng nhập hoặc mật khẩu"));
 
         if (Boolean.FALSE.equals(user.getIsActive())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản đang bị vô hiệu hóa");
+            throw AppException.of(HttpStatus.FORBIDDEN, "Tài khoản đang bị vô hiệu hóa");
         }
 
         String stored = user.getPasswordHash();
@@ -93,7 +93,7 @@ public class AuthService {
         }
 
         if (!valid) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sai tên đăng nhập hoặc mật khẩu");
+            throw AppException.of(HttpStatus.UNAUTHORIZED, "Sai tên đăng nhập hoặc mật khẩu");
         }
 
         return issueAuthTokens(user);
@@ -106,25 +106,25 @@ public class AuthService {
         String normalizedEmail = normalizeEmailOptional(request.getEmail());
 
         if (userRepository.existsByUsername(normalizedUsername)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại");
+            throw AppException.of(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại");
         }
 
         if (request.getNationalId() != null
                 && !request.getNationalId().isBlank()
                 && patientRepository.existsByNationalId(request.getNationalId().trim())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Số CCCD/CMND đã tồn tại");
+            throw AppException.of(HttpStatus.CONFLICT, "Số CCCD/CMND đã tồn tại");
         }
 
         if (normalizedPhoneNumber != null
                 && (userRepository.existsByPhoneNumber(normalizedPhoneNumber)
                         || patientRepository.existsByPhoneNumber(normalizedPhoneNumber))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Số điện thoại đã tồn tại");
+            throw AppException.of(HttpStatus.CONFLICT, "Số điện thoại đã tồn tại");
         }
 
         if (normalizedEmail != null
                 && (userRepository.existsByEmailIgnoreCase(normalizedEmail)
                         || patientRepository.existsByGmail(normalizedEmail))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email đã tồn tại");
+            throw AppException.of(HttpStatus.CONFLICT, "Email đã tồn tại");
         }
 
         User user = new User();
@@ -154,33 +154,33 @@ public class AuthService {
     public AuthResponse refreshToken(String refreshToken) {
         String normalizedRefreshToken = trimToNull(refreshToken);
         if (normalizedRefreshToken == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bắt buộc cung cấp refresh token");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Bắt buộc cung cấp refresh token");
         }
 
         String username;
         String tokenId;
         try {
             if (!jwtService.isRefreshToken(normalizedRefreshToken)) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ");
+                throw AppException.of(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ");
             }
 
             username = jwtService.extractUsernameFromRefreshToken(normalizedRefreshToken);
             tokenId = jwtService.extractTokenIdFromRefreshToken(normalizedRefreshToken);
         } catch (ExpiredJwtException ex) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token đã hết hạn");
+            throw AppException.of(HttpStatus.UNAUTHORIZED, "Refresh token đã hết hạn");
         } catch (JwtException | IllegalArgumentException ex) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ");
+            throw AppException.of(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ");
         }
 
         if (tokenId == null || tokenId.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ");
+            throw AppException.of(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ");
         }
 
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Không tìm thấy người dùng"));
+                .orElseThrow(() -> AppException.of(HttpStatus.UNAUTHORIZED, "Không tìm thấy người dùng"));
 
         if (Boolean.FALSE.equals(user.getIsActive())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản đang bị vô hiệu hóa");
+            throw AppException.of(HttpStatus.FORBIDDEN, "Tài khoản đang bị vô hiệu hóa");
         }
 
         refreshTokenService.validateRefreshTokenOrThrow(username, tokenId, normalizedRefreshToken);
@@ -212,7 +212,7 @@ public class AuthService {
         User user = findUserByEmailForReset(normalizedEmail);
 
         if (Boolean.FALSE.equals(user.getIsActive())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản đang bị vô hiệu hóa");
+            throw AppException.of(HttpStatus.FORBIDDEN, "Tài khoản đang bị vô hiệu hóa");
         }
 
         enforceOtpSendLimitOrThrow(user.getId());
@@ -234,7 +234,7 @@ public class AuthService {
         User user = findUserByEmailForReset(normalizedEmail);
 
         if (Boolean.FALSE.equals(user.getIsActive())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản đang bị vô hiệu hóa");
+            throw AppException.of(HttpStatus.FORBIDDEN, "Tài khoản đang bị vô hiệu hóa");
         }
 
         validateOtpOrThrow(user.getId(), request.getOtp().trim());
@@ -247,7 +247,7 @@ public class AuthService {
         User user = findUserByEmailForReset(normalizedEmail);
 
         if (Boolean.FALSE.equals(user.getIsActive())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản đang bị vô hiệu hóa");
+            throw AppException.of(HttpStatus.FORBIDDEN, "Tài khoản đang bị vô hiệu hóa");
         }
 
         ensureOtpVerifiedOrThrow(user.getId());
@@ -306,7 +306,7 @@ public class AuthService {
     private String normalizeEmail(String email) {
         String normalized = normalizeEmailOptional(email);
         if (normalized == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email là bắt buộc");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Email là bắt buộc");
         }
         return normalized;
     }
@@ -328,7 +328,7 @@ public class AuthService {
 
         return userRepository.findByUsernameIgnoreCase(normalizedEmail)
                 .filter(candidate -> isValidEmail(candidate.getUsername()))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy email"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy email"));
     }
 
     // Chức năng: tạo OTP 6 chữ số ngẫu nhiên.
@@ -346,7 +346,7 @@ public class AuthService {
             redisTemplate.delete(verifiedKey);
             redisTemplate.delete(invalidCountKey);
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
     }
 
@@ -356,7 +356,7 @@ public class AuthService {
         String sendCountKey = buildSendCountKey(userId);
         try {
             if (Boolean.TRUE.equals(redisTemplate.hasKey(cooldownKey))) {
-                throw new ResponseStatusException(
+                throw AppException.of(
                         HttpStatus.TOO_MANY_REQUESTS,
                         "Vui lòng chờ " + otpCooldownSeconds() + " giây trước khi yêu cầu OTP lại");
             }
@@ -364,12 +364,12 @@ public class AuthService {
             String rawSendCount = redisTemplate.opsForValue().get(sendCountKey);
             long sendCount = parseLongSafely(rawSendCount);
             if (sendCount >= otpMaxSendAttempts()) {
-                throw new ResponseStatusException(
+                throw AppException.of(
                         HttpStatus.TOO_MANY_REQUESTS,
                         "Bạn đã yêu cầu OTP quá nhiều lần. Vui lòng thử lại sau");
             }
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
     }
 
@@ -385,7 +385,7 @@ public class AuthService {
                 redisTemplate.expire(sendCountKey, otpSendLimitWindowDuration());
             }
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
     }
 
@@ -397,11 +397,11 @@ public class AuthService {
         try {
             expectedOtp = redisTemplate.opsForValue().get(otpKey);
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
 
         if (expectedOtp == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bạn chưa yêu cầu OTP");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Bạn chưa yêu cầu OTP");
         }
 
         if (!expectedOtp.equals(otp)) {
@@ -425,15 +425,15 @@ public class AuthService {
 
             if (invalidCount != null && invalidCount >= otpMaxInvalidAttempts()) {
                 clearResetOtp(userId);
-                throw new ResponseStatusException(
+                throw AppException.of(
                         HttpStatus.TOO_MANY_REQUESTS,
                         "Bạn đã nhập sai OTP quá số lần cho phép. Vui lòng yêu cầu OTP mới");
             }
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
 
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mã OTP không hợp lệ");
+        throw AppException.of(HttpStatus.BAD_REQUEST, "Mã OTP không hợp lệ");
     }
 
     // Chức năng: đánh dấu OTP đã verify trong Redis với cùng TTL còn lại.
@@ -446,19 +446,19 @@ public class AuthService {
         try {
             remainingSeconds = redisTemplate.getExpire(otpKey);
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
 
         if (remainingSeconds == null || remainingSeconds <= 0) {
             clearResetOtp(userId);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mã OTP đã hết hạn");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Mã OTP đã hết hạn");
         }
 
         try {
             redisTemplate.opsForValue().set(verifiedKey, "1", Duration.ofSeconds(remainingSeconds));
             redisTemplate.delete(invalidCountKey);
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
     }
 
@@ -469,11 +469,11 @@ public class AuthService {
         try {
             exists = redisTemplate.hasKey(verifiedKey);
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
 
         if (!Boolean.TRUE.equals(exists)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OTP chưa được xác thực");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "OTP chưa được xác thực");
         }
     }
 
@@ -484,14 +484,14 @@ public class AuthService {
             redisTemplate.delete(buildVerifiedKey(userId));
             redisTemplate.delete(buildInvalidCountKey(userId));
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
     }
 
     private void clearResetOtpSilently(Long userId) {
         try {
             clearResetOtp(userId);
-        } catch (ResponseStatusException ignored) {
+        } catch (AppException ignored) {
             // Keep original exception from email/flow operation.
         }
     }
@@ -562,3 +562,4 @@ public class AuthService {
     }
 
 }
+

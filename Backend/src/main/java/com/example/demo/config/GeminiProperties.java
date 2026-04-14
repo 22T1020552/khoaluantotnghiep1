@@ -14,4 +14,7 @@ public class GeminiProperties {
     private int timeoutSeconds = 20;
     private int historyContextMessages = 12;
     private int historyReturnMessages = 100;
+    private String clinicWorkingHours = "Thứ 2 - Thứ 7: 08:00 - 17:00; Chủ nhật: 08:00 - 11:00";
+    private String clinicHotline = "1900 1234";
+    private String clinicAddress = "123 Đường Lý Thường Kiệt, phường Thuận Hóa, TP. Huế";
 }

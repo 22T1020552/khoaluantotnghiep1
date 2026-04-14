@@ -6,7 +6,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import com.example.demo.exception.AppException;
 
 import com.example.demo.dto.PatientMedicalRecordDetailResponse;
 import com.example.demo.dto.PatientMedicalRecordHistoryItemResponse;
@@ -58,12 +58,12 @@ public class PatientService {
         Patient patient = getPatientFromUsername(username);
 
         MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
+            .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
 
         Appointment appointment = medicalRecord.getAppointment();
         if (appointment == null || appointment.getPatient() == null
             || !patient.getId().equals(appointment.getPatient().getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập bệnh án này");
+            throw AppException.of(HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập bệnh án này");
         }
 
         List<PatientPrescriptionHistoryItemResponse> prescriptionItems = prescriptionDetailRepository
@@ -123,4 +123,5 @@ public class PatientService {
         );
         }
 }
+
 

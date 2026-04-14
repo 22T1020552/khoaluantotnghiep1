@@ -10,7 +10,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import com.example.demo.exception.AppException;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,7 +30,7 @@ public class RefreshTokenService {
         try {
             redisTemplate.opsForValue().set(key, value, ttl);
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
     }
 
@@ -42,16 +42,16 @@ public class RefreshTokenService {
         try {
             expectedValue = redisTemplate.opsForValue().get(key);
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
 
         if (expectedValue == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ hoặc đã hết hạn");
+            throw AppException.of(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ hoặc đã hết hạn");
         }
 
         String providedValue = tokenId + ":" + hashToken(rawRefreshToken);
         if (!constantTimeEquals(expectedValue, providedValue)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ hoặc đã hết hạn");
+            throw AppException.of(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ hoặc đã hết hạn");
         }
     }
 
@@ -61,7 +61,7 @@ public class RefreshTokenService {
         try {
             redisTemplate.delete(key);
         } catch (DataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Redis hiện không khả dụng");
         }
     }
 
@@ -85,3 +85,4 @@ public class RefreshTokenService {
         return MessageDigest.isEqual(leftBytes, rightBytes);
     }
 }
+

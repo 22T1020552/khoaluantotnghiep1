@@ -41,6 +41,21 @@
       "description": "Maximum history messages returned for a user when requesting chatbot history."
     },
     {
+      "name": "ai.gemini.clinic-working-hours",
+      "type": "java.lang.String",
+      "description": "Clinic business hours text used as fixed chatbot business context."
+    },
+    {
+      "name": "ai.gemini.clinic-hotline",
+      "type": "java.lang.String",
+      "description": "Clinic hotline used in chatbot business context."
+    },
+    {
+      "name": "ai.gemini.clinic-address",
+      "type": "java.lang.String",
+      "description": "Clinic address used in chatbot business context."
+    },
+    {
       "name": "clinic.notification.receptionist.emails",
       "type": "java.lang.String",
       "description": "Comma-separated receptionist email addresses for new booking notifications."

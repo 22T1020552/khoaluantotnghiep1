@@ -5,15 +5,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.example.demo.dto.DoctorResponse;
 import com.example.demo.entity.Appointment;
 import com.example.demo.entity.Role;
 import com.example.demo.entity.Room;
 import com.example.demo.entity.User;
+import com.example.demo.exception.AppException;
 import com.example.demo.repository.AppointmentRepository;
 import com.example.demo.repository.RoomRepository;
 import com.example.demo.repository.UserRepository;
@@ -25,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class DoctorService {
 
     private static final String STATUS_WAITING = "WAITING";
+    private static final String STATUS_COMPLETED = "COMPLETED";
 
     private final UserRepository userRepository;
     private final AppointmentRepository appointmentRepository;
@@ -40,11 +40,11 @@ public class DoctorService {
     // Chức năng: cập nhật phòng khám cho bác sĩ.
     public DoctorResponse updateClinicRoom(Long doctorId, String clinicRoom) {
         if (clinicRoom == null || clinicRoom.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phòng khám là bắt buộc");
+            throw AppException.badRequest("Phòng khám là bắt buộc");
         }
 
         User doctor = userRepository.findByIdAndRole(doctorId, Role.DOCTOR)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bác sĩ"));
+                .orElseThrow(() -> AppException.notFound("Không tìm thấy bác sĩ"));
 
         String normalizedRoomName = clinicRoom.trim();
 
@@ -67,7 +67,8 @@ public class DoctorService {
     // Chức năng: lấy danh sách bệnh nhân đang chờ khám.
     public List<Appointment> getMyWaitingPatients(String username, LocalDate date) {
         User doctor = userRepository.findByUsernameAndRole(username, Role.DOCTOR)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản bác sĩ"));
+                .orElseThrow(
+                        () -> AppException.notFound("Không tìm thấy tài khoản bác sĩ"));
 
         if (date != null) {
             LocalDateTime from = date.atStartOfDay();
@@ -76,14 +77,33 @@ public class DoctorService {
                     doctor.getId(),
                     STATUS_WAITING,
                     from,
-                    to
-            );
+                    to);
         }
 
         return appointmentRepository.findByDoctor_IdAndStatusOrderByAppointmentTimeAsc(
                 doctor.getId(),
-                STATUS_WAITING
-        );
+                STATUS_WAITING);
+    }
+
+    // Chức năng: lấy danh sách bệnh nhân đã khám.
+    public List<Appointment> getMyCompletedPatients(String username, LocalDate date) {
+        User doctor = userRepository.findByUsernameAndRole(username, Role.DOCTOR)
+                .orElseThrow(
+                        () -> AppException.notFound("Không tìm thấy tài khoản bác sĩ"));
+
+        if (date != null) {
+            LocalDateTime from = date.atStartOfDay();
+            LocalDateTime to = from.plusDays(1);
+            return appointmentRepository.findByDoctor_IdAndStatusAndAppointmentTimeBetweenOrderByAppointmentTimeAsc(
+                    doctor.getId(),
+                    STATUS_COMPLETED,
+                    from,
+                    to);
+        }
+
+        return appointmentRepository.findByDoctor_IdAndStatusOrderByAppointmentTimeAsc(
+                doctor.getId(),
+                STATUS_COMPLETED);
     }
 
     // Chức năng: lời khuyên của bác sĩ.
@@ -91,4 +111,3 @@ public class DoctorService {
         return new DoctorResponse(doctor.getId(), doctor.getUsername(), doctor.getIsActive());
     }
 }
-

@@ -30,7 +30,7 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+import com.example.demo.exception.AppException;
 
 import com.example.demo.dto.CashierMedicineLineItemResponse;
 import com.example.demo.dto.CashierPaymentRecordDetailResponse;
@@ -79,7 +79,7 @@ public class InvoiceService {
     // Chức năng: xử lý lấy thông tin theo mã số hồ sơ y tế.
     public Invoice getByMedicalRecordId(Long medicalRecordId) {
         return invoiceRepository.findByMedicalRecord_Id(medicalRecordId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND,
                         "Không tìm thấy hóa đơn cho bệnh án này"));
     }
 
@@ -100,7 +100,7 @@ public class InvoiceService {
                 .toList();
 
         if (matched.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy hồ sơ");
+            throw AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy hồ sơ");
         }
 
         return matched;
@@ -109,7 +109,7 @@ public class InvoiceService {
     // Chức năng: xử lý tìm kiếm hồ sơ thanh toán.
     public CashierPaymentRecordDetailResponse searchPaymentRecord(String keyword) {
         if (keyword == null || keyword.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Từ khóa là bắt buộc");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Từ khóa là bắt buộc");
         }
 
         String normalizedKeyword = normalizeKeyword(keyword);
@@ -118,10 +118,10 @@ public class InvoiceService {
                 .findFirst();
 
         Invoice invoice = matchedInvoice
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy hồ sơ"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy hồ sơ"));
 
         if (Boolean.TRUE.equals(invoice.getIsPaid())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Hồ sơ đã thanh toán");
+            throw AppException.of(HttpStatus.CONFLICT, "Hồ sơ đã thanh toán");
         }
 
         return toPaymentRecordDetailResponse(invoice);
@@ -153,7 +153,7 @@ public class InvoiceService {
         }
 
         if (resolvedStartTime.isAfter(resolvedEndTime)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            throw AppException.of(HttpStatus.BAD_REQUEST,
                     "Thời gian bắt đầu phải trước thời gian kết thúc");
         }
 
@@ -197,11 +197,11 @@ public class InvoiceService {
     // Chức năng: xử lý tổng hợp số tiền hóa đơn.
     public Invoice aggregateInvoiceAmount(Long medicalRecordId) {
         MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
 
         Invoice invoice = invoiceRepository.findByMedicalRecord_Id(medicalRecordId).orElseGet(Invoice::new);
         if (Boolean.TRUE.equals(invoice.getIsPaid())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Hóa đơn đã thanh toán và không thể tính lại");
+            throw AppException.of(HttpStatus.CONFLICT, "Hóa đơn đã thanh toán và không thể tính lại");
         }
 
         List<MedicalRecordServiceDetail> serviceDetails = medicalRecordServiceDetailRepository
@@ -236,7 +236,7 @@ public class InvoiceService {
     // Chức năng: xử lý xác nhận thanh toán.
     public Invoice confirmPayment(Long invoiceId) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy hóa đơn"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy hóa đơn"));
 
         if (Boolean.TRUE.equals(invoice.getIsPaid())) {
             return invoice;
@@ -244,7 +244,7 @@ public class InvoiceService {
 
         MedicalRecord medicalRecord = invoice.getMedicalRecord();
         if (medicalRecord == null || medicalRecord.getId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bệnh án là bắt buộc để thanh toán");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Bệnh án là bắt buộc để thanh toán");
         }
 
         Invoice recalculatedInvoice = aggregateInvoiceAmount(medicalRecord.getId());
@@ -257,27 +257,27 @@ public class InvoiceService {
     // đơn.
     public CashierProcessPaymentResponse processPayment(Long invoiceId, CashierProcessPaymentRequest request) {
         if (request == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Dữ liệu yêu cầu là bắt buộc");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Dữ liệu yêu cầu là bắt buộc");
         }
 
         String paymentMethod = normalizePaymentMethod(request.getPaymentMethod());
         if (!SUPPORTED_PAYMENT_METHODS.contains(paymentMethod)) {
-            throw new ResponseStatusException(
+            throw AppException.of(
                     HttpStatus.BAD_REQUEST,
                     "Phương thức thanh toán không hợp lệ. Hỗ trợ: TIEN_MAT, CHUYEN_KHOAN, POS");
         }
         ensureElectronicPaymentSucceeded(paymentMethod, request.getPaymentSuccessful());
 
         Invoice existingInvoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy hóa đơn"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy hóa đơn"));
 
         if (Boolean.TRUE.equals(existingInvoice.getIsPaid())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Hồ sơ đã thanh toán");
+            throw AppException.of(HttpStatus.CONFLICT, "Hồ sơ đã thanh toán");
         }
 
         MedicalRecord medicalRecord = existingInvoice.getMedicalRecord();
         if (medicalRecord == null || medicalRecord.getId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bệnh án là bắt buộc để thanh toán");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Bệnh án là bắt buộc để thanh toán");
         }
 
         // Auto-refresh tong chi phi truoc khi thu tien.
@@ -288,7 +288,7 @@ public class InvoiceService {
         boolean applyHealthInsurance = Boolean.TRUE.equals(request.getApplyHealthInsurance());
         boolean eligibleHealthInsurance = hasHealthInsurance(patient);
         if (applyHealthInsurance && !eligibleHealthInsurance) {
-            throw new ResponseStatusException(
+            throw AppException.of(
                     HttpStatus.BAD_REQUEST,
                     "Bệnh nhân không có thông tin bảo hiểm y tế");
         }
@@ -355,7 +355,7 @@ public class InvoiceService {
             Doc doc = new SimpleDoc(formattedText, DocFlavor.STRING.TEXT_PLAIN, null);
             printJob.print(doc, null);
         } catch (PrintException ex) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Không thể gửi lệnh in", ex);
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Không thể gửi lệnh in", ex);
         }
 
         return new CashierPrintReceiptResponse(
@@ -397,7 +397,7 @@ public class InvoiceService {
             document.save(output);
             return output.toByteArray();
         } catch (IOException ex) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể tạo file PDF", ex);
+            throw AppException.of(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể tạo file PDF", ex);
         }
     }
 
@@ -567,7 +567,7 @@ public class InvoiceService {
     // Chức năng: xử lý chuẩn hóa đầu vào phương thức thanh toán.
     private String normalizePaymentMethod(String paymentMethod) {
         if (paymentMethod == null || paymentMethod.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phương thức thanh toán là bắt buộc");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Phương thức thanh toán là bắt buộc");
         }
         return paymentMethod.trim().toUpperCase(Locale.ROOT);
     }
@@ -576,7 +576,7 @@ public class InvoiceService {
     private void ensureElectronicPaymentSucceeded(String paymentMethod, Boolean paymentSuccessful) {
         boolean isElectronic = "CHUYEN_KHOAN".equals(paymentMethod) || "POS".equals(paymentMethod);
         if (isElectronic && !Boolean.TRUE.equals(paymentSuccessful)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Giao dịch chưa thành công");
+            throw AppException.of(HttpStatus.CONFLICT, "Giao dịch chưa thành công");
         }
     }
 
@@ -588,7 +588,7 @@ public class InvoiceService {
         for (PrescriptionDetail detail : prescriptionDetails) {
             Medicine medicine = detail.getMedicine();
             if (medicine == null) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Không tìm thấy thông tin thuốc trong đơn");
+                throw AppException.of(HttpStatus.CONFLICT, "Không tìm thấy thông tin thuốc trong đơn");
             }
 
             int quantity = Objects.requireNonNullElse(detail.getQuantity(), 0);
@@ -598,7 +598,7 @@ public class InvoiceService {
 
             int currentStock = Objects.requireNonNullElse(medicine.getStockQuantity(), 0);
             if (currentStock < quantity) {
-                throw new ResponseStatusException(
+                throw AppException.of(
                         HttpStatus.CONFLICT,
                         "Không đủ tồn kho để thanh toán thuốc: " + medicine.getMedicineName());
             }
@@ -643,7 +643,7 @@ public class InvoiceService {
             return null;
         }
         if (!SUPPORTED_PAYMENT_METHODS.contains(normalized)) {
-            throw new ResponseStatusException(
+            throw AppException.of(
                     HttpStatus.BAD_REQUEST,
                     "Phương thức thanh toán không hợp lệ. Hỗ trợ: TIEN_MAT, CHUYEN_KHOAN, POS");
         }
@@ -668,10 +668,10 @@ public class InvoiceService {
     // in/xuất.
     private Invoice getPaidInvoiceOrThrow(Long invoiceId) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy hóa đơn"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy hóa đơn"));
 
         if (!Boolean.TRUE.equals(invoice.getIsPaid())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Hóa đơn chưa được xác nhận thanh toán");
+            throw AppException.of(HttpStatus.CONFLICT, "Hóa đơn chưa được xác nhận thanh toán");
         }
         return invoice;
     }
@@ -729,7 +729,7 @@ public class InvoiceService {
     private PrintService resolvePrinter(String printerName) {
         PrintService[] services = PrintServiceLookup.lookupPrintServices(null, null);
         if (services == null || services.length == 0) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Không tìm thấy máy in được kết nối");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Không tìm thấy máy in được kết nối");
         }
 
         if (printerName == null || printerName.isBlank()) {
@@ -747,7 +747,7 @@ public class InvoiceService {
             }
         }
 
-        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy máy in: " + printerName);
+        throw AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy máy in: " + printerName);
     }
 
     // Chức năng: xử lý văn bản không an toàn.
@@ -774,3 +774,4 @@ public class InvoiceService {
         return value == null ? 0 : value;
     }
 }
+

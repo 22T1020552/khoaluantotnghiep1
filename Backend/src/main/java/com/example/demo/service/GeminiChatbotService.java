@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.server.ResponseStatusException;
+import com.example.demo.exception.AppException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.example.demo.config.GeminiProperties;
@@ -62,7 +62,8 @@ public class GeminiChatbotService {
             + "Bạn chỉ cung cấp thông tin tham khảo, không thay thế bác sĩ. "
             + "Nếu có dấu hiệu nguy hiểm như khó thở, đau ngực, ngất, xuất huyết nhiều, hãy khuyên bệnh nhân đi cấp cứu ngay. "
             + "Trả lời bằng tiếng Việt rõ ràng, ngắn gọn, lịch sự. "
-            + "Nếu có dữ liệu nghiệp vụ phòng khám được cung cấp trong prompt thì ưu tiên dùng đúng dữ liệu đó.";
+            + "Nếu có dữ liệu nghiệp vụ phòng khám được cung cấp trong prompt thì ưu tiên dùng đúng dữ liệu đó. "
+            + "Khi người dùng hỏi giờ làm việc, thời gian mở cửa hoặc đóng cửa, phải dùng đúng dữ liệu đã cung cấp và không dùng placeholder như [Giờ mở cửa].";
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final int CATALOG_CONTEXT_LIMIT = 5;
@@ -116,7 +117,7 @@ public class GeminiChatbotService {
         validateGeminiConfig();
         String normalizedMessage = trimToNull(message);
         if (normalizedMessage == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nội dung câu hỏi là bắt buộc");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Nội dung câu hỏi là bắt buộc");
         }
 
         User user = resolveUserIfAuthenticated(username);
@@ -158,9 +159,9 @@ public class GeminiChatbotService {
             return new ChatbotAskResponse(answer, geminiProperties.getModel());
         } catch (HttpStatusCodeException ex) {
             String messageText = "Gemini API phản hồi lỗi " + ex.getStatusCode().value();
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, messageText);
+            throw AppException.of(HttpStatus.BAD_GATEWAY, messageText);
         } catch (ResourceAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "Hết thời gian chờ phản hồi từ Gemini");
+            throw AppException.of(HttpStatus.GATEWAY_TIMEOUT, "Hết thời gian chờ phản hồi từ Gemini");
         }
     }
 
@@ -184,13 +185,13 @@ public class GeminiChatbotService {
     // Chức năng: kiểm tra trạng thái bật/tắt và thông tin xác thực của Gemini.
     private void validateGeminiConfig() {
         if (!geminiProperties.isEnabled()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE,
                     "AI Chatbot hiện đang tắt. Vui lòng bật ai.gemini.enabled");
         }
 
         String apiKey = trimToNull(geminiProperties.getApiKey());
         if (apiKey == null) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE,
                     "Chưa cấu hình GEMINI_API_KEY");
         }
     }
@@ -208,13 +209,13 @@ public class GeminiChatbotService {
     // Chức năng: trích xuất nội dung text đầu tiên từ phản hồi Gemini.
     private String extractAnswer(JsonNode body) {
         if (body == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Phản hồi Gemini rỗng");
+            throw AppException.of(HttpStatus.BAD_GATEWAY, "Phản hồi Gemini rỗng");
         }
 
         JsonNode textNode = body.at("/candidates/0/content/parts/0/text");
         String answer = trimToNull(textNode.isMissingNode() ? null : textNode.asText());
         if (answer == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+            throw AppException.of(HttpStatus.BAD_GATEWAY,
                     "Không nhận được nội dung trả lời hợp lệ từ Gemini");
         }
         return answer;
@@ -253,10 +254,39 @@ public class GeminiChatbotService {
     private String buildBusinessContext(String userMessage, User user) {
         StringBuilder context = new StringBuilder();
 
+        appendClinicOperationalContext(context);
         appendCatalogContext(context, userMessage);
         appendPatientContext(context, user);
 
         return trimToNull(context.toString());
+    }
+
+    // Chức năng: thêm thông tin hoạt động cố định để AI trả lời đúng giờ làm việc.
+    private void appendClinicOperationalContext(StringBuilder context) {
+        String workingHours = trimToNull(geminiProperties.getClinicWorkingHours());
+        String hotline = trimToNull(geminiProperties.getClinicHotline());
+        String address = trimToNull(geminiProperties.getClinicAddress());
+
+        if (workingHours == null && hotline == null && address == null) {
+            return;
+        }
+
+        context.append("- Thông tin hoạt động phòng khám:\n");
+        if (workingHours != null) {
+            context.append("  + Giờ làm việc: ")
+                    .append(workingHours)
+                    .append('\n');
+        }
+        if (hotline != null) {
+            context.append("  + Hotline: ")
+                    .append(hotline)
+                    .append('\n');
+        }
+        if (address != null) {
+            context.append("  + Địa chỉ: ")
+                    .append(address)
+                    .append('\n');
+        }
     }
 
     // Chức năng: tìm dịch vụ và thuốc theo từ khóa câu hỏi.
@@ -598,14 +628,14 @@ public class GeminiChatbotService {
         return userRepository.findByUsername(normalizedUsername)
                 .or(() -> userRepository.findByEmailIgnoreCase(normalizedUsername))
                 .orElseThrow(
-                        () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng đăng nhập"));
+                        () -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng đăng nhập"));
     }
 
     // Chức năng: bắt buộc phải có user đăng nhập để truy cập lịch sử.
     private User resolveUserRequired(String username) {
         User user = resolveUserIfAuthenticated(username);
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Vui lòng đăng nhập để xem lịch sử chatbot");
+            throw AppException.of(HttpStatus.UNAUTHORIZED, "Vui lòng đăng nhập để xem lịch sử chatbot");
         }
         return user;
     }

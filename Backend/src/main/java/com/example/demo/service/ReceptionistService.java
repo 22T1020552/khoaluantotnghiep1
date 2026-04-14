@@ -11,7 +11,7 @@ import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import com.example.demo.exception.AppException;
 
 import com.example.demo.dto.ReceptionistDoctorOptionResponse;
 import com.example.demo.entity.Appointment;
@@ -110,7 +110,7 @@ public class ReceptionistService {
 
         String normalizedStatus = normalizeStatus(status);
         if (!WAITING_STATUSES.contains(normalizedStatus)) {
-            throw new ResponseStatusException(
+            throw AppException.of(
                     HttpStatus.BAD_REQUEST,
                     "Trạng thái không hợp lệ. Cho phép: PENDING, WAITING, IN_PROGRESS, COMPLETED");
         }
@@ -121,11 +121,11 @@ public class ReceptionistService {
     // Chức năng: xử lý duyệt cuộc hẹn.
     public Appointment approveAppointment(Long appointmentId, Long doctorId, String specialty) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
         String currentStatus = normalizeStatus(appointment.getStatus());
         if (!STATUS_PENDING_CONFIRMATION.equals(currentStatus)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ lịch hẹn ở trạng thái PENDING mới có thể được duyệt");
+            throw AppException.of(HttpStatus.CONFLICT, "Chỉ lịch hẹn ở trạng thái PENDING mới có thể được duyệt");
         }
 
         User doctor = resolveDoctorForAssignment(doctorId, specialty, appointment.getAppointmentTime(),
@@ -149,11 +149,11 @@ public class ReceptionistService {
     // Chức năng: xử lý cập nhật trạng thái chờ.
     public Appointment updateWaitingStatus(Long appointmentId, String status) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
         String normalizedStatus = normalizeStatus(status);
         if (!WAITING_STATUSES.contains(normalizedStatus)) {
-            throw new ResponseStatusException(
+            throw AppException.of(
                     HttpStatus.BAD_REQUEST,
                     "Trạng thái không hợp lệ. Cho phép: PENDING, WAITING, IN_PROGRESS, COMPLETED");
         }
@@ -162,7 +162,7 @@ public class ReceptionistService {
 
         if ((STATUS_WAITING.equals(normalizedStatus) || STATUS_IN_PROGRESS.equals(normalizedStatus))
                 && appointment.getDoctor() == null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn phải được phân công bác sĩ trước");
+            throw AppException.of(HttpStatus.CONFLICT, "Lịch hẹn phải được phân công bác sĩ trước");
         }
 
         appointment.setStatus(normalizedStatus);
@@ -173,11 +173,11 @@ public class ReceptionistService {
     public Appointment cancelAppointmentByReceptionist(Long appointmentId, String cancellationReason,
             Boolean requireReason) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
         String normalizedStatus = normalizeStatus(appointment.getStatus());
         if (!RECEPTIONIST_CANCELLABLE_STATUSES.contains(normalizedStatus)) {
-            throw new ResponseStatusException(
+            throw AppException.of(
                     HttpStatus.CONFLICT,
                     "Chỉ lịch hẹn ở trạng thái PENDING hoặc WAITING mới có thể bị lễ tân hủy");
         }
@@ -185,7 +185,7 @@ public class ReceptionistService {
         boolean isReasonRequired = requireReason == null || requireReason;
         String normalizedReason = cancellationReason == null ? null : cancellationReason.trim();
         if (isReasonRequired && (normalizedReason == null || normalizedReason.isBlank())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lý do hủy là bắt buộc");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Lý do hủy là bắt buộc");
         }
 
         appointment.setStatus(STATUS_CANCELLED_BY_CLINIC);
@@ -204,7 +204,7 @@ public class ReceptionistService {
                 appointmentId,
                 RELEASED_SLOT_STATUSES);
         if (occupied) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ đã có lịch hẹn vào thời điểm này");
+            throw AppException.of(HttpStatus.CONFLICT, "Bác sĩ đã có lịch hẹn vào thời điểm này");
         }
     }
 
@@ -213,12 +213,12 @@ public class ReceptionistService {
             Long appointmentId) {
         if (doctorId != null) {
             return userRepository.findByIdAndRole(doctorId, Role.DOCTOR)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bác sĩ"));
+                    .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bác sĩ"));
         }
 
         String normalizedSpecialty = normalizeOptionalText(specialty);
         if (normalizedSpecialty == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "doctorId hoặc specialty là bắt buộc");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "doctorId hoặc specialty là bắt buộc");
         }
 
         return getDoctorsBySpecialty(normalizedSpecialty).stream()
@@ -226,7 +226,7 @@ public class ReceptionistService {
                 .filter(doctor -> doctor != null)
                 .filter(doctor -> isDoctorAvailable(doctor.getId(), appointmentTime, appointmentId))
                 .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(
+                .orElseThrow(() -> AppException.of(
                         HttpStatus.NOT_FOUND,
                         "No available doctor found for specialty: " + normalizedSpecialty));
     }
@@ -256,7 +256,7 @@ public class ReceptionistService {
         };
 
         if (!valid) {
-            throw new ResponseStatusException(
+            throw AppException.of(
                     HttpStatus.CONFLICT,
                     "Chuyển trạng thái không hợp lệ: " + normalizedCurrent + " -> " + nextStatus);
         }
@@ -265,7 +265,7 @@ public class ReceptionistService {
     // Chức năng: xử lý chuẩn hóa trạng thái.
     private String normalizeStatus(String status) {
         if (status == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Trạng thái là bắt buộc");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Trạng thái là bắt buộc");
         }
 
         String value = normalizeComparableStatus(status);
@@ -306,3 +306,4 @@ public class ReceptionistService {
         return left.toLowerCase(Locale.ROOT).contains(right.toLowerCase(Locale.ROOT));
     }
 }
+

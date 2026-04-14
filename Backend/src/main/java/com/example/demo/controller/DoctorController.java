@@ -29,10 +29,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/doctors")
 @RequiredArgsConstructor
-@Tag(
-    name = "Doctor",
-    description = "Nghiệp vụ bac si: danh sach bac si, hang doi cho kham, cap nhat phong va xem lich su benh an."
-)
+@Tag(name = "Doctor", description = "Nghiệp vụ bac si: danh sach bac si, hang doi cho kham, cap nhat phong va xem lich su benh an.")
 public class DoctorController {
 
     private final DoctorService doctorService;
@@ -50,6 +47,14 @@ public class DoctorController {
             Authentication authentication,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return doctorService.getMyWaitingPatients(authentication.getName(), date);
+    }
+
+    @GetMapping("/me/completed-patients")
+    @Operation(summary = "Danh sách bệnh nhân đã khám", description = "Lấy danh sách bệnh nhân đã hoàn tất khám của bác sĩ đang đăng nhập.")
+    public List<Appointment> getMyCompletedPatients(
+            Authentication authentication,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return doctorService.getMyCompletedPatients(authentication.getName(), date);
     }
 
     @PutMapping("/{doctorId}/clinic-room")
@@ -77,8 +82,6 @@ public class DoctorController {
         return medicalRecordService.getPatientHistoryDetailForDoctor(
                 authentication.getName(),
                 appointmentId,
-                medicalRecordId
-        );
+                medicalRecordId);
     }
 }
-

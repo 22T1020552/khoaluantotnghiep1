@@ -14,7 +14,7 @@ import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import com.example.demo.exception.AppException;
 
 import com.example.demo.entity.Appointment;
 import com.example.demo.entity.Patient;
@@ -250,17 +250,17 @@ public class NotificationService {
     public void sendForgotPasswordOtp(String recipientEmail, String otp) {
         String to = recipientEmail == null ? "" : recipientEmail.trim();
         if (to.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email là bắt buộc");
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Email là bắt buộc");
         }
 
         String from = senderEmail == null ? "" : senderEmail.trim();
         if (from.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Chưa cấu hình địa chỉ gửi mail");
+            throw AppException.of(HttpStatus.INTERNAL_SERVER_ERROR, "Chưa cấu hình địa chỉ gửi mail");
         }
 
         String host = mailHost == null ? "" : mailHost.trim();
         if (host.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Chưa cấu hình máy chủ mail");
+            throw AppException.of(HttpStatus.INTERNAL_SERVER_ERROR, "Chưa cấu hình máy chủ mail");
         }
 
         SimpleMailMessage message = new SimpleMailMessage();
@@ -281,7 +281,7 @@ public class NotificationService {
             LOGGER.info("Sent forgot-password OTP email: recipient={}", to);
         } catch (MailException ex) {
             LOGGER.error("Failed to send forgot-password OTP email: recipient={}, error={}", to, ex.getMessage(), ex);
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Hiện không thể gửi email OTP");
+            throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Hiện không thể gửi email OTP");
         }
     }
 
@@ -344,3 +344,4 @@ public class NotificationService {
         return roomName == null || roomName.isBlank() ? "Không có" : roomName.trim();
     }
 }
+
