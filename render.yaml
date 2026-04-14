@@ -1,11 +1,10 @@
 services:
   - type: web
     name: clinic-backend
-    env: java
+    env: docker
     plan: free
-    rootDir: Backend
-    buildCommand: mvn clean package -DskipTests
-    startCommand: java -jar target/*.jar
+    dockerContext: Backend
+    dockerfilePath: Backend/Dockerfile
     healthCheckPath: /v3/api-docs
     envVars:
       - key: SPRING_PROFILES_ACTIVE
