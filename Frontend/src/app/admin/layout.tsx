@@ -18,7 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import styles from '@/styles/common.module.css';
 
 const navItems = [
-  { href: '/admin', label: 'Tông quan', icon: LayoutDashboard },
+  { href: '/admin', label: 'Tổng quan', icon: LayoutDashboard },
   { href: '/admin/users', label: 'Người dùng', icon: UserRound },
   { href: '/admin/rooms', label: 'Phòng khám', icon: Building2 },
   { href: '/admin/medicines', label: 'Danh mục thuốc', icon: Pill },

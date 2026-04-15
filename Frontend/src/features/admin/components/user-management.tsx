@@ -18,6 +18,8 @@ const roleLabels: Record<AdminRole, string> = {
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const normalizeText = (value: unknown) => String(value ?? "").trim();
+
 const toUsernameFromEmail = (email: string) => {
   const local = email.split("@")[0] ?? "";
   const normalized = local
@@ -67,10 +69,10 @@ export function UsersManagement() {
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
-      const fullName = user.fullName.toLowerCase();
-      const email = user.email.toLowerCase();
-      const phone = user.phoneNumber.toLowerCase();
-      const query = searchQuery.toLowerCase();
+      const fullName = normalizeText(user.fullName).toLowerCase();
+      const email = normalizeText(user.email).toLowerCase();
+      const phone = normalizeText(user.phoneNumber).toLowerCase();
+      const query = normalizeText(searchQuery).toLowerCase();
       const matchesSearch = fullName.includes(query) || email.includes(query) || phone.includes(query);
       const matchesRole = filterRole === "all" || filterRole === user.role;
       return matchesSearch && matchesRole;
@@ -92,9 +94,9 @@ export function UsersManagement() {
     if (user) {
       setEditingUser(user);
       setFormData({
-        fullName: user.fullName,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
+        fullName: normalizeText(user.fullName),
+        email: normalizeText(user.email),
+        phoneNumber: normalizeText(user.phoneNumber),
         role: user.role,
       });
     } else {
@@ -258,9 +260,9 @@ export function UsersManagement() {
                 <tbody>
                   {filteredUsers.map((user) => (
                     <tr key={user.id}>
-                      <td>{user.fullName}</td>
-                      <td>{user.email}</td>
-                      <td>{user.phoneNumber}</td>
+                      <td>{normalizeText(user.fullName) || "-"}</td>
+                      <td>{normalizeText(user.email) || "-"}</td>
+                      <td>{normalizeText(user.phoneNumber) || "-"}</td>
                       <td>
                         <span className={`${styles.badge} ${styles.badgeBlue}`}>{roleLabels[user.role]}</span>
                       </td>
