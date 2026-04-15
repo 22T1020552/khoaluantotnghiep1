@@ -24,7 +24,7 @@ export default function PatientsLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { username } = useAuth();
+  const { username, logout } = useAuth();
   const [displayName, setDisplayName] = useState('Bệnh nhân');
 
   useEffect(() => {
@@ -58,7 +58,8 @@ export default function PatientsLayout({
     };
   }, [username]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     toast.success('Đăng xuất thành công');
     router.push('/');
   };
@@ -108,7 +109,7 @@ export default function PatientsLayout({
           <button
             className={`${styles.navItem} ${styles.logoutButton}`}
             type="button"
-            onClick={handleLogout}
+            onClick={() => void handleLogout()}
           >
             <LogOut size={20} /> Đăng xuất
           </button>
