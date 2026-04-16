@@ -8,14 +8,20 @@ import { PendingAppointments } from "./components/pending-appointment";
 import { ConfirmedAppointments } from "./components/confirm-appointment";
 import { CancelledAppointments } from "./components/cancelled-appointment";
 import { ConfirmModal } from "./components/confirm-modal";
+import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
 import { useReceptionistDashboard } from "@/hooks/useReceptionistDashboard";
 import { getApiErrorMessage } from "@/services/api";
 import { receptionistService, type ReceptionistAppointment } from "@/services/receptionistService";
+import { getForbiddenSectionMessage } from "@/utils/forbidden-message";
 import styles from "@/styles/common.module.css";
 
-export function ReceptionistDashboard() {
+type ReceptionistDashboardProps = {
+  routeView?: "all" | "pending" | "confirmed" | "cancelled";
+};
+
+export function ReceptionistDashboard({ routeView = "all" }: ReceptionistDashboardProps) {
   // Thành phần chính của lễ tân: hiển thị lịch hẹn chờ xác nhận/đã xác nhận và thao tác duyệt/hủy.
-  const [activeView, setActiveView] = useState<"all" | "pending" | "confirmed" | "cancelled">("all");
+  const [activeView, setActiveView] = useState<"all" | "pending" | "confirmed" | "cancelled">(routeView);
   const [selectedAppointment, setSelectedAppointment] = useState<ReceptionistAppointment | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -24,6 +30,9 @@ export function ReceptionistDashboard() {
     confirmedAppointments,
     cancelledAppointments,
     doctorOptions,
+    pendingForbidden,
+    confirmedForbidden,
+    doctorsForbidden,
     totalCount,
     isLoading,
     loadDashboardData,
@@ -97,6 +106,10 @@ export function ReceptionistDashboard() {
   };
 
   useEffect(() => {
+    setActiveView(routeView);
+  }, [routeView]);
+
+  useEffect(() => {
     let disposed = false;
 
     const refresh = async (showErrorToast: boolean) => {
@@ -123,6 +136,10 @@ export function ReceptionistDashboard() {
 
   // Xử lý khi Lễ tân bấm nút "Xác nhận" trên thẻ lịch hẹn
   const handleOpenConfirmModal = (appointment: ReceptionistAppointment) => {
+    if (doctorsForbidden) {
+      toast.error(getForbiddenSectionMessage("danh sách bác sĩ"));
+      return;
+    }
     setSelectedAppointment(appointment);
   };
 
@@ -186,6 +203,8 @@ export function ReceptionistDashboard() {
     }
   };
 
+  const effectiveView = routeView === "all" ? activeView : routeView;
+
   return (
     <>
       <main className={styles.mainArea}>
@@ -201,7 +220,8 @@ export function ReceptionistDashboard() {
             totalCount={totalCount} 
           />
 
-          <div className={styles.flexRow}>
+          {routeView === "all" && (
+            <div className={styles.flexRow}>
             <button
               type="button"
               className={`${styles.button} ${activeView === "all" ? styles.primary : styles.outline}`}
@@ -230,7 +250,8 @@ export function ReceptionistDashboard() {
             >
               Đã hủy
             </button>
-          </div>
+            </div>
+          )}
 
           {isLoading && (
             <div className={styles.card}>
@@ -240,23 +261,39 @@ export function ReceptionistDashboard() {
             </div>
           )}
 
-          {!isLoading && (activeView === "all" || activeView === "pending") && (
-            <PendingAppointments 
-              appointments={visiblePendingAppointments} 
-              onConfirmClick={handleOpenConfirmModal} 
-              onCancelClick={handleCancelAppointment} 
-              disabled={isSubmitting}
-            />
+          {!isLoading && (effectiveView === "all" || effectiveView === "pending") && (
+            pendingForbidden ? (
+              <div className={styles.card}>
+                <div className={styles.textCenter} style={{ padding: "2rem", color: "#b91c1c" }}>
+                  <ForbiddenSectionNotice area="lịch hẹn chờ xác nhận" />
+                </div>
+              </div>
+            ) : (
+              <PendingAppointments 
+                appointments={visiblePendingAppointments} 
+                onConfirmClick={handleOpenConfirmModal} 
+                onCancelClick={handleCancelAppointment} 
+                disabled={isSubmitting}
+              />
+            )
           )}
 
-          {!isLoading && (activeView === "all" || activeView === "confirmed") && (
-            <ConfirmedAppointments 
-              appointments={confirmedAppointments} 
-              resolveRoomName={resolveRoomName}
-            />
+          {!isLoading && (effectiveView === "all" || effectiveView === "confirmed") && (
+            confirmedForbidden ? (
+              <div className={styles.card}>
+                <div className={styles.textCenter} style={{ padding: "2rem", color: "#b91c1c" }}>
+                  <ForbiddenSectionNotice area="lịch hẹn đã xác nhận" />
+                </div>
+              </div>
+            ) : (
+              <ConfirmedAppointments 
+                appointments={confirmedAppointments} 
+                resolveRoomName={resolveRoomName}
+              />
+            )
           )}
 
-          {!isLoading && activeView === "cancelled" && (
+          {!isLoading && effectiveView === "cancelled" && (
             <CancelledAppointments
               appointments={mergedCancelledAppointments}
               resolveRoomName={resolveRoomName}

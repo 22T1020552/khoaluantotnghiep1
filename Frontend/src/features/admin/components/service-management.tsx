@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Activity, Edit, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { getApiErrorMessage } from "@/services/api";
+import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
+import { getApiErrorMessage, isForbiddenError } from "@/services/api";
 import { adminService, type AdminMedicalService } from "@/services/adminService";
 import styles from "../admin.module.css";
 
@@ -13,6 +14,7 @@ export function ServicesManagement() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [servicesForbidden, setServicesForbidden] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<AdminMedicalService | null>(null);
@@ -23,8 +25,14 @@ export function ServicesManagement() {
       setLoading(true);
       const data = await adminService.getMedicalServices();
       setServices(data);
+      setServicesForbidden(false);
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Không thể tải danh mục dịch vụ"));
+      if (isForbiddenError(error)) {
+        setServices([]);
+        setServicesForbidden(true);
+      } else {
+        toast.error(getApiErrorMessage(error, "Không thể tải danh mục dịch vụ"));
+      }
     } finally {
       setLoading(false);
     }
@@ -122,7 +130,7 @@ export function ServicesManagement() {
               onChange={(event) => setSearchQuery(event.target.value)}
             />
           </div>
-          <button type="button" className={styles.primaryButton} onClick={() => openModal()}>
+          <button type="button" className={styles.primaryButton} onClick={() => openModal()} disabled={servicesForbidden}>
             <Plus size={16} /> Thêm dịch vụ
           </button>
         </div>
@@ -130,6 +138,12 @@ export function ServicesManagement() {
         {loading ? (
           <section className={styles.card}>
             <div className={styles.emptyBox}>Đang tải dữ liệu...</div>
+          </section>
+        ) : servicesForbidden ? (
+          <section className={styles.card}>
+            <div className={styles.emptyBox} style={{ color: "#b91c1c" }}>
+              <ForbiddenSectionNotice area="danh mục dịch vụ" />
+            </div>
           </section>
         ) : (
           <div className={styles.cardsGrid}>

@@ -3,7 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getApiErrorMessage } from "@/services/api";
+import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
+import { getApiErrorMessage, isForbiddenError } from "@/services/api";
 import {
   patientService,
   type PatientMedicalRecordDetailResponse,
@@ -56,6 +57,9 @@ export function PatientHistory() {
   const [profile, setProfile] = useState<PatientProfileResponse | null>(null);
   const [records, setRecords] = useState<PatientMedicalRecordHistoryItemResponse[]>([]);
   const [recordDetails, setRecordDetails] = useState<Record<number, PatientMedicalRecordDetailResponse | null>>({});
+  const [profileForbidden, setProfileForbidden] = useState(false);
+  const [historyForbidden, setHistoryForbidden] = useState(false);
+  const [recordDetailsForbidden, setRecordDetailsForbidden] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -63,36 +67,70 @@ export function PatientHistory() {
     const loadHistory = async () => {
       try {
         setLoading(true);
-        const [profileData, historyData] = await Promise.all([
+        const [profileResult, historyResult] = await Promise.allSettled([
           patientService.getProfile(),
           patientService.getMedicalRecordHistory(),
         ]);
-
-        const sortedRecords = [...historyData].sort(
-          (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
-        );
-
-        const details = await Promise.all(
-          sortedRecords.map((record) =>
-            patientService.getMedicalRecordDetail(record.medicalRecordId).catch(() => null)
-          )
-        );
 
         if (!isMounted) {
           return;
         }
 
-        const detailMap = sortedRecords.reduce<Record<number, PatientMedicalRecordDetailResponse | null>>(
-          (map, record, index) => {
-            map[record.medicalRecordId] = details[index];
-            return map;
-          },
-          {}
-        );
+        const nonForbiddenErrors: unknown[] = [];
 
-        setProfile(profileData);
-        setRecords(sortedRecords);
-        setRecordDetails(detailMap);
+        if (profileResult.status === "fulfilled") {
+          setProfile(profileResult.value);
+          setProfileForbidden(false);
+        } else if (isForbiddenError(profileResult.reason)) {
+          setProfile(null);
+          setProfileForbidden(true);
+        } else {
+          nonForbiddenErrors.push(profileResult.reason);
+        }
+
+        if (historyResult.status === "fulfilled") {
+          const sortedRecords = [...historyResult.value].sort(
+            (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+          );
+
+          const detailResults = await Promise.allSettled(
+            sortedRecords.map((record) => patientService.getMedicalRecordDetail(record.medicalRecordId))
+          );
+
+          let detailForbiddenDetected = false;
+          const detailMap = sortedRecords.reduce<Record<number, PatientMedicalRecordDetailResponse | null>>(
+            (map, record, index) => {
+              const detailResult = detailResults[index];
+              if (detailResult.status === "fulfilled") {
+                map[record.medicalRecordId] = detailResult.value;
+              } else if (isForbiddenError(detailResult.reason)) {
+                detailForbiddenDetected = true;
+                map[record.medicalRecordId] = null;
+              } else {
+                nonForbiddenErrors.push(detailResult.reason);
+                map[record.medicalRecordId] = null;
+              }
+              return map;
+            },
+            {}
+          );
+
+          setRecords(sortedRecords);
+          setRecordDetails(detailMap);
+          setHistoryForbidden(false);
+          setRecordDetailsForbidden(detailForbiddenDetected);
+        } else if (isForbiddenError(historyResult.reason)) {
+          setRecords([]);
+          setRecordDetails({});
+          setHistoryForbidden(true);
+          setRecordDetailsForbidden(false);
+        } else {
+          nonForbiddenErrors.push(historyResult.reason);
+        }
+
+        if (nonForbiddenErrors.length > 0) {
+          toast.error(getApiErrorMessage(nonForbiddenErrors[0], "Không thể tải lịch sử khám bệnh"));
+        }
       } catch (error) {
         if (!isMounted) {
           return;
@@ -139,6 +177,11 @@ export function PatientHistory() {
           <div className={styles.avatar}>{patientAvatar}</div>
           <div className={styles.patientInfo}>
             <h3 className={styles.patientName}>Thông tin bệnh nhân</h3>
+            {profileForbidden && (
+              <p style={{ color: "#b91c1c", marginBottom: "12px" }}>
+                <ForbiddenSectionNotice area="thông tin tài khoản" />
+              </p>
+            )}
             <div className={styles.infoGrid}>
               <div>
                 <span className={styles.infoLabel}>Họ tên:</span>
@@ -164,6 +207,11 @@ export function PatientHistory() {
       {/* Danh sách Hồ sơ bệnh án */}
       <div>
         <h2 className={styles.sectionTitle}>Hồ sơ khám bệnh ({records.length})</h2>
+        {recordDetailsForbidden && !historyForbidden && (
+          <p style={{ color: "#b45309", marginBottom: "12px" }}>
+            <ForbiddenSectionNotice area="chi tiết hồ sơ khám bệnh" variant="partial" />
+          </p>
+        )}
 
         {loading && (
           <Card className={styles.emptyState}>
@@ -172,7 +220,14 @@ export function PatientHistory() {
           </Card>
         )}
 
-        {!loading && records.map((record) => {
+        {!loading && historyForbidden && (
+          <Card className={styles.emptyState}>
+            <FileText size={40} color="#b91c1c" />
+            <p style={{ color: "#b91c1c" }}><ForbiddenSectionNotice area="hồ sơ khám bệnh" /></p>
+          </Card>
+        )}
+
+        {!loading && !historyForbidden && records.map((record) => {
           const detail = recordDetails[record.medicalRecordId] ?? null;
           const totalCost = calculateTotalCost(detail);
 
@@ -256,7 +311,7 @@ export function PatientHistory() {
         })}
 
         {/* Empty State */}
-        {!loading && records.length === 0 && (
+        {!loading && !historyForbidden && records.length === 0 && (
           <Card className={styles.emptyState}>
             <FileText size={48} color="#d1d5db" />
             <p>Chưa có hồ sơ khám bệnh</p>

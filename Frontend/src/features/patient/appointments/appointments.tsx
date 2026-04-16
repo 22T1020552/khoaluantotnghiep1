@@ -5,8 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
 import { Input } from "@/components/ui/input";
-import { getApiErrorMessage } from "@/services/api";
+import { getApiErrorMessage, isForbiddenError } from "@/services/api";
 import { patientService, type PatientAppointmentResponse } from "@/services/patientService";
 import { toast } from "sonner";
 import {
@@ -169,6 +170,7 @@ export function PatientAppointments() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AppointmentFilter>("all");
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
+  const [appointmentsForbidden, setAppointmentsForbidden] = useState(false);
 
   const loadAppointments = async (showLoading = true) => {
     try {
@@ -183,8 +185,12 @@ export function PatientAppointments() {
           return timeB - timeA;
         })
       );
+      setAppointmentsForbidden(false);
     } catch (error) {
-      if (showLoading) {
+      if (isForbiddenError(error)) {
+        setAppointments([]);
+        setAppointmentsForbidden(true);
+      } else if (showLoading) {
         toast.error(getApiErrorMessage(error, "Không thể tải danh sách lịch hẹn"));
       }
     } finally {
@@ -338,6 +344,12 @@ export function PatientAppointments() {
         </Card>
       </section>
 
+      {appointmentsForbidden && (
+        <p style={{ color: "#b91c1c", margin: "0 0 1rem" }}>
+          <ForbiddenSectionNotice area="dữ liệu lịch hẹn" />
+        </p>
+      )}
+
       <section className={styles.contentGrid}>
         <Card className={styles.appointmentsCard}>
           <div className={styles.toolbar}>
@@ -365,6 +377,11 @@ export function PatientAppointments() {
             <div className={styles.loadingBox}>
               <Loader2 className={styles.spinning} size={20} />
               <span>Đang tải lịch hẹn...</span>
+            </div>
+          ) : appointmentsForbidden ? (
+            <div className={styles.emptyBox}>
+              <XCircle size={38} />
+              <p><ForbiddenSectionNotice area="danh sách lịch hẹn" /></p>
             </div>
           ) : filteredAppointments.length === 0 ? (
             <div className={styles.emptyBox}>
@@ -439,7 +456,12 @@ export function PatientAppointments() {
             <p>Cập nhật theo trạng thái lịch hẹn</p>
           </div>
 
-          {notifications.length === 0 ? (
+          {appointmentsForbidden ? (
+            <div className={styles.emptyNotice}>
+              <XCircle size={18} />
+              <span><ForbiddenSectionNotice area="thông báo lịch hẹn" /></span>
+            </div>
+          ) : notifications.length === 0 ? (
             <div className={styles.emptyNotice}>
               <XCircle size={18} />
               <span>Chưa có thông báo mới.</span>

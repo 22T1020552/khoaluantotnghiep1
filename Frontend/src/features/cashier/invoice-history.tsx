@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
 import { Input } from "@/components/ui/input";
 import {
   Calendar,
@@ -16,7 +17,7 @@ import styles from "@/styles/common.module.css";
 import historyStyles from "./invoice-history.module.css";
 import cashierStyles from "./cashier.module.css";
 import { cashierService } from "@/services/cashierService";
-import { getApiErrorMessage } from "@/services/api";
+import { getApiErrorMessage, isForbiddenError } from "@/services/api";
 import { toast } from "sonner";
 import type { CashierPaidItem, CashierPaymentDetail } from "@/types/pharmacy.type";
 
@@ -25,6 +26,8 @@ export function InvoicesHistory() {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<CashierPaidItem[]>([]);
   const [invoiceDetails, setInvoiceDetails] = useState<Record<number, CashierPaymentDetail>>({});
+  const [transactionsForbidden, setTransactionsForbidden] = useState(false);
+  const [detailsForbidden, setDetailsForbidden] = useState(false);
 
   const loadInvoiceHistory = async () => {
     try {
@@ -32,20 +35,40 @@ export function InvoicesHistory() {
       const history = await cashierService.getTransactionHistory();
       const paid = history.transactions || [];
       setTransactions(paid);
+      setTransactionsForbidden(false);
 
-      const details = await Promise.all(
-        paid.map((item) => cashierService.getPaidInvoiceDetail(item.invoiceId).catch(() => null)),
+      const detailsResults = await Promise.allSettled(
+        paid.map((item) => cashierService.getPaidInvoiceDetail(item.invoiceId)),
       );
 
       const detailMap: Record<number, CashierPaymentDetail> = {};
-      details.forEach((detail) => {
-        if (detail) {
-          detailMap[detail.invoiceId] = detail;
+      let detailForbiddenDetected = false;
+      const nonForbiddenErrors: unknown[] = [];
+      detailsResults.forEach((result) => {
+        if (result.status === "fulfilled") {
+          detailMap[result.value.invoiceId] = result.value;
+        } else if (isForbiddenError(result.reason)) {
+          detailForbiddenDetected = true;
+        } else {
+          nonForbiddenErrors.push(result.reason);
         }
       });
+
+      setDetailsForbidden(detailForbiddenDetected);
       setInvoiceDetails(detailMap);
+
+      if (nonForbiddenErrors.length > 0) {
+        toast.error(getApiErrorMessage(nonForbiddenErrors[0], "Không thể tải một phần chi tiết hóa đơn"));
+      }
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Không thể tải lịch sử thanh toán"));
+      if (isForbiddenError(error)) {
+        setTransactions([]);
+        setInvoiceDetails({});
+        setTransactionsForbidden(true);
+        setDetailsForbidden(false);
+      } else {
+        toast.error(getApiErrorMessage(error, "Không thể tải lịch sử thanh toán"));
+      }
     } finally {
       setLoading(false);
     }
@@ -105,6 +128,22 @@ export function InvoicesHistory() {
           </div>
 
           <div className={historyStyles.wrapper}>
+            {transactionsForbidden && (
+              <Card className={cashierStyles.emptyCard}>
+                <p className={cashierStyles.emptyText} style={{ color: "#b91c1c" }}>
+                  <ForbiddenSectionNotice area="lịch sử thanh toán" />
+                </p>
+              </Card>
+            )}
+
+            {detailsForbidden && !transactionsForbidden && (
+              <Card className={cashierStyles.emptyCard}>
+                <p className={cashierStyles.emptyText} style={{ color: "#b45309" }}>
+                  <ForbiddenSectionNotice area="chi tiết hóa đơn" variant="partial" />
+                </p>
+              </Card>
+            )}
+
             <div className={cashierStyles.statsGrid}>
               <Card className={cashierStyles.statCard}>
                 <div className={cashierStyles.statInner}>
@@ -165,7 +204,15 @@ export function InvoicesHistory() {
                 </Card>
               )}
 
-              {filteredInvoices.map((invoice) => (
+              {!loading && transactionsForbidden && (
+                <Card className={cashierStyles.emptyCard}>
+                  <p className={cashierStyles.emptyText} style={{ color: "#b91c1c" }}>
+                    <ForbiddenSectionNotice area="danh sách hóa đơn đã thanh toán" />
+                  </p>
+                </Card>
+              )}
+
+              {!transactionsForbidden && filteredInvoices.map((invoice) => (
                 <Card key={invoice.invoiceId} className={historyStyles.historyCard}>
                   <div className={historyStyles.headerRow}>
                     <div>
@@ -225,7 +272,7 @@ export function InvoicesHistory() {
                 </Card>
               ))}
 
-              {!loading && filteredInvoices.length === 0 && (
+              {!loading && !transactionsForbidden && filteredInvoices.length === 0 && (
                 <Card className={cashierStyles.emptyCard}>
                   <Search size={44} color="#cbd5e1" />
                   <p className={cashierStyles.emptyText}>Không tìm thấy hóa đơn nào</p>

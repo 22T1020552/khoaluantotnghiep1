@@ -62,23 +62,6 @@ const isAuthEndpoint = (url?: string) => {
   ].some((endpoint) => url.includes(endpoint));
 };
 
-const shouldForceLogoutOnForbidden = (url?: string) => {
-  if (!url) {
-    return false;
-  }
-
-  return [
-    "/api/admin/",
-    "/api/receptionist/",
-    "/api/doctors/",
-    "/api/cashier/",
-    "/api/patient/",
-    "/api/appointments/",
-    "/api/invoices/",
-    "/api/medical-records/",
-  ].some((prefix) => url.includes(prefix));
-};
-
 const normalizeRole = (role: unknown) => String(role ?? "").toUpperCase();
 //Tạo máy chủ axios
 export const api = axios.create({
@@ -126,34 +109,6 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
     const status = error.response?.status;
-
-    if (status === 403 && shouldForceLogoutOnForbidden(originalRequest?.url)) {
-      clearStoredAuthSession();
-
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("auth:forbidden"));
-        window.dispatchEvent(new StorageEvent("storage", {
-          key: "clinic-auth-session",
-          newValue: null,
-          oldValue: JSON.stringify(getStoredAuthSession()),
-          storageArea: window.localStorage,
-        }));
-      }
-
-      if (typeof window !== "undefined") {
-        const currentPath = window.location.pathname;
-        if (!currentPath.startsWith("/signin")) {
-          window.location.assign("/signin");
-        }
-      }
-
-      return Promise.reject(error);
-    }
-
-    if (!originalRequest || status !== 401 || originalRequest._retry || isAuthEndpoint(originalRequest.url)) {
-      return Promise.reject(error);
-    }
-
     if (!originalRequest || status !== 401 || originalRequest._retry || isAuthEndpoint(originalRequest.url)) {
       return Promise.reject(error);
     }
@@ -214,6 +169,8 @@ api.interceptors.response.use(
     }
   },
 );
+
+export const isForbiddenError = (error: unknown) => axios.isAxiosError(error) && error.response?.status === 403;
 
 export const getApiErrorMessage = (error: unknown, fallback = "Không thể kết nối tới máy chủ") => {
   if (axios.isAxiosError(error)) {

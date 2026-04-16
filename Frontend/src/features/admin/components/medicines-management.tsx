@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Edit, Package, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { getApiErrorMessage } from "@/services/api";
+import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
+import { getApiErrorMessage, isForbiddenError } from "@/services/api";
 import { adminService, type AdminMedicine } from "@/services/adminService";
 import styles from "../admin.module.css";
 
@@ -23,6 +24,7 @@ export function MedicinesManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [medicinesForbidden, setMedicinesForbidden] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMed, setEditingMed] = useState<AdminMedicine | null>(null);
@@ -40,8 +42,14 @@ export function MedicinesManagement() {
       setLoading(true);
       const data = await adminService.getMedicines();
       setMeds(data);
+      setMedicinesForbidden(false);
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Không thể tải danh mục thuốc"));
+      if (isForbiddenError(error)) {
+        setMeds([]);
+        setMedicinesForbidden(true);
+      } else {
+        toast.error(getApiErrorMessage(error, "Không thể tải danh mục thuốc"));
+      }
     } finally {
       setLoading(false);
     }
@@ -216,7 +224,7 @@ export function MedicinesManagement() {
             </select>
           </div>
 
-          <button type="button" className={styles.primaryButton} onClick={() => openModal()}>
+          <button type="button" className={styles.primaryButton} onClick={() => openModal()} disabled={medicinesForbidden}>
             <Plus size={16} /> Thêm thuốc
           </button>
         </div>
@@ -224,6 +232,10 @@ export function MedicinesManagement() {
         <section className={styles.card}>
           {loading ? (
             <div className={styles.emptyBox}>Đang tải dữ liệu...</div>
+          ) : medicinesForbidden ? (
+            <div className={styles.emptyBox} style={{ color: "#b91c1c" }}>
+              <ForbiddenSectionNotice area="danh mục thuốc" />
+            </div>
           ) : (
             <div className={styles.tableWrap}>
               <table className={styles.table}>

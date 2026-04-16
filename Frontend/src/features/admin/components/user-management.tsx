@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Edit, Lock, Plus, Search, Trash2, Unlock } from "lucide-react";
 import { toast } from "sonner";
 
-import { getApiErrorMessage } from "@/services/api";
+import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
+import { getApiErrorMessage, isForbiddenError } from "@/services/api";
 import { adminService, type AdminRole, type AdminUser } from "@/services/adminService";
 import styles from "../admin.module.css";
 
@@ -49,14 +50,21 @@ export function UsersManagement() {
     phoneNumber: "",
     role: "DOCTOR" as AdminRole,
   });
+  const [usersForbidden, setUsersForbidden] = useState(false);
   // Tải danh sách người dùng từ backend và xử lý lỗi nếu có.
   const loadUsers = async () => {
     try {
       setLoading(true);
       const data = await adminService.getUsers();
       setUsers(data);
+      setUsersForbidden(false);
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Không thể tải danh sách người dùng"));
+      if (isForbiddenError(error)) {
+        setUsers([]);
+        setUsersForbidden(true);
+      } else {
+        toast.error(getApiErrorMessage(error, "Không thể tải danh sách người dùng"));
+      }
     } finally {
       setLoading(false);
     }
@@ -235,7 +243,7 @@ export function UsersManagement() {
             </select>
           </div>
 
-          <button type="button" className={styles.primaryButton} onClick={() => openModal()}>
+          <button type="button" className={styles.primaryButton} onClick={() => openModal()} disabled={usersForbidden}>
             <Plus size={16} /> Thêm người dùng
           </button>
         </div>
@@ -243,6 +251,10 @@ export function UsersManagement() {
         <section className={styles.card}>
           {loading ? (
             <div className={styles.emptyBox}>Đang tải dữ liệu...</div>
+          ) : usersForbidden ? (
+            <div className={styles.emptyBox} style={{ color: "#b91c1c" }}>
+              <ForbiddenSectionNotice area="quản lý người dùng" />
+            </div>
           ) : (
             <div className={styles.tableWrap}>
               <table className={styles.table}>

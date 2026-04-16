@@ -3,8 +3,9 @@
 import React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ForbiddenSectionNotice } from '@/components/ui/forbidden-section-notice';
 import { useAuth } from '@/hooks/useAuth';
-import { getApiErrorMessage } from '@/services/api';
+import { getApiErrorMessage, isForbiddenError } from '@/services/api';
 import {
   patientService,
   type PatientAppointmentResponse,
@@ -52,6 +53,9 @@ export default function PatientDashboard() {
   const [profile, setProfile] = useState<PatientProfileResponse | null>(null);
   const [appointments, setAppointments] = useState<PatientAppointmentResponse[]>([]);
   const [records, setRecords] = useState<PatientMedicalRecordHistoryItemResponse[]>([]);
+  const [profileForbidden, setProfileForbidden] = useState(false);
+  const [appointmentsForbidden, setAppointmentsForbidden] = useState(false);
+  const [recordsForbidden, setRecordsForbidden] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -59,7 +63,7 @@ export default function PatientDashboard() {
     const loadDashboardData = async () => {
       try {
         setLoading(true);
-        const [profileData, appointmentData, recordData] = await Promise.all([
+        const [profileResult, appointmentsResult, recordsResult] = await Promise.allSettled([
           patientService.getProfile(),
           patientService.getMyAppointments(),
           patientService.getMedicalRecordHistory(),
@@ -69,10 +73,43 @@ export default function PatientDashboard() {
           return;
         }
 
-        setProfile(profileData);
-        setAppointments(appointmentData);
-        setRecords(recordData);
-        setDisplayName(profileData.fullName || profileData.gmail || username || 'Bệnh nhân');
+        const nonForbiddenErrors: unknown[] = [];
+
+        if (profileResult.status === 'fulfilled') {
+          setProfile(profileResult.value);
+          setProfileForbidden(false);
+          setDisplayName(profileResult.value.fullName || profileResult.value.gmail || username || 'Bệnh nhân');
+        } else if (isForbiddenError(profileResult.reason)) {
+          setProfile(null);
+          setProfileForbidden(true);
+          setDisplayName(username || 'Bệnh nhân');
+        } else {
+          nonForbiddenErrors.push(profileResult.reason);
+        }
+
+        if (appointmentsResult.status === 'fulfilled') {
+          setAppointments(appointmentsResult.value);
+          setAppointmentsForbidden(false);
+        } else if (isForbiddenError(appointmentsResult.reason)) {
+          setAppointments([]);
+          setAppointmentsForbidden(true);
+        } else {
+          nonForbiddenErrors.push(appointmentsResult.reason);
+        }
+
+        if (recordsResult.status === 'fulfilled') {
+          setRecords(recordsResult.value);
+          setRecordsForbidden(false);
+        } else if (isForbiddenError(recordsResult.reason)) {
+          setRecords([]);
+          setRecordsForbidden(true);
+        } else {
+          nonForbiddenErrors.push(recordsResult.reason);
+        }
+
+        if (nonForbiddenErrors.length > 0) {
+          toast.error(getApiErrorMessage(nonForbiddenErrors[0], 'Không thể tải dữ liệu tổng quan bệnh nhân'));
+        }
       } catch (error) {
         if (!isMounted) {
           return;
@@ -178,6 +215,8 @@ export default function PatientDashboard() {
                 <div className={styles.cardRow}>
                   <Loader2 size={16} className="animate-spin" color="#2563eb" /> Đang tải...
                 </div>
+              ) : appointmentsForbidden ? (
+                <div className={styles.cardRow}><ForbiddenSectionNotice area="lịch hẹn" /></div>
               ) : upcomingAppointment ? (
                 <>
                   <div className={styles.cardRow}>
@@ -199,24 +238,36 @@ export default function PatientDashboard() {
 
             <div className={styles.card}>
               <h3 className={styles.cardTitle}>Trạng thái lịch hẹn</h3>
-              <div className={styles.cardRow}>Đang chờ: {appointmentStats.pending}</div>
-              <div className={styles.cardRow}>Đã duyệt: {appointmentStats.approved}</div>
-              <div className={styles.cardRow}>Đang khám: {appointmentStats.inProgress}</div>
-              <div className={styles.cardRow}>Hoàn thành: {appointmentStats.completed}</div>
+              {appointmentsForbidden ? (
+                <div className={styles.cardRow}><ForbiddenSectionNotice area="trạng thái lịch hẹn" /></div>
+              ) : (
+                <>
+                  <div className={styles.cardRow}>Đang chờ: {appointmentStats.pending}</div>
+                  <div className={styles.cardRow}>Đã duyệt: {appointmentStats.approved}</div>
+                  <div className={styles.cardRow}>Đang khám: {appointmentStats.inProgress}</div>
+                  <div className={styles.cardRow}>Hoàn thành: {appointmentStats.completed}</div>
+                </>
+              )}
               <button className={styles.btnOutline} onClick={() => router.push('/appointments')}>Theo dõi chi tiết</button>
             </div>
 
             <div className={styles.card}>
               <h3 className={styles.cardTitle}>Thông tin tài khoản bệnh nhân</h3>
-              <div style={{ fontWeight: 600, color: '#334155', marginBottom: '12px' }}>
-                Mã bệnh nhân: {profile?.patientId ?? '--'}
-              </div>
-              <div className={styles.cardRow}>
-                <ClipboardList size={16} color="#2563eb" /> SĐT: {profile?.phoneNumber || 'Chưa cập nhật'}
-              </div>
-              <div className={styles.cardRow}>
-                <FileText size={16} color="#2563eb" /> BHYT: {profile?.healthInsuranceNumber || 'Chưa cập nhật'}
-              </div>
+              {profileForbidden ? (
+                <div className={styles.cardRow}><ForbiddenSectionNotice area="thông tin tài khoản" /></div>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 600, color: '#334155', marginBottom: '12px' }}>
+                    Mã bệnh nhân: {profile?.patientId ?? '--'}
+                  </div>
+                  <div className={styles.cardRow}>
+                    <ClipboardList size={16} color="#2563eb" /> SĐT: {profile?.phoneNumber || 'Chưa cập nhật'}
+                  </div>
+                  <div className={styles.cardRow}>
+                    <FileText size={16} color="#2563eb" /> BHYT: {profile?.healthInsuranceNumber || 'Chưa cập nhật'}
+                  </div>
+                </>
+              )}
               <button className={styles.btnOutline} onClick={() => router.push('/patient-history')}>
                 Xem hồ sơ bệnh án
               </button>
@@ -238,7 +289,13 @@ export default function PatientDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {recentRecords.length === 0 ? (
+                {recordsForbidden ? (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'center', color: '#b91c1c' }}>
+                      <ForbiddenSectionNotice area="hồ sơ khám bệnh" />
+                    </td>
+                  </tr>
+                ) : recentRecords.length === 0 ? (
                   <tr>
                     <td colSpan={4} style={{ textAlign: 'center', color: '#64748b' }}>
                       Chưa có hồ sơ khám bệnh.
