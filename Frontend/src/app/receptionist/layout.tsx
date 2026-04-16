@@ -16,7 +16,15 @@ export default function ReceptionistLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { username, logout } = useAuth();
+  const { username, role, logout } = useAuth();
+
+  // Kiểm tra quyền truy cập - nếu không phải RECEPTIONIST thì tự động đăng xuất
+  React.useEffect(() => {
+    if (role && role !== 'RECEPTIONIST') {
+      void logout();
+      router.push('/signin');
+    }
+  }, [role, router, logout]);
 
   const handleLogout = async () => {
     await logout();

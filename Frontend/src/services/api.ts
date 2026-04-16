@@ -27,7 +27,7 @@ export const getStoredAuthSession = (): StoredAuthSession | null => {
     return null;
   }
 };
-
+//Lưu thông tin đăng nhập vào bộ nhớ trình duyệt
 export const saveStoredAuthSession = (session: StoredAuthSession) => {
   if (typeof window === "undefined") {
     return;
@@ -35,7 +35,7 @@ export const saveStoredAuthSession = (session: StoredAuthSession) => {
 
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
 };
-
+//Xóa sạch thông tin (khi đăng xuất hoặc token hết hạn)
 export const clearStoredAuthSession = () => {
   if (typeof window === "undefined") {
     return;
@@ -45,7 +45,7 @@ export const clearStoredAuthSession = () => {
 };
 
 export const getStoredToken = () => getStoredAuthSession()?.token ?? null;
-
+//Kiểm tra API có phải là api liên quan đến tài khoản không
 const isAuthEndpoint = (url?: string) => {
   if (!url) {
     return false;
@@ -80,15 +80,20 @@ const shouldForceLogoutOnForbidden = (url?: string) => {
 };
 
 const normalizeRole = (role: unknown) => String(role ?? "").toUpperCase();
-
+//Tạo máy chủ axios
 export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
 });
-
+//Trước khi gửi đi, tự động gắn token (không gắn cho auth endpoints vì token có thể hết hạn)
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // Skip adding token to auth endpoints to avoid 403 errors from expired/invalid tokens
+  if (isAuthEndpoint(config.url)) {
+    return config;
+  }
+
   const token = getStoredToken();
   if (token) {
     config.headers = config.headers ?? {};
@@ -97,7 +102,7 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
   return config;
 });
-
+//Khai báo biến cho refresh token
 type QueuedRequest = {
   resolve: (token: string) => void;
   reject: (error: unknown) => void;
@@ -115,7 +120,7 @@ const rejectQueuedRequests = (error: unknown) => {
   queuedRequests.forEach(({ reject }) => reject(error));
   queuedRequests = [];
 };
-
+//Xử lý các token hết hạn hoặc lỗi quyền
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -124,6 +129,16 @@ api.interceptors.response.use(
 
     if (status === 403 && shouldForceLogoutOnForbidden(originalRequest?.url)) {
       clearStoredAuthSession();
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("auth:forbidden"));
+        window.dispatchEvent(new StorageEvent("storage", {
+          key: "clinic-auth-session",
+          newValue: null,
+          oldValue: JSON.stringify(getStoredAuthSession()),
+          storageArea: window.localStorage,
+        }));
+      }
 
       if (typeof window !== "undefined") {
         const currentPath = window.location.pathname;
@@ -139,6 +154,10 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    if (!originalRequest || status !== 401 || originalRequest._retry || isAuthEndpoint(originalRequest.url)) {
+      return Promise.reject(error);
+    }
+    //Nếu là lỗi 401 do token hết hạn, sẽ dùng refresh token
     const session = getStoredAuthSession();
     if (!session?.refreshToken) {
       clearStoredAuthSession();
@@ -162,6 +181,7 @@ api.interceptors.response.use(
     isRefreshingToken = true;
 
     try {
+      //Gọi API Backend lên xin cấp lại token mới bằng refresh token
       const refreshResponse = await axios.post<StoredAuthSession>(
         `${API_BASE_URL}/api/auth/refresh`,
         { refreshToken: session.refreshToken },
@@ -171,7 +191,7 @@ api.interceptors.response.use(
           },
         },
       );
-
+      //Nhận token mới về và lưu vào object
       const refreshedSession: StoredAuthSession = {
         token: refreshResponse.data.token,
         refreshToken: refreshResponse.data.refreshToken,

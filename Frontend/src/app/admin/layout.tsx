@@ -29,7 +29,15 @@ const navItems = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { username, logout } = useAuth();
+  const { username, role, logout } = useAuth();
+
+  // Kiểm tra quyền truy cập - nếu không phải ADMIN thì tự động đăng xuất
+  React.useEffect(() => {
+    if (role && role !== 'ADMIN') {
+      void logout();
+      router.push('/signin');
+    }
+  }, [role, router, logout]);
 
   const handleLogout = async () => {
     await logout();

@@ -24,8 +24,16 @@ export default function PatientsLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { username, logout } = useAuth();
+  const { username, role, logout } = useAuth();
   const [displayName, setDisplayName] = useState('Bệnh nhân');
+
+  // Kiểm tra quyền truy cập - nếu không phải PATIENT thì tự động đăng xuất
+  useEffect(() => {
+    if (role && role !== 'PATIENT') {
+      void logout();
+      router.push('/signin');
+    }
+  }, [role, router, logout]);
 
   useEffect(() => {
     let isMounted = true;
@@ -42,8 +50,15 @@ export default function PatientsLayout({
         }
 
         setDisplayName(profile.fullName || profile.gmail || username || 'Bệnh nhân');
-      } catch {
+      } catch (error) {
         if (!isMounted) {
+          return;
+        }
+
+        // Nếu nhận lỗi 403, có nghĩa là quyền đã thay đổi - tự động đăng xuất
+        if (error instanceof Error && error.message?.includes('403')) {
+          await logout();
+          router.push('/signin');
           return;
         }
 
@@ -56,7 +71,7 @@ export default function PatientsLayout({
     return () => {
       isMounted = false;
     };
-  }, [username]);
+  }, [username, logout, router]);
 
   const handleLogout = async () => {
     await logout();

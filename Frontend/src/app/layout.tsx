@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { Toaster } from "sonner";
-
 import { FloatingChatbot } from "@/components/chatbot/floating-chatbot";
-
-import "./globals.css";
+import { RoleSessionGuard } from "@/components/providers/role-session-guard";
+import "@/app/globals.css";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -32,9 +31,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        <Toaster richColors position="top-right" />
+        <RoleSessionGuard />
         {children}
         <FloatingChatbot visibleScopes={CHATBOT_VISIBLE_SCOPES} />
-        <Toaster richColors position="top-right" />
       </body>
     </html>
   );

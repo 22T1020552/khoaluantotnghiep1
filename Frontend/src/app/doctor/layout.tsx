@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { LayoutDashboard, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { BrandLogo } from '@/components/layout/brand-logo';
 import { useAuth } from '@/hooks/useAuth';
 import styles from '@/styles/common.module.css';
@@ -15,7 +16,15 @@ export default function DoctorLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { username, logout } = useAuth();
+  const { username, role, logout } = useAuth();
+
+  // Kiểm tra quyền truy cập - nếu không phải DOCTOR thì tự động đăng xuất
+  useEffect(() => {
+    if (role && role !== 'DOCTOR') {
+      void logout();
+      router.push('/signin');
+    }
+  }, [role, router, logout]);
 
   const handleLogout = async () => {
     await logout();
