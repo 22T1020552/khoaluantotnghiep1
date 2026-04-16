@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.http.HttpStatus;
@@ -38,9 +39,6 @@ public class ReceptionistService {
     private static final Set<String> RECEPTIONIST_CANCELLABLE_STATUSES = Set.of(
             STATUS_PENDING_CONFIRMATION,
             STATUS_WAITING);
-    private static final Set<String> RELEASED_SLOT_STATUSES = Set.of(
-            STATUS_CANCELLED,
-            STATUS_CANCELLED_BY_CLINIC);
 
     private static final Set<String> WAITING_STATUSES = Set.of(
             STATUS_PENDING_CONFIRMATION,
@@ -127,7 +125,8 @@ public class ReceptionistService {
 
     // Chức năng: xử lý duyệt cuộc hẹn.
     public Appointment approveAppointment(Long appointmentId, Long doctorId, String specialty, LocalDateTime appointmentTime) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Long safeAppointmentId = Objects.requireNonNull(appointmentId, "appointmentId là bắt buộc");
+        Appointment appointment = appointmentRepository.findById(safeAppointmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
         String currentStatus = normalizeStatus(appointment.getStatus());
@@ -196,7 +195,8 @@ public class ReceptionistService {
 
     // Chức năng: xử lý cập nhật trạng thái chờ.
     public Appointment updateWaitingStatus(Long appointmentId, String status) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Long safeAppointmentId = Objects.requireNonNull(appointmentId, "appointmentId là bắt buộc");
+        Appointment appointment = appointmentRepository.findById(safeAppointmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
         String normalizedStatus = normalizeStatus(status);
@@ -220,7 +220,8 @@ public class ReceptionistService {
     // Chức năng: xử lý từ chối cuộc hẹn.
     public Appointment cancelAppointmentByReceptionist(Long appointmentId, String cancellationReason,
             Boolean requireReason) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Long safeAppointmentId = Objects.requireNonNull(appointmentId, "appointmentId là bắt buộc");
+        Appointment appointment = appointmentRepository.findById(safeAppointmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
         String normalizedStatus = normalizeStatus(appointment.getStatus());
@@ -293,13 +294,24 @@ public class ReceptionistService {
             return;
         }
 
-        boolean valid = switch (normalizedCurrent) {
-            case STATUS_PENDING_CONFIRMATION -> STATUS_WAITING.equals(nextStatus);
-            case STATUS_WAITING -> STATUS_IN_PROGRESS.equals(nextStatus);
-            case STATUS_IN_PROGRESS -> STATUS_COMPLETED.equals(nextStatus);
-            case STATUS_COMPLETED -> false;
-            default -> false;
-        };
+        boolean valid;
+        switch (normalizedCurrent) {
+            case STATUS_PENDING_CONFIRMATION:
+                valid = STATUS_WAITING.equals(nextStatus);
+                break;
+            case STATUS_WAITING:
+                valid = STATUS_IN_PROGRESS.equals(nextStatus);
+                break;
+            case STATUS_IN_PROGRESS:
+                valid = STATUS_COMPLETED.equals(nextStatus);
+                break;
+            case STATUS_COMPLETED:
+                valid = false;
+                break;
+            default:
+                valid = false;
+                break;
+        }
 
         if (!valid) {
             throw new ResponseStatusException(
@@ -315,15 +327,31 @@ public class ReceptionistService {
         }
 
         String value = normalizeComparableStatus(status);
-        return switch (value) {
-            case "CHO_XAC_NHAN", "PENDING", "PENDING_CONFIRMATION", "DRAFT" -> STATUS_PENDING_CONFIRMATION;
-            case "DANG_CHO", "WAITING" -> STATUS_WAITING;
-            case "DANG_KHAM", "IN_PROGRESS" -> STATUS_IN_PROGRESS;
-            case "DA_KHAM", "COMPLETED" -> STATUS_COMPLETED;
-            case "HUY", "DA_HUY", "CANCELLED", "CANCELLED_BY_PATIENT" -> STATUS_CANCELLED;
-            case "CANCELLED_BY_CLINIC" -> STATUS_CANCELLED_BY_CLINIC;
-            default -> value;
-        };
+        switch (value) {
+            case "CHO_XAC_NHAN":
+            case "PENDING":
+            case "PENDING_CONFIRMATION":
+            case "DRAFT":
+                return STATUS_PENDING_CONFIRMATION;
+            case "DANG_CHO":
+            case "WAITING":
+                return STATUS_WAITING;
+            case "DANG_KHAM":
+            case "IN_PROGRESS":
+                return STATUS_IN_PROGRESS;
+            case "DA_KHAM":
+            case "COMPLETED":
+                return STATUS_COMPLETED;
+            case "HUY":
+            case "DA_HUY":
+            case "CANCELLED":
+            case "CANCELLED_BY_PATIENT":
+                return STATUS_CANCELLED;
+            case "CANCELLED_BY_CLINIC":
+                return STATUS_CANCELLED_BY_CLINIC;
+            default:
+                return value;
+        }
     }
 
     // Chức năng: xử lý chuẩn hóa trạng thái có thể so sánh.
