@@ -63,6 +63,7 @@ public class AppointmentService {
         PatientPrefillResponse response = new PatientPrefillResponse();
         response.setPatientId(patient.getId());
         response.setFullName(patient.getFullName());
+        response.setGender(patient.getGender());
         response.setNationalId(patient.getNationalId());
         response.setPhoneNumber(patient.getPhoneNumber());
         response.setHealthInsuranceNumber(patient.getHealthInsuranceNumber());
