@@ -17,9 +17,8 @@ const roleLabels: Record<AdminRole, string> = {
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 const normalizeText = (value: unknown) => String(value ?? "").trim();
-
+// Hàm chuyển đổi email thành username hợp lệ, loại bỏ dấu, ký tự đặc biệt và đảm bảo độ dài tối thiểu.
 const toUsernameFromEmail = (email: string) => {
   const local = email.split("@")[0] ?? "";
   const normalized = local
@@ -50,7 +49,7 @@ export function UsersManagement() {
     phoneNumber: "",
     role: "DOCTOR" as AdminRole,
   });
-
+  // Tải danh sách người dùng từ backend và xử lý lỗi nếu có.
   const loadUsers = async () => {
     try {
       setLoading(true);
@@ -66,7 +65,7 @@ export function UsersManagement() {
   useEffect(() => {
     void loadUsers();
   }, []);
-
+  // Áp dụng tìm kiếm và lọc vai trò cho danh sách người dùng.
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const fullName = normalizeText(user.fullName).toLowerCase();
@@ -89,7 +88,7 @@ export function UsersManagement() {
     }
     return date.toLocaleDateString("vi-VN");
   };
-
+  //Mở popup
   const openModal = (user?: AdminUser) => {
     if (user) {
       setEditingUser(user);
@@ -105,7 +104,7 @@ export function UsersManagement() {
     }
     setIsModalOpen(true);
   };
-
+  //Hàm lưu dữ liệu khi bấm submit form
   const handleSave = async () => {
     if (!formData.fullName.trim()) {
       toast.error("Vui lòng nhập họ và tên");
@@ -134,6 +133,7 @@ export function UsersManagement() {
       const initialPassword = normalizedPhone;
 
       if (editingUser) {
+        //cập nhật
         const payload: {
           username?: string;
           fullName?: string;
@@ -150,7 +150,7 @@ export function UsersManagement() {
 
         await adminService.updateUser(editingUser.id, payload);
         toast.success("Đã cập nhật tài khoản");
-      } else {
+      } else { //tạo mới
         if (initialPassword.length < 6) {
           toast.error("Số điện thoại phải có ít nhất 6 chữ số để làm mật khẩu mặc định");
           return;
@@ -190,7 +190,7 @@ export function UsersManagement() {
       toast.error(getApiErrorMessage(error, "Không thể xóa tài khoản"));
     }
   };
-
+  //Hàm khóa hoặc mở khóa tài khoản người dùng
   const handleToggleStatus = async (user: AdminUser) => {
     try {
       await adminService.updateUser(user.id, { isActive: !user.isActive });

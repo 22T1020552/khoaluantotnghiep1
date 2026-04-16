@@ -42,7 +42,7 @@ export function RoomsManagement() {
   const busyRoomIds = useMemo(() => {
     return new Set<number>(rooms.filter((room) => room.currentDoctorId != null).map((room) => room.id));
   }, [rooms]);
-
+    //Hàm mở popup với từng chế độ
   const openCreateModal = () => {
     setModalMode("create");
     setSelectedRoom(null);
@@ -72,7 +72,7 @@ export function RoomsManagement() {
       setIsModalOpen(false);
     }
   };
-
+  //Lưu dữ liệu khi bấm submit form với từng chế độ khác nhau
   const handleSubmit = async () => {
     if (modalMode === "assign") {
       if (!selectedRoom) {
