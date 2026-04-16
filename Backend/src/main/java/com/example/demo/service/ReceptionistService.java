@@ -46,7 +46,9 @@ public class ReceptionistService {
             STATUS_PENDING_CONFIRMATION,
             STATUS_WAITING,
             STATUS_IN_PROGRESS,
-            STATUS_COMPLETED);
+            STATUS_COMPLETED,
+            STATUS_CANCELLED,
+            STATUS_CANCELLED_BY_CLINIC);
 
     private final AppointmentRepository appointmentRepository;
     private final UserRepository userRepository;
@@ -112,7 +114,12 @@ public class ReceptionistService {
         if (!WAITING_STATUSES.contains(normalizedStatus)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Trạng thái không hợp lệ. Cho phép: PENDING, WAITING, IN_PROGRESS, COMPLETED");
+                    "Trạng thái không hợp lệ. Cho phép: PENDING, WAITING, IN_PROGRESS, COMPLETED, CANCELLED, CANCELLED_BY_CLINIC");
+        }
+
+        if (STATUS_CANCELLED.equals(normalizedStatus)) {
+            return appointmentRepository.findByStatusInOrderByAppointmentTimeAsc(
+                    List.of(STATUS_CANCELLED, STATUS_CANCELLED_BY_CLINIC));
         }
 
         return appointmentRepository.findByStatusOrderByAppointmentTimeAsc(normalizedStatus);
@@ -313,6 +320,8 @@ public class ReceptionistService {
             case "DANG_CHO", "WAITING" -> STATUS_WAITING;
             case "DANG_KHAM", "IN_PROGRESS" -> STATUS_IN_PROGRESS;
             case "DA_KHAM", "COMPLETED" -> STATUS_COMPLETED;
+            case "HUY", "DA_HUY", "CANCELLED", "CANCELLED_BY_PATIENT" -> STATUS_CANCELLED;
+            case "CANCELLED_BY_CLINIC" -> STATUS_CANCELLED_BY_CLINIC;
             default -> value;
         };
     }

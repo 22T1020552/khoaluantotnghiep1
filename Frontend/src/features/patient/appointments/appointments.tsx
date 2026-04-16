@@ -22,8 +22,33 @@ import {
 import styles from "./appointments.module.css";
 
 type AppointmentFilter = "all" | "pending" | "approved" | "in_progress" | "completed" | "cancelled";
+const NO_SHOW_CANCELLED_STATUS = "NO_SHOW_CANCELLED";
 
 const normalizeStatus = (status: string | null | undefined) => (status ?? "").trim().toUpperCase();
+
+const isNoShowStatusCandidate = (status: string) =>
+  ["PENDING", "PENDING_CONFIRMATION", "DRAFT", "APPROVED", "CONFIRMED", "WAITING"].includes(status);
+
+const isNoShowCancelled = (appointment: PatientAppointmentResponse) => {
+  const normalizedStatus = normalizeStatus(appointment.status);
+  if (!isNoShowStatusCandidate(normalizedStatus) || !appointment.appointmentTime) {
+    return false;
+  }
+
+  const appointmentTimestamp = new Date(appointment.appointmentTime).getTime();
+  if (Number.isNaN(appointmentTimestamp)) {
+    return false;
+  }
+
+  return appointmentTimestamp < Date.now();
+};
+
+const getEffectiveStatus = (appointment: PatientAppointmentResponse) => {
+  if (isNoShowCancelled(appointment)) {
+    return NO_SHOW_CANCELLED_STATUS;
+  }
+  return normalizeStatus(appointment.status);
+};
 
 const formatDateTime = (raw: string | null | undefined) => {
   if (!raw) {
@@ -56,6 +81,7 @@ const statusLabelMap: Record<string, string> = {
   COMPLETED: "Đã hoàn thành",
   CANCELLED: "Đã hủy",
   CANCELLED_BY_CLINIC: "Phòng khám đã hủy",
+  NO_SHOW_CANCELLED: "Đã hủy do quá giờ",
 };
 
 const getBadgeClass = (status: string) => {
@@ -70,14 +96,14 @@ const getBadgeClass = (status: string) => {
       return styles.badgeProgress;
     case "CANCELLED":
     case "CANCELLED_BY_CLINIC":
+    case NO_SHOW_CANCELLED_STATUS:
       return styles.badgeCancelled;
     default:
       return styles.badgePending;
   }
 };
 
-const getSystemNotification = (appointment: PatientAppointmentResponse) => {
-  const status = normalizeStatus(appointment.status);
+const getSystemNotification = (appointment: PatientAppointmentResponse, status: string) => {
   const when = formatDateTime(appointment.appointmentTime);
 
   switch (status) {
@@ -107,6 +133,11 @@ const getSystemNotification = (appointment: PatientAppointmentResponse) => {
       return {
         title: "Phòng khám đã hủy lịch",
         message: `Lịch #${appointment.id} đã bị hủy từ phía phòng khám. Vui lòng đặt lịch mới hoặc liên hệ lễ tân để được hỗ trợ.`,
+      };
+    case NO_SHOW_CANCELLED_STATUS:
+      return {
+        title: "Lịch hẹn đã quá giờ",
+        message: `Lịch #${appointment.id} đã quá thời gian khám (${when}), vui lòng đặt lại lịch khác.`,
       };
     default:
       return {
@@ -205,7 +236,7 @@ export function PatientAppointments() {
   const statusStats = useMemo(() => {
     return appointments.reduce(
       (stats, item) => {
-        const status = normalizeStatus(item.status);
+        const status = getEffectiveStatus(item);
         stats.total += 1;
         if (status === "PENDING" || status === "PENDING_CONFIRMATION" || status === "DRAFT") {
           stats.pending += 1;
@@ -215,7 +246,7 @@ export function PatientAppointments() {
           stats.inProgress += 1;
         } else if (status === "COMPLETED") {
           stats.completed += 1;
-        } else if (status === "CANCELLED" || status === "CANCELLED_BY_CLINIC") {
+        } else if (status === "CANCELLED" || status === "CANCELLED_BY_CLINIC" || status === NO_SHOW_CANCELLED_STATUS) {
           stats.cancelled += 1;
         }
         return stats;
@@ -226,7 +257,7 @@ export function PatientAppointments() {
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((item) => {
-      const normalizedStatus = normalizeStatus(item.status);
+      const normalizedStatus = getEffectiveStatus(item);
       const keyword = query.trim().toLowerCase();
 
       const passesFilter =
@@ -235,7 +266,7 @@ export function PatientAppointments() {
         (filter === "approved" && ["WAITING", "APPROVED", "CONFIRMED"].includes(normalizedStatus)) ||
         (filter === "in_progress" && normalizedStatus === "IN_PROGRESS") ||
         (filter === "completed" && normalizedStatus === "COMPLETED") ||
-        (filter === "cancelled" && ["CANCELLED", "CANCELLED_BY_CLINIC"].includes(normalizedStatus));
+        (filter === "cancelled" && ["CANCELLED", "CANCELLED_BY_CLINIC", NO_SHOW_CANCELLED_STATUS].includes(normalizedStatus));
 
       if (!passesFilter) {
         return false;
@@ -255,11 +286,15 @@ export function PatientAppointments() {
   }, [appointments, filter, query]);
 
   const notifications = useMemo(() => {
-    return appointments.slice(0, 5).map((item) => ({
-      appointmentId: item.id,
-      time: formatDateTime(item.appointmentTime),
-      ...getSystemNotification(item),
-    }));
+    return appointments.slice(0, 5).map((item) => {
+      const effectiveStatus = getEffectiveStatus(item);
+      return {
+        appointmentId: item.id,
+        time: formatDateTime(item.appointmentTime),
+        status: effectiveStatus,
+        ...getSystemNotification(item, effectiveStatus),
+      };
+    });
   }, [appointments]);
 
   const handleCancel = async (appointmentId: number) => {
@@ -339,9 +374,9 @@ export function PatientAppointments() {
           ) : (
             <div className={styles.list}>
               {filteredAppointments.map((item) => {
-                const status = normalizeStatus(item.status);
+                const status = getEffectiveStatus(item);
                 const doctorName = item.doctor?.fullName ?? item.doctor?.username ?? "Đang cập nhật";
-                const notification = getSystemNotification(item);
+                const notification = getSystemNotification(item, status);
 
                 return (
                   <article
@@ -368,7 +403,11 @@ export function PatientAppointments() {
                       </div>
                     </div>
 
-                    <div className={styles.notificationInline}>
+                    <div
+                      className={`${styles.notificationInline} ${
+                        status === NO_SHOW_CANCELLED_STATUS ? styles.notificationInlineAlert : ""
+                      }`}
+                    >
                       <BellRing size={15} />
                       <p>
                         <strong>{notification.title}:</strong> {notification.message}
@@ -408,7 +447,12 @@ export function PatientAppointments() {
           ) : (
             <div className={styles.notificationList}>
               {notifications.map((notification) => (
-                <div key={`${notification.appointmentId}-${notification.time}`} className={styles.notificationItem}>
+                <div
+                  key={`${notification.appointmentId}-${notification.time}`}
+                  className={`${styles.notificationItem} ${
+                    notification.status === NO_SHOW_CANCELLED_STATUS ? styles.notificationInlineAlert : ""
+                  }`}
+                >
                   <CheckCircle2 size={16} />
                   <div>
                     <p className={styles.noticeTitle}>{notification.title}</p>

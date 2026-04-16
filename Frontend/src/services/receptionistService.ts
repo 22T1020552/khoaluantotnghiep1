@@ -42,6 +42,13 @@ export const receptionistService = {
     return response.data;
   },
 
+  async getCancelledAppointments() {
+    const response = await api.get<ReceptionistAppointment[]>('/api/receptionist/appointments/waiting', {
+      params: { status: 'CANCELLED' },
+    });
+    return response.data;
+  },
+
   async getDoctors() {
     const response = await api.get<ReceptionistDoctorOption[]>("/api/receptionist/doctors/by-specialty");
     const doctorsInRooms = response.data.filter((doctor) => Boolean(doctor.roomName && doctor.roomName.trim()));
