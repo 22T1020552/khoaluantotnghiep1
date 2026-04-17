@@ -28,10 +28,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/patient")
 @RequiredArgsConstructor
-@Tag(
-    name = "Patient",
-    description = "Nghiệp vụ benh nhan: xem ho so, dat lich, theo doi lich hen va lich su benh an."
-)
+@Tag(name = "Patient", description = "Nghiệp vụ bệnh nhân: xem hồ sơ, đặt lịch, theo dõi lịch hẹn và lịch sử bệnh án.")
 public class PatientController {
 
     private final AppointmentService appointmentService;
@@ -77,4 +74,3 @@ public class PatientController {
         return appointmentService.cancelMyAppointment(appointmentId, authentication.getName());
     }
 }
-

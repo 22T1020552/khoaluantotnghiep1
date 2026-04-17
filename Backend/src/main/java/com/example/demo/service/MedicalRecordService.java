@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import com.example.demo.exception.AppException;
 
 import com.example.demo.dto.AddPrescriptionDetailRequest;
 import com.example.demo.dto.CreateMedicalRecordRequest;
@@ -29,7 +29,6 @@ import com.example.demo.dto.PrescriptionWorkspaceResponse;
 import com.example.demo.dto.UpdatePrescriptionDetailRequest;
 import com.example.demo.dto.UpsertMedicalRecordServiceResultRequest;
 import com.example.demo.entity.Appointment;
-import com.example.demo.entity.Invoice;
 import com.example.demo.entity.MedicalRecord;
 import com.example.demo.entity.MedicalRecordServiceDetail;
 import com.example.demo.entity.MedicalRecordServiceId;
@@ -88,23 +87,23 @@ public class MedicalRecordService {
         return medicalRecordRepository.findAll();
     }
 
-    // Chức năng: xử lý upsert medical record service result from assigned doctor
-    // room.
+    // Chức năng: xử lý Cập nhật kết quả dịch vụ hồ sơ y tế từ phòng khám của bác sĩ
+    // được chỉ định.
     public MedicalRecordServiceDetail upsertMedicalRecordServiceResult(
             String username,
             Long medicalRecordId,
             UpsertMedicalRecordServiceResultRequest request) {
         User doctor = userRepository.findByUsernameAndRole(username, Role.DOCTOR)
                 .orElseThrow(
-                        () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản bác sĩ"));
+                        () -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản bác sĩ"));
 
         MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
 
         ensureDoctorCanUpdateCrossRoomServiceResult(doctor, medicalRecord);
 
         MedicalService medicalService = medicalServiceRepository.findById(request.getServiceId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy dịch vụ y tế"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy dịch vụ y tế"));
 
         MedicalRecordServiceId id = new MedicalRecordServiceId();
         id.setMedicalRecordId(medicalRecordId);
@@ -120,31 +119,30 @@ public class MedicalRecordService {
         detail.setActualPrice(request.getActualPrice());
         detail.setResultNote(normalizeOptionalResultNote(request.getResultNote()));
 
-        MedicalRecordServiceDetail savedDetail = medicalRecordServiceDetailRepository.save(detail);
         invoiceService.aggregateInvoiceAmount(medicalRecordId);
-        return savedDetail;
+        return medicalRecordServiceDetailRepository.save(detail);
     }
 
     // Chức năng: xử lý get by id.
     public MedicalRecord getById(Long id) {
         return medicalRecordRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
     }
 
     // Chức năng: xử lý get by appointment id.
     public MedicalRecord getByAppointmentId(Long appointmentId) {
         return medicalRecordRepository.findByAppointment_Id(appointmentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND,
                         "Không tìm thấy bệnh án theo lịch hẹn"));
     }
 
     // Chức năng: xử lý create.
     public MedicalRecord create(Long appointmentId, MedicalRecord request) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
         if (medicalRecordRepository.existsByAppointment_Id(appointmentId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn đã có bệnh án");
+            throw AppException.of(HttpStatus.CONFLICT, "Lịch hẹn đã có bệnh án");
         }
 
         MedicalRecord record = new MedicalRecord();
@@ -160,23 +158,23 @@ public class MedicalRecordService {
     public MedicalRecord createByDoctor(String username, CreateMedicalRecordRequest request) {
         User doctor = userRepository.findByUsernameAndRole(username, Role.DOCTOR)
                 .orElseThrow(
-                        () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản bác sĩ"));
+                        () -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản bác sĩ"));
 
         Appointment appointment = appointmentRepository.findById(request.getAppointmentId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
         if (appointment.getDoctor() == null || !doctor.getId().equals(appointment.getDoctor().getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn chưa được phân công cho lịch hẹn này");
+            throw AppException.of(HttpStatus.FORBIDDEN, "Bạn chưa được phân công cho lịch hẹn này");
         }
 
         if (!STATUS_WAITING.equalsIgnoreCase(appointment.getStatus())
                 && !"IN_PROGRESS".equalsIgnoreCase(appointment.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
+            throw AppException.of(HttpStatus.CONFLICT,
                     "Chỉ lịch hẹn WAITING hoặc IN_PROGRESS mới có thể tạo bệnh án");
         }
 
         if (medicalRecordRepository.existsByAppointment_Id(request.getAppointmentId())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn đã có bệnh án");
+            throw AppException.of(HttpStatus.CONFLICT, "Lịch hẹn đã có bệnh án");
         }
 
         MedicalRecord record = new MedicalRecord();
@@ -210,15 +208,15 @@ public class MedicalRecordService {
         ensurePrescriptionEditable(medicalRecord);
 
         Medicine medicine = medicineRepository.findById(request.getMedicineId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thuốc"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy thuốc"));
 
         if (Boolean.FALSE.equals(medicine.getIsActive())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Thuốc đang ngừng hoạt động");
+            throw AppException.of(HttpStatus.CONFLICT, "Thuốc đang ngừng hoạt động");
         }
 
         Integer stockQuantity = medicine.getStockQuantity();
         if (stockQuantity == null || stockQuantity < request.getQuantity()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Không đủ tồn kho cho thuốc này");
+            throw AppException.of(HttpStatus.CONFLICT, "Không đủ tồn kho cho thuốc này");
         }
 
         PrescriptionDetailId id = new PrescriptionDetailId();
@@ -232,7 +230,7 @@ public class MedicalRecordService {
         int currentQuantity = java.util.Objects.requireNonNullElse(detail.getQuantity(), 0);
         int updatedQuantity = currentQuantity + request.getQuantity();
         if (stockQuantity < updatedQuantity) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Không đủ tồn kho cho thuốc này");
+            throw AppException.of(HttpStatus.CONFLICT, "Không đủ tồn kho cho thuốc này");
         }
 
         detail.setQuantity(updatedQuantity);
@@ -316,15 +314,15 @@ public class MedicalRecordService {
         ensurePrescriptionEditable(medicalRecord);
 
         Medicine medicine = medicineRepository.findById(medicineId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thuốc"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy thuốc"));
 
         if (Boolean.FALSE.equals(medicine.getIsActive())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Thuốc đang ngừng hoạt động");
+            throw AppException.of(HttpStatus.CONFLICT, "Thuốc đang ngừng hoạt động");
         }
 
         Integer stockQuantity = medicine.getStockQuantity();
         if (stockQuantity == null || stockQuantity <= 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Thuốc đã hết trong kho");
+            throw AppException.of(HttpStatus.CONFLICT, "Thuốc đã hết trong kho");
         }
 
         PrescriptionDetailId id = new PrescriptionDetailId();
@@ -360,18 +358,18 @@ public class MedicalRecordService {
 
         PrescriptionDetail detail = prescriptionDetailRepository.findById(id)
                 .orElseThrow(
-                        () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy chi tiết đơn thuốc"));
+                        () -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy chi tiết đơn thuốc"));
 
         Medicine medicine = detail.getMedicine();
         if (medicine == null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Thiếu dữ liệu thuốc trong chi tiết đơn thuốc");
+            throw AppException.of(HttpStatus.CONFLICT, "Thiếu dữ liệu thuốc trong chi tiết đơn thuốc");
         }
 
         int newQuantity = request.getQuantity();
 
         Integer currentStock = java.util.Objects.requireNonNullElse(medicine.getStockQuantity(), 0);
         if (newQuantity > currentStock) {
-            throw new ResponseStatusException(
+            throw AppException.of(
                     HttpStatus.CONFLICT,
                     "Số lượng vượt quá tồn kho hiện tại. Tồn còn lại: " + currentStock);
         }
@@ -424,7 +422,7 @@ public class MedicalRecordService {
 
         PrescriptionDetail detail = prescriptionDetailRepository.findById(id)
                 .orElseThrow(
-                        () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy chi tiết đơn thuốc"));
+                        () -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy chi tiết đơn thuốc"));
 
         prescriptionDetailRepository.delete(detail);
         return getPrescriptionWorkspace(username, medicalRecordId);
@@ -437,7 +435,7 @@ public class MedicalRecordService {
 
         List<PrescriptionDetail> details = prescriptionDetailRepository.findByMedicalRecord_Id(medicalRecordId);
         if (details.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Đơn thuốc đang trống");
+            throw AppException.of(HttpStatus.CONFLICT, "Đơn thuốc đang trống");
         }
 
         invoiceService.aggregateInvoiceAmount(medicalRecordId);
@@ -447,11 +445,6 @@ public class MedicalRecordService {
     // Chức năng: xử lý hoàn thành bệnh án.
     public MedicalRecord completeMedicalRecord(String username, Long medicalRecordId) {
         MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
-        Appointment appointment = medicalRecord.getAppointment();
-        if (appointment != null) {
-            appointment.setStatus(STATUS_COMPLETED);
-            appointmentRepository.save(appointment);
-        }
         return medicalRecord;
     }
 
@@ -508,14 +501,14 @@ public class MedicalRecordService {
         Appointment currentAppointment = getAuthorizedDoctorAppointment(username, appointmentId);
 
         MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
 
         if (medicalRecord.getAppointment() == null
                 || medicalRecord.getAppointment().getPatient() == null
                 || currentAppointment.getPatient() == null
                 || !medicalRecord.getAppointment().getPatient().getId()
                         .equals(currentAppointment.getPatient().getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bệnh án không thuộc về bệnh nhân này");
+            throw AppException.of(HttpStatus.FORBIDDEN, "Bệnh án không thuộc về bệnh nhân này");
         }
 
         List<DoctorPatientPrescriptionItemResponse> prescriptions = prescriptionDetailRepository
@@ -551,17 +544,17 @@ public class MedicalRecordService {
     private Appointment getAuthorizedDoctorAppointment(String username, Long appointmentId) {
         User doctor = userRepository.findByUsernameAndRole(username, Role.DOCTOR)
                 .orElseThrow(
-                        () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản bác sĩ"));
+                        () -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản bác sĩ"));
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
         if (appointment.getPatient() == null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn không gắn với bệnh nhân");
+            throw AppException.of(HttpStatus.CONFLICT, "Lịch hẹn không gắn với bệnh nhân");
         }
 
         if (appointment.getDoctor() == null || !doctor.getId().equals(appointment.getDoctor().getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn chưa được phân công cho lịch hẹn này");
+            throw AppException.of(HttpStatus.FORBIDDEN, "Bạn chưa được phân công cho lịch hẹn này");
         }
 
         return appointment;
@@ -622,7 +615,7 @@ public class MedicalRecordService {
     private void ensureDoctorCanUpdateCrossRoomServiceResult(User doctor, MedicalRecord medicalRecord) {
         Appointment appointment = medicalRecord.getAppointment();
         if (appointment == null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bệnh án không gắn với lịch hẹn");
+            throw AppException.of(HttpStatus.CONFLICT, "Bệnh án không gắn với lịch hẹn");
         }
 
         boolean isOriginalDoctor = appointment.getDoctor() != null
@@ -630,7 +623,7 @@ public class MedicalRecordService {
         boolean isDoctorAssignedToAnyRoom = !roomRepository.findByCurrentDoctor_Id(doctor.getId()).isEmpty();
 
         if (!isOriginalDoctor && !isDoctorAssignedToAnyRoom) {
-            throw new ResponseStatusException(
+            throw AppException.of(
                     HttpStatus.FORBIDDEN,
                     "Bạn không có quyền cập nhật kết quả dịch vụ liên phòng");
         }
@@ -654,7 +647,7 @@ public class MedicalRecordService {
                     return new PrescriptionCatalogMedicineResponse(
                             medicine.getId(),
                             medicine.getMedicineName(),
-                            resolvePharmacologyGroup(medicine),
+                            classifyPharmacologyGroup(medicine.getMedicineName()),
                             extractConcentration(medicine.getMedicineName()),
                             medicine.getUnit(),
                             medicine.getSellingPrice(),
@@ -663,19 +656,6 @@ public class MedicalRecordService {
                             inStock ? null : "Thuốc đã hết trong kho");
                 })
                 .toList();
-    }
-
-    // Chức năng: xử lý ưu tiên nhóm thuốc đã được quản trị khai báo.
-    private String resolvePharmacologyGroup(Medicine medicine) {
-        if (medicine == null) {
-            return GROUP_OTHER;
-        }
-
-        if (medicine.getMedicineType() != null && !medicine.getMedicineType().isBlank()) {
-            return medicine.getMedicineType().trim();
-        }
-
-        return classifyPharmacologyGroup(medicine.getMedicineName());
     }
 
     // Chức năng: xử lý chuẩn hóa nhóm đã chọn.
@@ -759,15 +739,15 @@ public class MedicalRecordService {
     private MedicalRecord getAuthorizedMedicalRecord(String username, Long medicalRecordId) {
         User doctor = userRepository.findByUsernameAndRole(username, Role.DOCTOR)
                 .orElseThrow(
-                        () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản bác sĩ"));
+                        () -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản bác sĩ"));
 
         MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
 
         if (medicalRecord.getAppointment() == null
                 || medicalRecord.getAppointment().getDoctor() == null
                 || !doctor.getId().equals(medicalRecord.getAppointment().getDoctor().getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn chưa được phân công cho bệnh án này");
+            throw AppException.of(HttpStatus.FORBIDDEN, "Bạn chưa được phân công cho bệnh án này");
         }
 
         return medicalRecord;
@@ -775,26 +755,10 @@ public class MedicalRecordService {
 
     // Chức năng: xử lý đảm bảo đơn thuốc có thể chỉnh sửa được.
     private void ensurePrescriptionEditable(MedicalRecord medicalRecord) {
-        Appointment appointment = medicalRecord.getAppointment();
-        if (appointment == null || appointment.getStatus() == null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Không thể chỉnh sửa đơn thuốc do lịch hẹn không hợp lệ");
-        }
-
-        if (!STATUS_COMPLETED.equalsIgnoreCase(appointment.getStatus())) {
-            return;
-        }
-
-        try {
-            Invoice invoice = invoiceService.getByMedicalRecordId(medicalRecord.getId());
-            if (Boolean.TRUE.equals(invoice.getIsPaid())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        "Không thể chỉnh sửa đơn thuốc khi bệnh án đã được thanh toán");
-            }
-        } catch (ResponseStatusException ex) {
-            if (!HttpStatus.NOT_FOUND.equals(ex.getStatusCode())) {
-                throw ex;
-            }
+        if (STATUS_COMPLETED.equalsIgnoreCase(medicalRecord.getAppointment().getStatus())) {
+            throw AppException.of(HttpStatus.CONFLICT,
+                    "Không thể chỉnh sửa đơn thuốc khi lịch hẹn đã hoàn tất");
         }
     }
 }
+

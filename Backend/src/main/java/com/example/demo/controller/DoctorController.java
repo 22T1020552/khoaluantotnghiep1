@@ -18,8 +18,6 @@ import com.example.demo.dto.DoctorPatientHistoryDetailResponse;
 import com.example.demo.dto.DoctorPatientHistoryResponse;
 import com.example.demo.dto.DoctorResponse;
 import com.example.demo.entity.Appointment;
-import com.example.demo.entity.MedicalService;
-import com.example.demo.entity.Medicine;
 import com.example.demo.service.DoctorService;
 import com.example.demo.service.MedicalRecordService;
 
@@ -31,10 +29,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/doctors")
 @RequiredArgsConstructor
-@Tag(
-    name = "Doctor",
-    description = "Nghiệp vụ bac si: danh sach bac si, hang doi cho kham, cap nhat phong va xem lich su benh an."
-)
+@Tag(name = "Doctor", description = "Nghiệp vụ bac si: danh sach bac si, hang doi cho kham, cap nhat phong va xem lich su benh an.")
 public class DoctorController {
 
     private final DoctorService doctorService;
@@ -62,18 +57,6 @@ public class DoctorController {
         return doctorService.getMyCompletedPatients(authentication.getName(), date);
     }
 
-    @GetMapping("/me/medicines")
-    @Operation(summary = "Danh mục thuốc cho bác sĩ", description = "Lấy danh mục thuốc đang hoạt động để bác sĩ kê đơn.")
-    public List<Medicine> getAvailableMedicines() {
-        return doctorService.getAvailableMedicines();
-    }
-
-    @GetMapping("/me/services")
-    @Operation(summary = "Danh mục dịch vụ cho bác sĩ", description = "Lấy danh mục dịch vụ đang hoạt động để bác sĩ chỉ định thêm.")
-    public List<MedicalService> getAvailableServices() {
-        return doctorService.getAvailableServices();
-    }
-
     @PutMapping("/{doctorId}/clinic-room")
     @Operation(summary = "Cập nhật phòng kham", description = "Cập nhật thông tin phòng khám phụ trách của bác sĩ.")
     public DoctorResponse updateClinicRoom(
@@ -99,8 +82,6 @@ public class DoctorController {
         return medicalRecordService.getPatientHistoryDetailForDoctor(
                 authentication.getName(),
                 appointmentId,
-                medicalRecordId
-        );
+                medicalRecordId);
     }
 }
-

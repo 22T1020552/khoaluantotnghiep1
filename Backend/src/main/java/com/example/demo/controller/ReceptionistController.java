@@ -56,11 +56,7 @@ public class ReceptionistController {
     public Appointment approveAppointment(
             @PathVariable Long appointmentId,
             @Valid @RequestBody ReceptionistApproveRequest request) {
-        return receptionistService.approveAppointment(
-            appointmentId,
-            request.getDoctorId(),
-            request.getSpecialty(),
-            request.getAppointmentTime());
+        return receptionistService.approveAppointment(appointmentId, request.getDoctorId(), request.getSpecialty());
     }
 
     @PutMapping("/appointments/{appointmentId}/assign-doctor")
@@ -68,11 +64,7 @@ public class ReceptionistController {
     public Appointment assignDoctorAndMoveToWaiting(
             @PathVariable Long appointmentId,
             @Valid @RequestBody ReceptionistApproveRequest request) {
-        return receptionistService.assignDoctorAndMoveToWaiting(
-            appointmentId,
-            request.getDoctorId(),
-            request.getSpecialty(),
-            request.getAppointmentTime());
+        return receptionistService.assignDoctorAndMoveToWaiting(appointmentId, request.getDoctorId(), request.getSpecialty());
     }
 
     @GetMapping("/appointments/waiting")

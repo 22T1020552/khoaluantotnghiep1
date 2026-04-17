@@ -1,6 +1,5 @@
 package com.example.demo.dto;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -19,12 +18,5 @@ public class PatientMedicalRecordDetailResponse {
     private String diagnosis;
     private String doctorAdvice;
     private LocalDateTime createdAt;
-    private Long invoiceId;
-    private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
-    private BigDecimal totalAmount;
-    private Boolean paid;
-    private LocalDateTime paidAt;
-    private String paymentMethod;
     private List<PatientPrescriptionHistoryItemResponse> prescriptionItems;
 }

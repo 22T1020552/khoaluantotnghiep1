@@ -6,7 +6,6 @@ import lombok.Data;
 public class PatientPrefillResponse {
     private Long patientId;
     private String fullName;
-    private String gender;
     private String nationalId;
     private String phoneNumber;
     private String healthInsuranceNumber;

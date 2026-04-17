@@ -6,18 +6,16 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import com.example.demo.exception.AppException;
 
 import com.example.demo.dto.PatientMedicalRecordDetailResponse;
 import com.example.demo.dto.PatientMedicalRecordHistoryItemResponse;
 import com.example.demo.dto.PatientPrescriptionHistoryItemResponse;
 import com.example.demo.entity.Appointment;
-import com.example.demo.entity.Invoice;
 import com.example.demo.entity.MedicalRecord;
 import com.example.demo.entity.Patient;
 import com.example.demo.entity.PrescriptionDetail;
 import com.example.demo.entity.User;
-import com.example.demo.repository.InvoiceRepository;
 import com.example.demo.repository.MedicalRecordRepository;
 import com.example.demo.repository.PatientRepository;
 import com.example.demo.repository.PrescriptionDetailRepository;
@@ -33,7 +31,6 @@ public class PatientService {
     private final UserRepository userRepository;
     private final MedicalRecordRepository medicalRecordRepository;
     private final PrescriptionDetailRepository prescriptionDetailRepository;
-    private final InvoiceRepository invoiceRepository;
 
     //  LẤY PATIENT TỪ USERNAME (CỰC QUAN TRỌNG)
     // Chức năng: xử lý get patient from username.
@@ -61,12 +58,12 @@ public class PatientService {
         Patient patient = getPatientFromUsername(username);
 
         MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
+            .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
 
         Appointment appointment = medicalRecord.getAppointment();
         if (appointment == null || appointment.getPatient() == null
             || !patient.getId().equals(appointment.getPatient().getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập bệnh án này");
+            throw AppException.of(HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập bệnh án này");
         }
 
         List<PatientPrescriptionHistoryItemResponse> prescriptionItems = prescriptionDetailRepository
@@ -74,8 +71,6 @@ public class PatientService {
             .stream()
             .map(this::toPrescriptionItemResponse)
             .toList();
-
-        Invoice invoice = invoiceRepository.findByMedicalRecord_Id(medicalRecordId).orElse(null);
 
         return new PatientMedicalRecordDetailResponse(
             medicalRecord.getId(),
@@ -86,13 +81,6 @@ public class PatientService {
             medicalRecord.getDiagnosis(),
             medicalRecord.getDoctorAdvice(),
             medicalRecord.getCreatedAt(),
-            invoice == null ? null : invoice.getId(),
-            invoice == null ? BigDecimal.ZERO : invoice.getTotalServiceFee(),
-            invoice == null ? BigDecimal.ZERO : invoice.getTotalMedicineFee(),
-            invoice == null ? BigDecimal.ZERO : invoice.getTotalAmount(),
-            invoice != null && Boolean.TRUE.equals(invoice.getIsPaid()),
-            invoice == null ? null : invoice.getPaidAt(),
-            invoice == null ? null : invoice.getPaymentMethod(),
             prescriptionItems
         );
         }
@@ -101,7 +89,6 @@ public class PatientService {
         private PatientMedicalRecordHistoryItemResponse toHistoryItemResponse(MedicalRecord medicalRecord) {
         Appointment appointment = medicalRecord.getAppointment();
         int prescriptionItemCount = prescriptionDetailRepository.findByMedicalRecord_Id(medicalRecord.getId()).size();
-        Invoice invoice = invoiceRepository.findByMedicalRecord_Id(medicalRecord.getId()).orElse(null);
 
         return new PatientMedicalRecordHistoryItemResponse(
             medicalRecord.getId(),
@@ -112,14 +99,7 @@ public class PatientService {
             medicalRecord.getDiagnosis(),
             medicalRecord.getDoctorAdvice(),
             medicalRecord.getCreatedAt(),
-            prescriptionItemCount,
-            invoice == null ? null : invoice.getId(),
-            invoice == null ? BigDecimal.ZERO : invoice.getTotalServiceFee(),
-            invoice == null ? BigDecimal.ZERO : invoice.getTotalMedicineFee(),
-            invoice == null ? BigDecimal.ZERO : invoice.getTotalAmount(),
-            invoice != null && Boolean.TRUE.equals(invoice.getIsPaid()),
-            invoice == null ? null : invoice.getPaidAt(),
-            invoice == null ? null : invoice.getPaymentMethod()
+            prescriptionItemCount
         );
         }
 
@@ -143,4 +123,5 @@ public class PatientService {
         );
         }
 }
+
 

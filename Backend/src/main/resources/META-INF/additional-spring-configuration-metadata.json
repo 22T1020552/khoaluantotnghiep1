@@ -1,6 +1,11 @@
 {
   "properties": [
     {
+      "name": "app.cors.allowed-origin-patterns",
+      "type": "java.lang.String",
+      "description": "Comma-separated allowed origin patterns for CORS, e.g. http://localhost:3000."
+    },
+    {
       "name": "ai.gemini.enabled",
       "type": "java.lang.Boolean",
       "description": "Enable or disable Gemini integration."
@@ -24,6 +29,31 @@
       "name": "ai.gemini.timeout-seconds",
       "type": "java.lang.Integer",
       "description": "Timeout in seconds for Gemini API calls."
+    },
+    {
+      "name": "ai.gemini.history-context-messages",
+      "type": "java.lang.Integer",
+      "description": "Maximum recent history messages included as context when asking Gemini."
+    },
+    {
+      "name": "ai.gemini.history-return-messages",
+      "type": "java.lang.Integer",
+      "description": "Maximum history messages returned for a user when requesting chatbot history."
+    },
+    {
+      "name": "ai.gemini.clinic-working-hours",
+      "type": "java.lang.String",
+      "description": "Clinic business hours text used as fixed chatbot business context."
+    },
+    {
+      "name": "ai.gemini.clinic-hotline",
+      "type": "java.lang.String",
+      "description": "Clinic hotline used in chatbot business context."
+    },
+    {
+      "name": "ai.gemini.clinic-address",
+      "type": "java.lang.String",
+      "description": "Clinic address used in chatbot business context."
     },
     {
       "name": "clinic.notification.receptionist.emails",

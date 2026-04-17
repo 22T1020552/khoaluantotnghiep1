@@ -1,6 +1,5 @@
 package com.example.demo.dto;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import lombok.AllArgsConstructor;
@@ -19,11 +18,4 @@ public class PatientMedicalRecordHistoryItemResponse {
     private String doctorAdvice;
     private LocalDateTime createdAt;
     private Integer prescriptionItemCount;
-    private Long invoiceId;
-    private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
-    private BigDecimal totalAmount;
-    private Boolean paid;
-    private LocalDateTime paidAt;
-    private String paymentMethod;
 }
