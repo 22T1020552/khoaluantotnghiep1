@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   Pill,
+  Settings2,
   UserRound,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,6 +25,7 @@ const navItems = [
   { href: '/admin/medicines', label: 'Danh mục thuốc', icon: Pill },
   { href: '/admin/services', label: 'Dịch vụ', icon: Activity },
   { href: '/admin/reports', label: 'Báo cáo', icon: ClipboardList },
+  { href: '/admin/settings', label: 'Cấu hình', icon: Settings2 },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

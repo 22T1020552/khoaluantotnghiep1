@@ -4,15 +4,18 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.mail.MailProperties;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.stereotype.Service;
 import com.example.demo.exception.AppException;
 
@@ -34,26 +37,42 @@ public class NotificationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(NotificationService.class);
     private static final DateTimeFormatter APPOINTMENT_TIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-    private final JavaMailSender mailSender;
+    private static final String SETTING_MAIL_HOST = "spring.mail.host";
+    private static final String SETTING_MAIL_PORT = "spring.mail.port";
+    private static final String SETTING_MAIL_USERNAME = "spring.mail.username";
+    private static final String SETTING_MAIL_PASSWORD = "spring.mail.password";
+    private static final String SETTING_RECEPTIONIST_EMAILS = "clinic.notification.receptionist.emails";
+
+    private final MailProperties mailProperties;
+    private final SystemSettingService systemSettingService;
     private final UserRepository userRepository;
     private final RoomRepository roomRepository;
 
     @Value("${clinic.notification.receptionist.emails:}")
-    private String receptionistNotificationEmails;
+    private String defaultReceptionistNotificationEmails;
 
     @Value("${spring.mail.username:}")
-    private String senderEmail;
+    private String defaultSenderEmail;
+
+    @Value("${spring.mail.password:}")
+    private String defaultMailPassword;
 
     @Value("${spring.mail.host:}")
-    private String mailHost;
+    private String defaultMailHost;
+
+    @Value("${spring.mail.port:587}")
+    private Integer defaultMailPort;
 
     @PostConstruct
     public void logMailConfigurationAtStartup() {
-        String from = senderEmail == null ? "" : senderEmail.trim();
-        String configuredRecipients = receptionistNotificationEmails == null ? ""
-                : receptionistNotificationEmails.trim();
+        String from = resolveSenderEmail();
+        String configuredRecipients = resolveReceptionistEmailsConfig();
+        String host = resolveMailHost();
+        int port = resolveMailPort();
         LOGGER.info(
-                "Mail notification config at startup: senderConfigured={}, configuredRecipients='{}'",
+                "Mail notification config at startup: host={}, port={}, senderConfigured={}, configuredRecipients='{}'",
+                host,
+                port,
                 !from.isBlank(),
                 configuredRecipients);
     }
@@ -69,7 +88,7 @@ public class NotificationService {
             return;
         }
 
-        String from = senderEmail == null ? "" : senderEmail.trim();
+        String from = resolveSenderEmail();
         if (from.isBlank()) {
             LOGGER.warn("Skip clinic-cancelled appointment email because spring.mail.username is empty");
             return;
@@ -106,7 +125,7 @@ public class NotificationService {
                 reason));
 
         try {
-            mailSender.send(message);
+            buildMailSender().send(message);
             LOGGER.info("Sent clinic-cancelled appointment email: appointmentId={}, recipient={}", appointment.getId(),
                     recipient);
         } catch (MailException ex) {
@@ -129,7 +148,7 @@ public class NotificationService {
             return;
         }
 
-        String from = senderEmail == null ? "" : senderEmail.trim();
+        String from = resolveSenderEmail();
         if (from.isBlank()) {
             LOGGER.warn("Skip approved appointment email because spring.mail.username is empty");
             return;
@@ -169,7 +188,7 @@ public class NotificationService {
                 doctorName));
 
         try {
-            mailSender.send(message);
+            buildMailSender().send(message);
             LOGGER.info("Sent approved appointment email: appointmentId={}, recipient={}", appointment.getId(),
                     recipient);
         } catch (MailException ex) {
@@ -184,18 +203,19 @@ public class NotificationService {
 
     // Chức năng: gửi email cho lễ tân khi có bệnh nhân mới đặt lịch.
     public void notifyReceptionistNewPatientBooking(Appointment appointment) {
-        List<String> recipients = resolveReceptionistRecipients();
+        String configuredRecipients = resolveReceptionistEmailsConfig();
+        List<String> recipients = resolveReceptionistRecipients(configuredRecipients);
         LOGGER.info(
                 "Preparing receptionist booking email: appointmentId={}, recipientCount={}, configuredRecipients='{}'",
                 appointment.getId(),
                 recipients.size(),
-                receptionistNotificationEmails);
+                configuredRecipients);
         if (recipients.isEmpty()) {
             LOGGER.warn("Skip receptionist booking email because no recipient was configured");
             return;
         }
 
-        String from = senderEmail == null ? "" : senderEmail.trim();
+        String from = resolveSenderEmail();
         if (from.isBlank()) {
             LOGGER.warn("Skip receptionist booking email because spring.mail.username is empty");
             return;
@@ -233,7 +253,7 @@ public class NotificationService {
                 appointment.getStatus()));
 
         try {
-            mailSender.send(message);
+            buildMailSender().send(message);
             LOGGER.info("Sent receptionist booking email: appointmentId={}, recipients={}", appointment.getId(),
                     recipients);
         } catch (MailException ex) {
@@ -253,12 +273,12 @@ public class NotificationService {
             throw AppException.of(HttpStatus.BAD_REQUEST, "Email là bắt buộc");
         }
 
-        String from = senderEmail == null ? "" : senderEmail.trim();
+        String from = resolveSenderEmail();
         if (from.isBlank()) {
             throw AppException.of(HttpStatus.INTERNAL_SERVER_ERROR, "Chưa cấu hình địa chỉ gửi mail");
         }
 
-        String host = mailHost == null ? "" : mailHost.trim();
+        String host = resolveMailHost();
         if (host.isBlank()) {
             throw AppException.of(HttpStatus.INTERNAL_SERVER_ERROR, "Chưa cấu hình máy chủ mail");
         }
@@ -277,7 +297,7 @@ public class NotificationService {
                     """.formatted(otp));
 
         try {
-            mailSender.send(message);
+            buildMailSender().send(message);
             LOGGER.info("Sent forgot-password OTP email: recipient={}", to);
         } catch (MailException ex) {
             LOGGER.error("Failed to send forgot-password OTP email: recipient={}, error={}", to, ex.getMessage(), ex);
@@ -285,10 +305,10 @@ public class NotificationService {
         }
     }
 
-    private List<String> resolveReceptionistRecipients() {
+    private List<String> resolveReceptionistRecipients(String configuredRecipients) {
         Set<String> recipients = new LinkedHashSet<>();
 
-        for (String configuredEmail : splitConfiguredEmails()) {
+        for (String configuredEmail : splitConfiguredEmails(configuredRecipients)) {
             if (isValidEmail(configuredEmail)) {
                 recipients.add(configuredEmail);
             }
@@ -305,12 +325,12 @@ public class NotificationService {
         return new ArrayList<>(recipients);
     }
 
-    private List<String> splitConfiguredEmails() {
-        if (receptionistNotificationEmails == null || receptionistNotificationEmails.isBlank()) {
+    private List<String> splitConfiguredEmails(String configuredEmails) {
+        if (configuredEmails == null || configuredEmails.isBlank()) {
             return List.of();
         }
 
-        String[] parts = receptionistNotificationEmails.split(",");
+        String[] parts = configuredEmails.split(",");
         List<String> result = new ArrayList<>();
         for (String part : parts) {
             if (part != null && !part.isBlank()) {
@@ -343,5 +363,64 @@ public class NotificationService {
         String roomName = rooms.get(0).getRoomName();
         return roomName == null || roomName.isBlank() ? "Không có" : roomName.trim();
     }
-}
 
+    private String resolveReceptionistEmailsConfig() {
+        return systemSettingService
+                .resolveSettingValue(SETTING_RECEPTIONIST_EMAILS, defaultReceptionistNotificationEmails)
+                .trim();
+    }
+
+    private String resolveSenderEmail() {
+        return systemSettingService.resolveSettingValue(SETTING_MAIL_USERNAME, defaultSenderEmail).trim();
+    }
+
+    private String resolveMailHost() {
+        return systemSettingService.resolveSettingValue(SETTING_MAIL_HOST, defaultMailHost).trim();
+    }
+
+    private String resolveMailPassword() {
+        return systemSettingService.resolveSettingValue(SETTING_MAIL_PASSWORD, defaultMailPassword);
+    }
+
+    private int resolveMailPort() {
+        int fallbackPort = defaultMailPort == null ? 587 : defaultMailPort;
+        String portValue = systemSettingService.resolveSettingValue(SETTING_MAIL_PORT, String.valueOf(fallbackPort));
+        String normalizedPort = portValue == null ? "" : portValue.trim();
+
+        if (normalizedPort.isBlank()) {
+            return fallbackPort;
+        }
+
+        try {
+            return Integer.parseInt(normalizedPort);
+        } catch (NumberFormatException ex) {
+            LOGGER.warn("Invalid mail port '{}', fallback to {}", normalizedPort, fallbackPort);
+            return fallbackPort;
+        }
+    }
+
+    private JavaMailSender buildMailSender() {
+        JavaMailSenderImpl dynamicSender = new JavaMailSenderImpl();
+        dynamicSender.setHost(resolveMailHost());
+        dynamicSender.setPort(resolveMailPort());
+        dynamicSender.setUsername(resolveSenderEmail());
+        dynamicSender.setPassword(resolveMailPassword());
+
+        if (mailProperties.getProtocol() != null && !mailProperties.getProtocol().isBlank()) {
+            dynamicSender.setProtocol(mailProperties.getProtocol());
+        }
+
+        if (mailProperties.getDefaultEncoding() != null) {
+            dynamicSender.setDefaultEncoding(mailProperties.getDefaultEncoding().name());
+        }
+
+        dynamicSender.getJavaMailProperties().putAll(mailProperties.getProperties());
+
+        String sslTrustHost = resolveMailHost();
+        if (!sslTrustHost.isBlank()) {
+            dynamicSender.getJavaMailProperties().put("mail.smtp.ssl.trust", sslTrustHost.toLowerCase(Locale.ROOT));
+        }
+
+        return dynamicSender;
+    }
+}

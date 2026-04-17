@@ -160,6 +160,13 @@
   font-size: 0.93rem;
 }
 
+.keyCell {
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.85rem;
+  color: #1e293b;
+  word-break: break-all;
+}
+
 .tableActions {
   display: flex;
   justify-content: flex-end;
