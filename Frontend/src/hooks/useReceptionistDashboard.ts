@@ -13,15 +13,15 @@ export function useReceptionistDashboard() {
   const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [pendingData, confirmedData, doctors] = await Promise.all([
+      const [pendingResult, confirmedResult, doctorsResult] = await Promise.allSettled([
         receptionistService.getPendingAppointments(),
         receptionistService.getConfirmedAppointments(),
         receptionistService.getDoctors(),
       ]);
 
-      setPendingAppointments(pendingData);
-      setConfirmedAppointments(confirmedData);
-      setDoctorOptions(doctors);
+      setPendingAppointments(pendingResult.status === "fulfilled" ? pendingResult.value : []);
+      setConfirmedAppointments(confirmedResult.status === "fulfilled" ? confirmedResult.value : []);
+      setDoctorOptions(doctorsResult.status === "fulfilled" ? doctorsResult.value : []);
     } finally {
       setIsLoading(false);
     }
