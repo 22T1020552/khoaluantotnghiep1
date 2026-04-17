@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle, Clock, Stethoscope, Users } from "lucide-react";
 import { toast } from "sonner";
 
-import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
-import { getApiErrorMessage, isForbiddenError } from "@/services/api";
+import { getApiErrorMessage } from "@/services/api";
 import { doctorService, type DoctorMedicalService, type PrescriptionCatalogMedicine } from "@/services/doctorService";
 import type {
   Appointment,
@@ -90,9 +89,6 @@ export function DoctorQueue() {
   const [historyDetailLoading, setHistoryDetailLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [waitingForbidden, setWaitingForbidden] = useState(false);
-  const [completedForbidden, setCompletedForbidden] = useState(false);
-  const [completedDetailsForbidden, setCompletedDetailsForbidden] = useState(false);
 
   const waitingAppointments = appointments.filter((a) => a.status === "confirmed");
   const examiningAppointments = appointments.filter((a) => a.status === "pending");
@@ -123,108 +119,80 @@ export function DoctorQueue() {
   const loadAppointments = async () => {
     try {
       setLoading(true);
-      const [waitingResult, completedResult] = await Promise.allSettled([
+      const [waiting, completed] = await Promise.all([
         doctorService.getWaitingPatients(),
         doctorService.getCompletedPatients(),
       ]);
 
-      const nonForbiddenErrors: unknown[] = [];
-      let waitingMapped: Appointment[] = [];
-      let completedMapped: Appointment[] = [];
+      let queue = 1;
+      const waitingMapped: Appointment[] = waiting.map((item) => mapDoctorAppointmentToUi(item, queue++, "confirmed"));
 
-      if (waitingResult.status === "fulfilled") {
-        let queue = 1;
-        waitingMapped = waitingResult.value.map((item) => mapDoctorAppointmentToUi(item, queue++, "confirmed"));
-        setWaitingForbidden(false);
-      } else if (isForbiddenError(waitingResult.reason)) {
-        setWaitingForbidden(true);
-      } else {
-        nonForbiddenErrors.push(waitingResult.reason);
-      }
+      const completedMappedBase: Appointment[] = completed.map((item) =>
+        mapDoctorAppointmentToUi(item, 0, "completed"),
+      );
 
-      if (completedResult.status === "fulfilled") {
-        const completedMappedBase: Appointment[] = completedResult.value.map((item) =>
-          mapDoctorAppointmentToUi(item, 0, "completed"),
-        );
+      const completedMapped = await Promise.all(
+        completedMappedBase.map(async (appointment) => {
+          try {
+            const record = await doctorService.getMedicalRecordByAppointment(appointment.id);
+            const [workspace, detail] = await Promise.all([
+              doctorService.getPrescriptionWorkspace(record.id).catch(() => null),
+              doctorService.getPatientHistoryDetail(appointment.id, record.id).catch(() => null),
+            ]);
 
-        let completedDetailForbiddenDetected = false;
-        completedMapped = await Promise.all(
-          completedMappedBase.map(async (appointment) => {
-            try {
-              const record = await doctorService.getMedicalRecordByAppointment(appointment.id);
-              const [workspace, detail] = await Promise.all([
-                doctorService.getPrescriptionWorkspace(record.id).catch(() => null),
-                doctorService.getPatientHistoryDetail(appointment.id, record.id).catch(() => null),
-              ]);
+            const mappedMeds = (workspace?.medicineCatalog || []).map(mapCatalogToMedicine);
+            const byId = new Map<number, Medicine>(mappedMeds.map((m) => [m.id, m]));
+            const prescriptionItems: PrescriptionItem[] = (workspace?.prescribedMedicines || []).map((line) => ({
+              medicine_id: line.medicineId,
+              quantity: line.quantity,
+              usage_instructions: line.usageInstructions,
+              medicine:
+                byId.get(line.medicineId) ||
+                ({
+                  id: line.medicineId,
+                  medicine_name: line.medicineName,
+                  dosage: "",
+                  category: "Khác",
+                  unit: line.unit || "đv",
+                  stock_quantity: 0,
+                  selling_price: line.sellingPrice,
+                } as Medicine),
+            }));
 
-              const mappedMeds = (workspace?.medicineCatalog || []).map(mapCatalogToMedicine);
-              const byId = new Map<number, Medicine>(mappedMeds.map((m) => [m.id, m]));
-              const prescriptionItems: PrescriptionItem[] = (workspace?.prescribedMedicines || []).map((line) => ({
-                medicine_id: line.medicineId,
-                quantity: line.quantity,
-                usage_instructions: line.usageInstructions,
-                medicine:
-                  byId.get(line.medicineId) ||
-                  ({
-                    id: line.medicineId,
-                    medicine_name: line.medicineName,
-                    dosage: "",
-                    category: "Khác",
-                    unit: line.unit || "đv",
-                    stock_quantity: 0,
-                    selling_price: line.sellingPrice,
-                  } as Medicine),
-              }));
+            const serviceItems: SelectedServiceItem[] = (detail?.services || []).map((service) => ({
+              service_id: service.serviceId,
+              service_name: service.serviceName,
+              quantity: service.quantity,
+              actual_price: service.actualPrice,
+              result_note: service.resultNote || "",
+            }));
 
-              const serviceItems: SelectedServiceItem[] = (detail?.services || []).map((service) => ({
-                service_id: service.serviceId,
-                service_name: service.serviceName,
-                quantity: service.quantity,
-                actual_price: service.actualPrice,
-                result_note: service.resultNote || "",
-              }));
+            const totalMedicineCost = prescriptionItems.reduce(
+              (sum, item) => sum + (item.medicine?.selling_price || 0) * item.quantity,
+              0,
+            );
+            const totalServiceCost = serviceItems.reduce(
+              (sum, item) => sum + item.actual_price * item.quantity,
+              0,
+            );
 
-              const totalMedicineCost = prescriptionItems.reduce(
-                (sum, item) => sum + (item.medicine?.selling_price || 0) * item.quantity,
-                0,
-              );
-              const totalServiceCost = serviceItems.reduce(
-                (sum, item) => sum + item.actual_price * item.quantity,
-                0,
-              );
-
-              return {
-                ...appointment,
-                diagnosis: record.diagnosis || detail?.diagnosis || "",
-                doctor_advice: record.doctorAdvice || detail?.doctorAdvice || "",
-                prescription_items: prescriptionItems,
-                service_items: serviceItems,
-                total_medicine_cost: totalMedicineCost,
-                total_service_cost: totalServiceCost,
-                total_exam_cost: totalMedicineCost + totalServiceCost,
-              };
-            } catch (error) {
-              if (isForbiddenError(error)) {
-                completedDetailForbiddenDetected = true;
-              }
-              return appointment;
-            }
-          }),
-        );
-        setCompletedForbidden(false);
-        setCompletedDetailsForbidden(completedDetailForbiddenDetected);
-      } else if (isForbiddenError(completedResult.reason)) {
-        setCompletedForbidden(true);
-        setCompletedDetailsForbidden(false);
-      } else {
-        nonForbiddenErrors.push(completedResult.reason);
-      }
+            return {
+              ...appointment,
+              diagnosis: record.diagnosis || detail?.diagnosis || "",
+              doctor_advice: record.doctorAdvice || detail?.doctorAdvice || "",
+              prescription_items: prescriptionItems,
+              service_items: serviceItems,
+              total_medicine_cost: totalMedicineCost,
+              total_service_cost: totalServiceCost,
+              total_exam_cost: totalMedicineCost + totalServiceCost,
+            };
+          } catch {
+            return appointment;
+          }
+        }),
+      );
 
       setAppointments([...waitingMapped, ...completedMapped]);
-
-      if (nonForbiddenErrors.length > 0) {
-        toast.error(getApiErrorMessage(nonForbiddenErrors[0], "Không thể tải danh sách khám"));
-      }
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Không thể tải danh sách khám"));
     } finally {
@@ -617,27 +585,13 @@ export function DoctorQueue() {
           </button>
         </div>
 
-        {completedDetailsForbidden && !completedForbidden && (
-          <div className={styles.card} style={{ marginBottom: "1rem" }}>
-            <p style={{ color: "#b45309" }}>
-              <ForbiddenSectionNotice area="chi tiết hồ sơ đã khám" variant="partial" />
-            </p>
-          </div>
-        )}
-
         {loading && <div className={styles.emptyBox}>Đang tải dữ liệu...</div>}
 
         {!loading && activeTab === "waiting" && (
           <div className={styles.card}>
             <h2 className={styles.mb3}>Danh sách bệnh nhân chờ khám</h2>
-
-            {waitingForbidden && (
-              <div className={styles.emptyBox} style={{ color: "#b91c1c" }}>
-                <ForbiddenSectionNotice area="hàng đợi chờ khám" />
-              </div>
-            )}
             
-            {!waitingForbidden && waitingAppointments.map((appointment) => (
+            {waitingAppointments.map((appointment) => (
               <div key={appointment.id} className={styles.appointmentCard}>
                 <div className={styles.cardLayout}>
                   
@@ -713,7 +667,7 @@ export function DoctorQueue() {
               </div>
             ))}
 
-            {!waitingForbidden && waitingAppointments.length === 0 && (
+            {waitingAppointments.length === 0 && (
               <div className={styles.emptyBox}>Không có bệnh nhân trong hàng đợi</div>
             )}
           </div>
@@ -722,13 +676,7 @@ export function DoctorQueue() {
         {!loading && activeTab === "completed" && (
           <div className={styles.card}>
             <h2 className={styles.mb3}>Danh sách đã khám</h2>
-            {completedForbidden && (
-              <div className={styles.emptyBox} style={{ color: "#b91c1c" }}>
-                <ForbiddenSectionNotice area="danh sách đã khám" />
-              </div>
-            )}
-
-            {!completedForbidden && completedAppointments.map((appointment) => (
+            {completedAppointments.map((appointment) => (
               <div key={appointment.id} className={styles.completedCard}>
                 <div className={styles.flexBetween}>
                   <div>
@@ -799,7 +747,7 @@ export function DoctorQueue() {
               </div>
             ))}
 
-            {!completedForbidden && completedAppointments.length === 0 && (
+            {completedAppointments.length === 0 && (
               <div className={styles.emptyBox}>Chưa có bệnh nhân đã khám</div>
             )}
           </div>

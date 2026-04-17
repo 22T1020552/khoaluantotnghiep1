@@ -15,14 +15,14 @@ import styles from "../booking.module.css";
 interface BookingFormProps {
   onSuccess: (appointmentId: number) => void;
 }
-//Hàm chuẩn hóa thời gian để backend hiểu được
+
 const toApiDateTime = (value: string) => {
   const normalized = value.trim();
   if (!normalized) {
     return normalized;
   }
 
-  // Backend: yyyy-MM-dd'T'HH:mm:ss.
+  // Backend expects LocalDateTime in yyyy-MM-dd'T'HH:mm:ss.
   if (normalized.length === 16) {
     return `${normalized}:00`;
   }
@@ -34,7 +34,6 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
-    gender: "",
     dateOfBirth: "",
     hometown: "",
     phone: "",
@@ -49,15 +48,14 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
 
     const loadProfile = async () => {
       try {
-        const profile = await patientService.getProfile(); //Lấy thông tin của mình
+        const profile = await patientService.getProfile();
         if (!isMounted) {
           return;
         }
-        // Điền thông tin vào form nếu có
+
         setFormData((prev) => ({
           ...prev,
           fullName: profile.fullName ?? "",
-          gender: profile.gender ?? "",
           phone: profile.phoneNumber ?? "",
           idNumber: profile.nationalId ?? "",
           insuranceNumber: profile.healthInsuranceNumber ?? "",
@@ -78,7 +76,7 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
     e.preventDefault();
     const normalizedReason = formData.reason.trim();
 
-    if (!formData.fullName || !formData.gender || !formData.dateOfBirth || !formData.phone || !formData.reason || !formData.appointmentTime) {
+    if (!formData.fullName || !formData.dateOfBirth || !formData.phone || !formData.reason || !formData.appointmentTime) {
       toast.error("Vui lòng điền đầy đủ thông tin bắt buộc");
       return;
     }
@@ -87,14 +85,14 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
       toast.error("Lý do khám cần tối thiểu 5 ký tự");
       return;
     }
-    //Gói dữ liệu và gửi lên backend
+
     try {
       setSubmitting(true);
       const createdAppointment = await patientService.createAppointment({
         appointmentTime: toApiDateTime(formData.appointmentTime),
         symptoms: normalizedReason,
       });
-      // Gọi callback để thông báo cho component cha biết đã tạo thành công và truyền ID của lịch hẹn mới tạo
+
       onSuccess(createdAppointment.id);
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Không thể đặt lịch khám"));
@@ -115,21 +113,6 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
           <div className={styles.fullWidth}>
             <Label htmlFor="fullName">Họ và tên <span className={styles.required}>*</span></Label>
             <Input id="fullName" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} placeholder="Nguyễn Văn A" required />
-          </div>
-          <div>
-            <Label htmlFor="gender">Giới tính <span className={styles.required}>*</span></Label>
-            <select
-              id="gender"
-              className={styles.selectInput}
-              value={formData.gender}
-              onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-              required
-            >
-              <option value="">-- Chọn giới tính --</option>
-              <option value="male">Nam</option>
-              <option value="female">Nữ</option>
-              <option value="other">Khác</option>
-            </select>
           </div>
           <div>
             <Label htmlFor="dateOfBirth">Ngày sinh <span className={styles.required}>*</span></Label>

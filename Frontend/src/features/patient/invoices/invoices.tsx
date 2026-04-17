@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
 import { Input } from "@/components/ui/input";
-import { getApiErrorMessage, isForbiddenError } from "@/services/api";
+import { getApiErrorMessage } from "@/services/api";
 import {
   patientService,
   type PatientMedicalRecordDetailResponse,
@@ -54,36 +53,18 @@ export function PatientInvoices() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [invoices, setInvoices] = useState<PatientInvoiceItem[]>([]);
-  const [historyForbidden, setHistoryForbidden] = useState(false);
-  const [detailsForbidden, setDetailsForbidden] = useState(false);
 
   const loadInvoices = async () => {
     try {
       setLoading(true);
       const history = await patientService.getMedicalRecordHistory();
       const completedRecords = history.filter((record) => normalizeStatus(record.appointmentStatus) === "COMPLETED");
-      setHistoryForbidden(false);
 
-      const detailsResults = await Promise.allSettled(
-        completedRecords.map((record) => patientService.getMedicalRecordDetail(record.medicalRecordId))
+      const details = await Promise.all(
+        completedRecords.map((record) =>
+          patientService.getMedicalRecordDetail(record.medicalRecordId).catch(() => null)
+        )
       );
-
-      let detailForbiddenDetected = false;
-      const details: Array<PatientMedicalRecordDetailResponse | null> = [];
-      const nonForbiddenErrors: unknown[] = [];
-      detailsResults.forEach((result) => {
-        if (result.status === "fulfilled") {
-          details.push(result.value);
-        } else if (isForbiddenError(result.reason)) {
-          detailForbiddenDetected = true;
-          details.push(null);
-        } else {
-          nonForbiddenErrors.push(result.reason);
-          details.push(null);
-        }
-      });
-
-      setDetailsForbidden(detailForbiddenDetected);
 
       const mappedInvoices = completedRecords.map((record, index) => {
         const detail = details[index];
@@ -95,18 +76,8 @@ export function PatientInvoices() {
         const timeB = b.paidAt ? new Date(b.paidAt).getTime() : 0;
         return timeB - timeA;
       }));
-
-      if (nonForbiddenErrors.length > 0) {
-        toast.error(getApiErrorMessage(nonForbiddenErrors[0], "Không thể tải một phần chi tiết hóa đơn"));
-      }
     } catch (error) {
-      if (isForbiddenError(error)) {
-        setInvoices([]);
-        setHistoryForbidden(true);
-        setDetailsForbidden(false);
-      } else {
-        toast.error(getApiErrorMessage(error, "Không thể tải lịch sử hóa đơn"));
-      }
+      toast.error(getApiErrorMessage(error, "Không thể tải lịch sử hóa đơn"));
     } finally {
       setLoading(false);
     }
@@ -156,28 +127,11 @@ export function PatientInvoices() {
         </Card>
       </section>
 
-      {historyForbidden && (
-        <p style={{ color: "#b91c1c", marginBottom: "1rem" }}>
-          <ForbiddenSectionNotice area="lịch sử hóa đơn" />
-        </p>
-      )}
-
-      {detailsForbidden && !historyForbidden && (
-        <p style={{ color: "#b45309", marginBottom: "1rem" }}>
-          <ForbiddenSectionNotice area="chi tiết hóa đơn" variant="partial" />
-        </p>
-      )}
-
       <Card className={styles.tableCard}>
           {loading ? (
           <div className={styles.loadingBox}>
             <Loader2 className={styles.spinning} size={20} />
             <span>Đang tải hóa đơn...</span>
-          </div>
-        ) : historyForbidden ? (
-          <div className={styles.emptyBox}>
-            <Receipt size={36} />
-            <p style={{ color: "#b91c1c" }}><ForbiddenSectionNotice area="danh sách hóa đơn" /></p>
           </div>
         ) : filteredInvoices.length === 0 ? (
           <div className={styles.emptyBox}>

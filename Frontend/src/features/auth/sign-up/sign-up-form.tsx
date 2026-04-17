@@ -27,7 +27,6 @@ export function Register() {
   const [formData, setFormData] = useState({
     username: "",
     fullName: "",
-    gender: "",
     phoneNumber: "",
     gmail: "",
     password: "",
@@ -39,7 +38,7 @@ export function Register() {
   const handleRegister = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!formData.username.trim() || !formData.fullName.trim() || !formData.gender || !formData.phoneNumber.trim() || !formData.gmail.trim() || !formData.password) {
+    if (!formData.username.trim() || !formData.fullName.trim() || !formData.phoneNumber.trim() || !formData.gmail.trim() || !formData.password) {
       setNotice({ type: "error", message: "Vui lòng điền đầy đủ thông tin." });
       return;
     }
@@ -68,7 +67,6 @@ export function Register() {
         username: formData.username.trim(),
         password: formData.password,
         fullName: formData.fullName.trim(),
-        gender: formData.gender,
         phoneNumber: formData.phoneNumber.trim(),
         gmail: formData.gmail.trim().toLowerCase(),
       });
@@ -138,23 +136,6 @@ export function Register() {
                   onChange={(e) => updateField("fullName", e.target.value)}
                 />
               </div>
-            </div>
-
-            <div className={styles.field}>
-              <Label htmlFor="gender">
-                Giới tính <span className="text-red-500">*</span>
-              </Label>
-              <select
-                id="gender"
-                className={styles.selectInput}
-                value={formData.gender}
-                onChange={(e) => updateField("gender", e.target.value)}
-              >
-                <option value="">-- Chọn giới tính --</option>
-                <option value="male">Nam</option>
-                <option value="female">Nữ</option>
-                <option value="other">Khác</option>
-              </select>
             </div>
 
             <div className={styles.field}>

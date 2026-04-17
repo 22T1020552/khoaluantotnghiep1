@@ -4,10 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Edit, Plus } from "lucide-react";
 import { toast } from "sonner";
 
-import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
-import { getApiErrorMessage, isForbiddenError } from "@/services/api";
+import { getApiErrorMessage } from "@/services/api";
 import { adminService, type AdminRoom, type AdminUser } from "@/services/adminService";
-import { getForbiddenSectionMessage } from "@/utils/forbidden-message";
 import styles from "../admin.module.css";
 
 type RoomModalMode = "create" | "edit" | "assign";
@@ -17,8 +15,6 @@ export function RoomsManagement() {
   const [doctors, setDoctors] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [roomsForbidden, setRoomsForbidden] = useState(false);
-  const [doctorsForbidden, setDoctorsForbidden] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<RoomModalMode>("create");
@@ -29,32 +25,9 @@ export function RoomsManagement() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [roomsResult, usersResult] = await Promise.allSettled([adminService.getRooms(), adminService.getUsers()]);
-      const nonForbiddenErrors: unknown[] = [];
-
-      if (roomsResult.status === "fulfilled") {
-        setRooms(roomsResult.value);
-        setRoomsForbidden(false);
-      } else if (isForbiddenError(roomsResult.reason)) {
-        setRooms([]);
-        setRoomsForbidden(true);
-      } else {
-        nonForbiddenErrors.push(roomsResult.reason);
-      }
-
-      if (usersResult.status === "fulfilled") {
-        setDoctors(usersResult.value.filter((user) => user.role === "DOCTOR" && user.isActive));
-        setDoctorsForbidden(false);
-      } else if (isForbiddenError(usersResult.reason)) {
-        setDoctors([]);
-        setDoctorsForbidden(true);
-      } else {
-        nonForbiddenErrors.push(usersResult.reason);
-      }
-
-      if (nonForbiddenErrors.length > 0) {
-        toast.error(getApiErrorMessage(nonForbiddenErrors[0], "Không thể tải dữ liệu phòng khám"));
-      }
+      const [roomsData, usersData] = await Promise.all([adminService.getRooms(), adminService.getUsers()]);
+      setRooms(roomsData);
+      setDoctors(usersData.filter((user) => user.role === "DOCTOR" && user.isActive));
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Không thể tải dữ liệu phòng khám"));
     } finally {
@@ -69,7 +42,7 @@ export function RoomsManagement() {
   const busyRoomIds = useMemo(() => {
     return new Set<number>(rooms.filter((room) => room.currentDoctorId != null).map((room) => room.id));
   }, [rooms]);
-    //Hàm mở popup với từng chế độ
+
   const openCreateModal = () => {
     setModalMode("create");
     setSelectedRoom(null);
@@ -87,11 +60,6 @@ export function RoomsManagement() {
   };
 
   const openAssignModal = (room: AdminRoom) => {
-    if (doctorsForbidden) {
-      toast.error(getForbiddenSectionMessage("danh sách bác sĩ"));
-      return;
-    }
-
     setModalMode("assign");
     setSelectedRoom(room);
     setRoomName(room.roomName);
@@ -104,7 +72,7 @@ export function RoomsManagement() {
       setIsModalOpen(false);
     }
   };
-  //Lưu dữ liệu khi bấm submit form với từng chế độ khác nhau
+
   const handleSubmit = async () => {
     if (modalMode === "assign") {
       if (!selectedRoom) {
@@ -161,17 +129,10 @@ export function RoomsManagement() {
         </div>
 
         <div className={styles.toolbar}>
-          <button type="button" className={styles.primaryButton} onClick={openCreateModal} disabled={roomsForbidden}>
+          <button type="button" className={styles.primaryButton} onClick={openCreateModal}>
             <Plus size={16} /> Thêm phòng khám
           </button>
         </div>
-
-        {(roomsForbidden || doctorsForbidden) && (
-          <section className={styles.card}>
-            {roomsForbidden && <p style={{ color: "#b91c1c" }}><ForbiddenSectionNotice area="danh sách phòng khám" /></p>}
-            {doctorsForbidden && <p style={{ color: "#b45309" }}><ForbiddenSectionNotice area="danh sách bác sĩ phân công" /></p>}
-          </section>
-        )}
 
         {loading ? (
           <section className={styles.card}>
@@ -179,7 +140,7 @@ export function RoomsManagement() {
           </section>
         ) : (
           <div className={styles.cardsGrid}>
-            {!roomsForbidden && rooms.map((room) => {
+            {rooms.map((room) => {
               const isBusy = busyRoomIds.has(room.id);
               return (
                 <article className={styles.itemCard} key={room.id}>
@@ -195,7 +156,7 @@ export function RoomsManagement() {
                   </p>
 
                   <div className={styles.modalActions}>
-                    <button type="button" className={styles.outlineButton} onClick={() => openAssignModal(room)} disabled={doctorsForbidden}>
+                    <button type="button" className={styles.outlineButton} onClick={() => openAssignModal(room)}>
                       Phân công bác sĩ
                     </button>
                     <button type="button" className={styles.iconButton} onClick={() => openEditModal(room)}>
@@ -205,20 +166,6 @@ export function RoomsManagement() {
                 </article>
               );
             })}
-
-            {roomsForbidden && (
-              <section className={styles.card}>
-                <div className={styles.emptyBox} style={{ color: "#b91c1c" }}>
-                  <ForbiddenSectionNotice area="dữ liệu phòng khám" />
-                </div>
-              </section>
-            )}
-
-            {!roomsForbidden && rooms.length === 0 && (
-              <section className={styles.card}>
-                <div className={styles.emptyBox}>Chưa có phòng khám nào.</div>
-              </section>
-            )}
           </div>
         )}
       </div>

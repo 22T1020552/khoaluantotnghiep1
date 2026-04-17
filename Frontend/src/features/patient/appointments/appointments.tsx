@@ -5,9 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
 import { Input } from "@/components/ui/input";
-import { getApiErrorMessage, isForbiddenError } from "@/services/api";
+import { getApiErrorMessage } from "@/services/api";
 import { patientService, type PatientAppointmentResponse } from "@/services/patientService";
 import { toast } from "sonner";
 import {
@@ -23,33 +22,8 @@ import {
 import styles from "./appointments.module.css";
 
 type AppointmentFilter = "all" | "pending" | "approved" | "in_progress" | "completed" | "cancelled";
-const NO_SHOW_CANCELLED_STATUS = "NO_SHOW_CANCELLED";
 
 const normalizeStatus = (status: string | null | undefined) => (status ?? "").trim().toUpperCase();
-
-const isNoShowStatusCandidate = (status: string) =>
-  ["PENDING", "PENDING_CONFIRMATION", "DRAFT", "APPROVED", "CONFIRMED", "WAITING"].includes(status);
-
-const isNoShowCancelled = (appointment: PatientAppointmentResponse) => {
-  const normalizedStatus = normalizeStatus(appointment.status);
-  if (!isNoShowStatusCandidate(normalizedStatus) || !appointment.appointmentTime) {
-    return false;
-  }
-
-  const appointmentTimestamp = new Date(appointment.appointmentTime).getTime();
-  if (Number.isNaN(appointmentTimestamp)) {
-    return false;
-  }
-
-  return appointmentTimestamp < Date.now();
-};
-
-const getEffectiveStatus = (appointment: PatientAppointmentResponse) => {
-  if (isNoShowCancelled(appointment)) {
-    return NO_SHOW_CANCELLED_STATUS;
-  }
-  return normalizeStatus(appointment.status);
-};
 
 const formatDateTime = (raw: string | null | undefined) => {
   if (!raw) {
@@ -82,7 +56,6 @@ const statusLabelMap: Record<string, string> = {
   COMPLETED: "Đã hoàn thành",
   CANCELLED: "Đã hủy",
   CANCELLED_BY_CLINIC: "Phòng khám đã hủy",
-  NO_SHOW_CANCELLED: "Đã hủy do quá giờ",
 };
 
 const getBadgeClass = (status: string) => {
@@ -97,14 +70,14 @@ const getBadgeClass = (status: string) => {
       return styles.badgeProgress;
     case "CANCELLED":
     case "CANCELLED_BY_CLINIC":
-    case NO_SHOW_CANCELLED_STATUS:
       return styles.badgeCancelled;
     default:
       return styles.badgePending;
   }
 };
 
-const getSystemNotification = (appointment: PatientAppointmentResponse, status: string) => {
+const getSystemNotification = (appointment: PatientAppointmentResponse) => {
+  const status = normalizeStatus(appointment.status);
   const when = formatDateTime(appointment.appointmentTime);
 
   switch (status) {
@@ -134,11 +107,6 @@ const getSystemNotification = (appointment: PatientAppointmentResponse, status: 
       return {
         title: "Phòng khám đã hủy lịch",
         message: `Lịch #${appointment.id} đã bị hủy từ phía phòng khám. Vui lòng đặt lịch mới hoặc liên hệ lễ tân để được hỗ trợ.`,
-      };
-    case NO_SHOW_CANCELLED_STATUS:
-      return {
-        title: "Lịch hẹn đã quá giờ",
-        message: `Lịch #${appointment.id} đã quá thời gian khám (${when}), vui lòng đặt lại lịch khác.`,
       };
     default:
       return {
@@ -170,7 +138,6 @@ export function PatientAppointments() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AppointmentFilter>("all");
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
-  const [appointmentsForbidden, setAppointmentsForbidden] = useState(false);
 
   const loadAppointments = async (showLoading = true) => {
     try {
@@ -185,12 +152,8 @@ export function PatientAppointments() {
           return timeB - timeA;
         })
       );
-      setAppointmentsForbidden(false);
     } catch (error) {
-      if (isForbiddenError(error)) {
-        setAppointments([]);
-        setAppointmentsForbidden(true);
-      } else if (showLoading) {
+      if (showLoading) {
         toast.error(getApiErrorMessage(error, "Không thể tải danh sách lịch hẹn"));
       }
     } finally {
@@ -242,7 +205,7 @@ export function PatientAppointments() {
   const statusStats = useMemo(() => {
     return appointments.reduce(
       (stats, item) => {
-        const status = getEffectiveStatus(item);
+        const status = normalizeStatus(item.status);
         stats.total += 1;
         if (status === "PENDING" || status === "PENDING_CONFIRMATION" || status === "DRAFT") {
           stats.pending += 1;
@@ -252,7 +215,7 @@ export function PatientAppointments() {
           stats.inProgress += 1;
         } else if (status === "COMPLETED") {
           stats.completed += 1;
-        } else if (status === "CANCELLED" || status === "CANCELLED_BY_CLINIC" || status === NO_SHOW_CANCELLED_STATUS) {
+        } else if (status === "CANCELLED" || status === "CANCELLED_BY_CLINIC") {
           stats.cancelled += 1;
         }
         return stats;
@@ -263,7 +226,7 @@ export function PatientAppointments() {
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((item) => {
-      const normalizedStatus = getEffectiveStatus(item);
+      const normalizedStatus = normalizeStatus(item.status);
       const keyword = query.trim().toLowerCase();
 
       const passesFilter =
@@ -272,7 +235,7 @@ export function PatientAppointments() {
         (filter === "approved" && ["WAITING", "APPROVED", "CONFIRMED"].includes(normalizedStatus)) ||
         (filter === "in_progress" && normalizedStatus === "IN_PROGRESS") ||
         (filter === "completed" && normalizedStatus === "COMPLETED") ||
-        (filter === "cancelled" && ["CANCELLED", "CANCELLED_BY_CLINIC", NO_SHOW_CANCELLED_STATUS].includes(normalizedStatus));
+        (filter === "cancelled" && ["CANCELLED", "CANCELLED_BY_CLINIC"].includes(normalizedStatus));
 
       if (!passesFilter) {
         return false;
@@ -292,15 +255,11 @@ export function PatientAppointments() {
   }, [appointments, filter, query]);
 
   const notifications = useMemo(() => {
-    return appointments.slice(0, 5).map((item) => {
-      const effectiveStatus = getEffectiveStatus(item);
-      return {
-        appointmentId: item.id,
-        time: formatDateTime(item.appointmentTime),
-        status: effectiveStatus,
-        ...getSystemNotification(item, effectiveStatus),
-      };
-    });
+    return appointments.slice(0, 5).map((item) => ({
+      appointmentId: item.id,
+      time: formatDateTime(item.appointmentTime),
+      ...getSystemNotification(item),
+    }));
   }, [appointments]);
 
   const handleCancel = async (appointmentId: number) => {
@@ -344,12 +303,6 @@ export function PatientAppointments() {
         </Card>
       </section>
 
-      {appointmentsForbidden && (
-        <p style={{ color: "#b91c1c", margin: "0 0 1rem" }}>
-          <ForbiddenSectionNotice area="dữ liệu lịch hẹn" />
-        </p>
-      )}
-
       <section className={styles.contentGrid}>
         <Card className={styles.appointmentsCard}>
           <div className={styles.toolbar}>
@@ -378,11 +331,6 @@ export function PatientAppointments() {
               <Loader2 className={styles.spinning} size={20} />
               <span>Đang tải lịch hẹn...</span>
             </div>
-          ) : appointmentsForbidden ? (
-            <div className={styles.emptyBox}>
-              <XCircle size={38} />
-              <p><ForbiddenSectionNotice area="danh sách lịch hẹn" /></p>
-            </div>
           ) : filteredAppointments.length === 0 ? (
             <div className={styles.emptyBox}>
               <Calendar size={38} />
@@ -391,9 +339,9 @@ export function PatientAppointments() {
           ) : (
             <div className={styles.list}>
               {filteredAppointments.map((item) => {
-                const status = getEffectiveStatus(item);
+                const status = normalizeStatus(item.status);
                 const doctorName = item.doctor?.fullName ?? item.doctor?.username ?? "Đang cập nhật";
-                const notification = getSystemNotification(item, status);
+                const notification = getSystemNotification(item);
 
                 return (
                   <article
@@ -420,11 +368,7 @@ export function PatientAppointments() {
                       </div>
                     </div>
 
-                    <div
-                      className={`${styles.notificationInline} ${
-                        status === NO_SHOW_CANCELLED_STATUS ? styles.notificationInlineAlert : ""
-                      }`}
-                    >
+                    <div className={styles.notificationInline}>
                       <BellRing size={15} />
                       <p>
                         <strong>{notification.title}:</strong> {notification.message}
@@ -456,12 +400,7 @@ export function PatientAppointments() {
             <p>Cập nhật theo trạng thái lịch hẹn</p>
           </div>
 
-          {appointmentsForbidden ? (
-            <div className={styles.emptyNotice}>
-              <XCircle size={18} />
-              <span><ForbiddenSectionNotice area="thông báo lịch hẹn" /></span>
-            </div>
-          ) : notifications.length === 0 ? (
+          {notifications.length === 0 ? (
             <div className={styles.emptyNotice}>
               <XCircle size={18} />
               <span>Chưa có thông báo mới.</span>
@@ -469,12 +408,7 @@ export function PatientAppointments() {
           ) : (
             <div className={styles.notificationList}>
               {notifications.map((notification) => (
-                <div
-                  key={`${notification.appointmentId}-${notification.time}`}
-                  className={`${styles.notificationItem} ${
-                    notification.status === NO_SHOW_CANCELLED_STATUS ? styles.notificationInlineAlert : ""
-                  }`}
-                >
+                <div key={`${notification.appointmentId}-${notification.time}`} className={styles.notificationItem}>
                   <CheckCircle2 size={16} />
                   <div>
                     <p className={styles.noticeTitle}>{notification.title}</p>

@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Activity, Calendar, DollarSign, Package, ShoppingBag, Stethoscope, Users } from "lucide-react";
 import { toast } from "sonner";
 
-import { ForbiddenSectionNotice } from "@/components/ui/forbidden-section-notice";
-import { getApiErrorMessage, isForbiddenError } from "@/services/api";
+import { getApiErrorMessage } from "@/services/api";
 import { adminService, type AdminDashboardData } from "@/services/adminService";
 import styles from "../admin.module.css";
 
@@ -24,21 +23,14 @@ const emptyDashboard: AdminDashboardData = {
 export function AdminDashboard() {
   const [dashboard, setDashboard] = useState<AdminDashboardData>(emptyDashboard);
   const [loading, setLoading] = useState(true);
-  const [dashboardForbidden, setDashboardForbidden] = useState(false);
 
   const loadDashboard = async () => {
     try {
       setLoading(true);
       const data = await adminService.getDashboard();
       setDashboard(data);
-      setDashboardForbidden(false);
     } catch (error) {
-      if (isForbiddenError(error)) {
-        setDashboard(emptyDashboard);
-        setDashboardForbidden(true);
-      } else {
-        toast.error(getApiErrorMessage(error, "Không thể tải dashboard quản trị"));
-      }
+      toast.error(getApiErrorMessage(error, "Không thể tải dashboard quản trị"));
     } finally {
       setLoading(false);
     }
@@ -64,12 +56,6 @@ export function AdminDashboard() {
         {loading ? (
           <section className={styles.card}>
             <div className={styles.emptyBox}>Đang tải dữ liệu...</div>
-          </section>
-        ) : dashboardForbidden ? (
-          <section className={styles.card}>
-            <div className={styles.emptyBox} style={{ color: "#b91c1c" }}>
-              <ForbiddenSectionNotice area="dashboard quản trị" />
-            </div>
           </section>
         ) : (
           <>

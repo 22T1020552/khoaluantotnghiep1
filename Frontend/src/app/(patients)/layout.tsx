@@ -24,16 +24,8 @@ export default function PatientsLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { username, role, logout } = useAuth();
+  const { username } = useAuth();
   const [displayName, setDisplayName] = useState('Bệnh nhân');
-
-  // Kiểm tra quyền truy cập - nếu không phải PATIENT thì tự động đăng xuất
-  useEffect(() => {
-    if (role && role !== 'PATIENT') {
-      void logout();
-      router.push('/signin');
-    }
-  }, [role, router, logout]);
 
   useEffect(() => {
     let isMounted = true;
@@ -50,15 +42,8 @@ export default function PatientsLayout({
         }
 
         setDisplayName(profile.fullName || profile.gmail || username || 'Bệnh nhân');
-      } catch (error) {
+      } catch {
         if (!isMounted) {
-          return;
-        }
-
-        // Nếu nhận lỗi 403, có nghĩa là quyền đã thay đổi - tự động đăng xuất
-        if (error instanceof Error && error.message?.includes('403')) {
-          await logout();
-          router.push('/signin');
           return;
         }
 
@@ -71,10 +56,9 @@ export default function PatientsLayout({
     return () => {
       isMounted = false;
     };
-  }, [username, logout, router]);
+  }, [username]);
 
-  const handleLogout = async () => {
-    await logout();
+  const handleLogout = () => {
     toast.success('Đăng xuất thành công');
     router.push('/');
   };
@@ -124,7 +108,7 @@ export default function PatientsLayout({
           <button
             className={`${styles.navItem} ${styles.logoutButton}`}
             type="button"
-            onClick={() => void handleLogout()}
+            onClick={handleLogout}
           >
             <LogOut size={20} /> Đăng xuất
           </button>

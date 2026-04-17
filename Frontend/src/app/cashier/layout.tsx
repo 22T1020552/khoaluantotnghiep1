@@ -16,15 +16,7 @@ export default function CashierLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { username, role, logout } = useAuth();
-
-  // Kiểm tra quyền truy cập - nếu không phải CASHIER thì tự động đăng xuất
-  React.useEffect(() => {
-    if (role && role !== 'CASHIER') {
-      void logout();
-      router.push('/signin');
-    }
-  }, [role, router, logout]);
+  const { username, logout } = useAuth();
 
   const handleLogout = async () => {
     await logout();
