@@ -24,6 +24,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
@@ -54,6 +56,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 @Service
 public class GeminiChatbotService {
+
+    private static final Logger logger = LoggerFactory.getLogger(GeminiChatbotService.class);
 
     private static final String MESSAGE_ROLE_USER = "USER";
     private static final String MESSAGE_ROLE_ASSISTANT = "ASSISTANT";
@@ -120,11 +124,24 @@ public class GeminiChatbotService {
             throw AppException.of(HttpStatus.BAD_REQUEST, "Nội dung câu hỏi là bắt buộc");
         }
 
-        User user = resolveUserIfAuthenticated(username);
-        List<ChatbotMessage> recentHistory = user == null
+        User user = null;
+        List<ChatbotMessage> recentHistory = List.of();
+        String businessContext;
+
+        try {
+            user = resolveUserIfAuthenticated(username);
+            recentHistory = user == null
                 ? List.of()
                 : loadRecentMessages(user.getId(), normalizeHistoryContextLimit());
-        String businessContext = buildBusinessContext(normalizedMessage, user);
+            businessContext = buildBusinessContext(normalizedMessage, user);
+        } catch (Exception contextError) {
+            logger.warn("Không thể nạp ngữ cảnh hội thoại cho user '{}': {}. Hệ thống sẽ tiếp tục ở chế độ guest.",
+                username,
+                contextError.getMessage());
+            user = null;
+            recentHistory = List.of();
+            businessContext = buildBusinessContext(normalizedMessage, null);
+        }
 
         URI uri = buildGenerateContentUri();
 
@@ -153,7 +170,12 @@ public class GeminiChatbotService {
             String answer = extractAnswer(body);
 
             if (user != null) {
-                saveHistoryExchange(user, normalizedMessage, answer);
+                try {
+                    saveHistoryExchange(user, normalizedMessage, answer);
+                } catch (Exception persistenceError) {
+                    logger.warn("Không thể lưu lịch sử chatbot cho user {}: {}", user.getId(),
+                            persistenceError.getMessage());
+                }
             }
 
             return new ChatbotAskResponse(answer, geminiProperties.getModel());
