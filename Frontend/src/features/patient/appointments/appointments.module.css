@@ -152,6 +152,12 @@
   padding: 0.6rem;
 }
 
+.notificationInlineAlert {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
 .actions {
   margin-top: 0.7rem;
 }

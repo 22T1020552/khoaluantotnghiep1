@@ -23,7 +23,7 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.9rem;
   margin-bottom: 1rem;
 }
@@ -166,10 +166,6 @@
 @media (max-width: 768px) {
   .page {
     padding: 1rem;
-  }
-
-  .statsGrid {
-    grid-template-columns: 1fr;
   }
 
   .metaGrid {

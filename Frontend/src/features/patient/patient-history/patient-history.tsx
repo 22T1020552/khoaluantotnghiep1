@@ -116,12 +116,19 @@ export function PatientHistory() {
   const patientDisplayName = profile?.fullName || profile?.gmail || "Bệnh nhân";
   const patientAvatar = useMemo(() => createInitials(patientDisplayName), [patientDisplayName]);
 
-  const calculateTotalCost = (detail: PatientMedicalRecordDetailResponse | null) => {
-    if (!detail) {
-      return 0;
-    }
+  const getCostBreakdown = (
+    record: PatientMedicalRecordHistoryItemResponse,
+    detail: PatientMedicalRecordDetailResponse | null
+  ) => {
+    const medicineCost = Number(detail?.totalMedicineFee ?? record.totalMedicineFee ?? 0);
+    const examinationCost = Number(detail?.totalServiceFee ?? record.totalServiceFee ?? 0);
+    const totalCost = Number(detail?.totalAmount ?? record.totalAmount ?? medicineCost + examinationCost);
 
-    return Number(detail.totalAmount ?? detail.totalMedicineFee ?? 0);
+    return {
+      medicineCost,
+      examinationCost,
+      totalCost,
+    };
   };
 
   return (
@@ -174,7 +181,7 @@ export function PatientHistory() {
 
         {!loading && records.map((record) => {
           const detail = recordDetails[record.medicalRecordId] ?? null;
-          const totalCost = calculateTotalCost(detail);
+          const { medicineCost, examinationCost, totalCost } = getCostBreakdown(record, detail);
 
           return (
           <Card key={record.medicalRecordId} className={styles.recordCard}>
@@ -204,6 +211,14 @@ export function PatientHistory() {
                 <p className={styles.costValue}>
                   {totalCost.toLocaleString("vi-VN")}đ
                 </p>
+                <div className={styles.costBreakdown}>
+                  <p>
+                    Chi phí khám: <strong>{examinationCost.toLocaleString("vi-VN")}đ</strong>
+                  </p>
+                  <p>
+                    Tiền thuốc: <strong>{medicineCost.toLocaleString("vi-VN")}đ</strong>
+                  </p>
+                </div>
               </div>
             </div>
 

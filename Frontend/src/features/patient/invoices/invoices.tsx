@@ -107,6 +107,14 @@ export function PatientInvoices() {
     return invoices.reduce((sum, item) => sum + item.totalAmount, 0);
   }, [invoices]);
 
+  const totalExaminationCost = useMemo(() => {
+    return invoices.reduce((sum, item) => sum + item.serviceTotal, 0);
+  }, [invoices]);
+
+  const totalMedicineCost = useMemo(() => {
+    return invoices.reduce((sum, item) => sum + item.medicineTotal, 0);
+  }, [invoices]);
+
   return (
     <main className={styles.page}>
       <section className={styles.headerSection}>
@@ -120,6 +128,14 @@ export function PatientInvoices() {
         <Card className={styles.statCard}>
           <p className={styles.statLabel}>Số hóa đơn đã hoàn thành</p>
           <p className={styles.statValue}>{invoices.length}</p>
+        </Card>
+        <Card className={styles.statCard}>
+          <p className={styles.statLabel}>Tổng chi phí khám</p>
+          <p className={styles.statValue}>{totalExaminationCost.toLocaleString("vi-VN")}đ</p>
+        </Card>
+        <Card className={styles.statCard}>
+          <p className={styles.statLabel}>Tổng tiền thuốc</p>
+          <p className={styles.statValue}>{totalMedicineCost.toLocaleString("vi-VN")}đ</p>
         </Card>
         <Card className={styles.statCard}>
           <p className={styles.statLabel}>Tổng đã thanh toán</p>
@@ -163,7 +179,7 @@ export function PatientInvoices() {
                 <p className={styles.diagnosis}>Chẩn đoán: {invoice.diagnosis ?? "Chưa cập nhật"}</p>
 
                 <div className={styles.amountRow}>
-                  <span>Tiền dịch vụ</span>
+                  <span>Chi phí khám</span>
                   <strong>{invoice.serviceTotal.toLocaleString("vi-VN")}đ</strong>
                 </div>
 
