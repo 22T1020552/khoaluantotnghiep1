@@ -306,4 +306,3 @@ public class ReceptionistService {
         return left.toLowerCase(Locale.ROOT).contains(right.toLowerCase(Locale.ROOT));
     }
 }
-

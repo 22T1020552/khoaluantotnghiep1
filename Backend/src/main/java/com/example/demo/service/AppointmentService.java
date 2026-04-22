@@ -273,4 +273,3 @@ public class AppointmentService {
         return status.trim().toUpperCase();
     }
 }
-
