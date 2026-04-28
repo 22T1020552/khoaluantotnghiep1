@@ -14,27 +14,17 @@ export function useReceptionistDashboard() {
   const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
     try {
-<<<<<<< Updated upstream
-      const [pendingResult, confirmedResult, doctorsResult] = await Promise.allSettled([
-=======
       const [pendingData, confirmedData, cancelledData, doctors] = await Promise.all([
->>>>>>> Stashed changes
         receptionistService.getPendingAppointments(),
         receptionistService.getConfirmedAppointments(),
         receptionistService.getCancelledAppointments().catch(() => []),
         receptionistService.getDoctors(),
       ]);
 
-<<<<<<< Updated upstream
-      setPendingAppointments(pendingResult.status === "fulfilled" ? pendingResult.value : []);
-      setConfirmedAppointments(confirmedResult.status === "fulfilled" ? confirmedResult.value : []);
-      setDoctorOptions(doctorsResult.status === "fulfilled" ? doctorsResult.value : []);
-=======
       setPendingAppointments(pendingData);
       setConfirmedAppointments(confirmedData);
       setCancelledAppointments(cancelledData);
       setDoctorOptions(doctors);
->>>>>>> Stashed changes
     } finally {
       setIsLoading(false);
     }
