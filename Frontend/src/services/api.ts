@@ -3,11 +3,15 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8081";
 const AUTH_STORAGE_KEY = "clinic-auth-session";
 
+const DEFAULT_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS ?? 10000);
+const CLIENT_TIMEOUT_STORAGE_KEY = "client.requestTimeoutMs";
+
 export interface StoredAuthSession {
   token: string;
   refreshToken?: string;
   username: string;
   role: string;
+  clientTimeoutMs?: number;
 }
 
 export const getStoredAuthSession = (): StoredAuthSession | null => {
@@ -32,6 +36,19 @@ export const saveStoredAuthSession = (session: StoredAuthSession) => {
   if (typeof window === "undefined") {
     return;
   }
+
+  try {
+    const existingRaw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (existingRaw) {
+      try {
+        const existing = JSON.parse(existingRaw) as StoredAuthSession;
+        // preserve clientTimeoutMs when not provided in new session
+        if (existing?.clientTimeoutMs && !session.clientTimeoutMs) {
+          session.clientTimeoutMs = existing.clientTimeoutMs;
+        }
+      } catch {}
+    }
+  } catch {}
 
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
 };
@@ -69,6 +86,19 @@ export const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: (() => {
+    try {
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem(CLIENT_TIMEOUT_STORAGE_KEY);
+        if (stored) {
+          const n = Number(stored);
+          if (!Number.isNaN(n) && n > 0) return n;
+        }
+      }
+    } catch {}
+
+    return DEFAULT_TIMEOUT_MS;
+  })(),
 });
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
@@ -167,6 +197,33 @@ api.interceptors.response.use(
 
 export const getApiErrorMessage = (error: unknown, fallback = "Không thể kết nối tới máy chủ") => {
   if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    const messageText = String(error.message ?? "").toLowerCase();
+
+    if (!error.response) {
+      if (messageText.includes("timeout") || error.code === "ECONNABORTED") {
+        return "Yêu cầu quá thời gian chờ. Vui lòng kiểm tra kết nối mạng hoặc thử lại.";
+      }
+
+      return "Không thể kết nối tới máy chủ. Vui lòng kiểm tra mạng hoặc thử lại sau.";
+    }
+
+    if (status === 401) {
+      return "Tên đăng nhập hoặc mật khẩu không đúng.";
+    }
+
+    if (status === 403) {
+      return "Tài khoản không có quyền truy cập.";
+    }
+
+    if (status === 429) {
+      return "Bạn đã thao tác quá nhanh. Vui lòng thử lại sau.";
+    }
+
+    if (messageText.includes("timeout") || error.code === "ECONNABORTED") {
+      return "Yêu cầu quá thời gian chờ. Vui lòng kiểm tra kết nối mạng hoặc thử lại.";
+    }
+
     const responseData = error.response?.data as
       | { message?: string; error?: string; details?: string | Record<string, string> }
       | string
@@ -203,4 +260,38 @@ export const getApiErrorMessage = (error: unknown, fallback = "Không thể kế
   }
 
   return fallback;
+};
+
+export const setApiTimeout = (ms: number) => {
+  if (typeof ms !== "number" || Number.isNaN(ms) || ms <= 0) return;
+  api.defaults.timeout = ms;
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(CLIENT_TIMEOUT_STORAGE_KEY, String(ms));
+    }
+  } catch {}
+};
+
+export const getApiTimeout = () => Number(api.defaults.timeout ?? DEFAULT_TIMEOUT_MS);
+
+export const getStoredUserClientTimeout = (): number | null => {
+  try {
+    const s = getStoredAuthSession();
+    if (!s?.clientTimeoutMs) return null;
+    const n = Number(s.clientTimeoutMs);
+    return Number.isNaN(n) ? null : n;
+  } catch {
+    return null;
+  }
+};
+
+export const setStoredUserClientTimeout = (ms: number) => {
+  if (typeof ms !== "number" || Number.isNaN(ms) || ms <= 0) return;
+  try {
+    const stored = getStoredAuthSession();
+    if (!stored) return;
+    const next = { ...stored, clientTimeoutMs: ms } as StoredAuthSession;
+    saveStoredAuthSession(next);
+    setApiTimeout(ms);
+  } catch {}
 };
