@@ -119,8 +119,9 @@ public class MedicalRecordService {
         detail.setActualPrice(request.getActualPrice());
         detail.setResultNote(normalizeOptionalResultNote(request.getResultNote()));
 
+        MedicalRecordServiceDetail savedDetail = medicalRecordServiceDetailRepository.save(detail);
         invoiceService.aggregateInvoiceAmount(medicalRecordId);
-        return medicalRecordServiceDetailRepository.save(detail);
+        return savedDetail;
     }
 
     // Chức năng: xử lý get by id.
@@ -131,7 +132,9 @@ public class MedicalRecordService {
 
     // Chức năng: xử lý get by appointment id.
     public MedicalRecord getByAppointmentId(Long appointmentId) {
-        return medicalRecordRepository.findByAppointment_Id(appointmentId)
+        return medicalRecordRepository.findAllByAppointment_IdOrderByCreatedAtDescIdDesc(appointmentId)
+            .stream()
+            .findFirst()
                 .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND,
                         "Không tìm thấy bệnh án theo lịch hẹn"));
     }
@@ -445,6 +448,7 @@ public class MedicalRecordService {
     // Chức năng: xử lý hoàn thành bệnh án.
     public MedicalRecord completeMedicalRecord(String username, Long medicalRecordId) {
         MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+        invoiceService.aggregateInvoiceAmount(medicalRecordId);
         return medicalRecord;
     }
 
