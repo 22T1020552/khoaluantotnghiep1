@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCcw, Save } from "lucide-react";
 import { toast } from "sonner";
 
-import { getApiErrorMessage } from "@/services/api";
+import { getApiErrorMessage, setApiTimeout, getApiTimeout, getStoredUserClientTimeout, setStoredUserClientTimeout } from "@/services/api";
 import { adminService, type AdminSystemSetting } from "@/services/adminService";
 import styles from "../admin.module.css";
 
@@ -34,6 +34,8 @@ export function SettingsManagement() {
   const [newValue, setNewValue] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [creating, setCreating] = useState(false);
+  const [clientTimeout, setClientTimeout] = useState<string>("");
+  const [savingTimeout, setSavingTimeout] = useState(false);
 
   const loadSettings = async (isManualRefresh = false) => {
     try {
@@ -54,6 +56,16 @@ export function SettingsManagement() {
       });
       setDraftValues(initialDrafts);
       setDraftDescriptions(initialDescriptions);
+      // set client timeout field from stored user session or from current api timeout
+      const userTimeout = getStoredUserClientTimeout();
+      if (userTimeout) {
+        setClientTimeout(String(userTimeout));
+        try {
+          setApiTimeout(userTimeout);
+        } catch {}
+      } else {
+        setClientTimeout(String(getApiTimeout()));
+      }
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Không thể tải cấu hình hệ thống"));
     } finally {
@@ -122,6 +134,25 @@ export function SettingsManagement() {
     }
   };
 
+  const handleSaveClientTimeout = async () => {
+    const value = clientTimeout.trim();
+    const n = Number(value);
+    if (Number.isNaN(n) || n <= 0) {
+      toast.error("Giá trị timeout không hợp lệ");
+      return;
+    }
+
+    try {
+      setSavingTimeout(true);
+      setStoredUserClientTimeout(n);
+      toast.success("Đã lưu timeout cho người dùng hiện tại");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể lưu timeout"));
+    } finally {
+      setSavingTimeout(false);
+    }
+  };
+
   return (
     <main className={styles.mainArea}>
       <div className={styles.container}>
@@ -148,6 +179,30 @@ export function SettingsManagement() {
             <RefreshCcw size={16} /> {refreshing ? "Đang làm mới..." : "Làm mới"}
           </button>
         </div>
+
+        <section className={styles.card}>
+          <h2>Cấu hình timeout client</h2>
+          <p>Giá trị timeout (ms) dùng cho các request từ trình duyệt tới API.</p>
+          <div className={styles.formGrid}>
+            <div>
+              <label className={styles.fieldLabel} htmlFor="client-timeout">
+                Timeout (ms)
+              </label>
+              <input
+                id="client-timeout"
+                className={styles.textInput}
+                value={clientTimeout}
+                onChange={(e) => setClientTimeout(e.target.value)}
+                placeholder="10000"
+              />
+            </div>
+          </div>
+          <div className={styles.modalActions}>
+            <button type="button" className={styles.primaryButton} onClick={() => void handleSaveClientTimeout()} disabled={savingTimeout}>
+              <Save size={16} /> {savingTimeout ? "Đang lưu..." : "Lưu timeout"}
+            </button>
+          </div>
+        </section>
 
         <section className={styles.card}>
           <div className={styles.formGrid}>
