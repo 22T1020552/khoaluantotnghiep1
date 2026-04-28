@@ -15,6 +15,8 @@ import {
   FileText,
   Receipt,
   LogOut,
+  Menu,
+  X,
 } from 'lucide-react';
 
 export default function PatientsLayout({
@@ -24,8 +26,9 @@ export default function PatientsLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { username } = useAuth();
+  const { username, logout } = useAuth();
   const [displayName, setDisplayName] = useState('Bệnh nhân');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -58,7 +61,12 @@ export default function PatientsLayout({
     };
   }, [username]);
 
-  const handleLogout = () => {
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
+  const handleLogout = async () => {
+    await logout();
     toast.success('Đăng xuất thành công');
     router.push('/');
   };
@@ -68,9 +76,35 @@ export default function PatientsLayout({
   return (
     <div className={styles.container}>
       <aside className={styles.sidebar}>
+        <div className={styles.mobileTopBar}>
+          <button
+            type="button"
+            className={styles.hamburgerButton}
+            aria-label={mobileMenuOpen ? 'Đóng menu' : 'Mở menu'}
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+          >
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+
+          <div className={styles.mobileUserActions}>
+            <div className={styles.mobileUserMeta}>
+              <div className={styles.mobileUserName}>{displayName}</div>
+              <div className={styles.mobileUserRole}>Bệnh nhân</div>
+            </div>
+            <button
+              className={styles.mobileLogoutButton}
+              type="button"
+              aria-label="Đăng xuất"
+              onClick={() => void handleLogout()}
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
+
         <BrandLogo className={styles.logoContainer} />
 
-        <nav className={styles.nav}>
+        <nav className={`${styles.nav} ${mobileMenuOpen ? '' : styles.navCollapsed}`}>
           <Link
             href="/dashboard"
             className={`${styles.navItem} ${isActive('/dashboard') ? styles.active : ''}`}
@@ -97,7 +131,7 @@ export default function PatientsLayout({
           </Link>
         </nav>
 
-        <div className={styles.sidebarFooter}>
+        <div className={`${styles.sidebarFooter} ${styles.desktopSidebarFooter}`}>
           <div className={styles.userInfo}>
             <img src="https://github.com/shadcn.png" alt="Avatar" className={styles.avatar} />
             <div>
@@ -108,7 +142,7 @@ export default function PatientsLayout({
           <button
             className={`${styles.navItem} ${styles.logoutButton}`}
             type="button"
-            onClick={handleLogout}
+            onClick={() => void handleLogout()}
           >
             <LogOut size={20} /> Đăng xuất
           </button>

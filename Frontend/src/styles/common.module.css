@@ -89,6 +89,56 @@
   border-top: 1px solid #e2e8f0;
 }
 
+.mobileTopBar {
+  display: none;
+}
+
+.hamburgerButton {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1f2937;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mobileUserActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mobileUserMeta {
+  text-align: right;
+}
+
+.mobileUserName {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.mobileUserRole {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.mobileLogoutButton {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
 .userInfo {
   display: flex;
   align-items: center;
@@ -810,5 +860,161 @@
   }
   .infoGridWrapper {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .pageLayout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: #ffffff;
+  }
+
+  .mobileTopBar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+  }
+
+  .logoContainer {
+    padding: 18px 20px;
+  }
+
+  .sidebar .logoContainer {
+    display: none;
+  }
+
+  .nav {
+    padding: 12px 16px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .navCollapsed {
+    display: none;
+  }
+
+  .navItem {
+    flex: none;
+    width: 100%;
+  }
+
+  .settingsLink {
+    margin-top: 0;
+  }
+
+  .sidebarFooter {
+    padding: 12px 16px 16px;
+  }
+
+  .desktopSidebarFooter {
+    display: none;
+  }
+
+  .mainArea {
+    width: 100%;
+  }
+
+  .container {
+    padding: 1rem;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .cardLayout,
+  .cardHeader,
+  .cardFooter,
+  .flexBetween,
+  .flexBetweenStart,
+  .actionRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .queueColumn {
+    width: 100%;
+  }
+
+  .queueBadge {
+    width: 44px;
+    height: 44px;
+    font-size: 1.25rem;
+  }
+
+  .infoGridWrapper,
+  .grid2,
+  .medicineGrid,
+  .serviceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .tabRow {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 0.75rem;
+  }
+
+  .header h1 {
+    font-size: 1.3rem;
+  }
+
+  .header p {
+    font-size: 0.82rem;
+  }
+
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .statCard,
+  .card,
+  .appointmentCard {
+    padding: 1rem;
+  }
+
+  .appointmentName {
+    font-size: 1.1rem;
+  }
+
+  .reasonBox {
+    flex-direction: column;
+  }
+
+  .reasonLabel {
+    white-space: normal;
+  }
+
+  .button,
+  .examBtn,
+  .fullButton {
+    width: 100%;
+  }
+
+  .modalContent {
+    width: calc(100% - 1rem);
+    padding: 1rem;
+  }
+
+  .mobileUserMeta {
+    display: none;
   }
 }

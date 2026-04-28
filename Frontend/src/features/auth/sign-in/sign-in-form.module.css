@@ -217,4 +217,28 @@
   .title {
     font-size: 1.45rem;
   }
+
+  .inlineRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .centerText {
+    text-align: left;
+  }
+
+  .roleGrid,
+  .tabList {
+    grid-template-columns: 1fr;
+  }
+
+  .brandRow {
+    gap: 8px;
+  }
+
+  .brandIcon {
+    width: 38px;
+    height: 38px;
+    font-size: 24px;
+  }
 }
