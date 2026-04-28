@@ -8,12 +8,15 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 
 import com.example.demo.dto.DoctorResponse;
+import com.example.demo.dto.DoctorMedicineResponse;
 import com.example.demo.entity.Appointment;
+import com.example.demo.entity.Medicine;
 import com.example.demo.entity.Role;
 import com.example.demo.entity.Room;
 import com.example.demo.entity.User;
 import com.example.demo.exception.AppException;
 import com.example.demo.repository.AppointmentRepository;
+import com.example.demo.repository.MedicineRepository;
 import com.example.demo.repository.RoomRepository;
 import com.example.demo.repository.UserRepository;
 
@@ -29,6 +32,7 @@ public class DoctorService {
     private final UserRepository userRepository;
     private final AppointmentRepository appointmentRepository;
     private final RoomRepository roomRepository;
+    private final MedicineRepository medicineRepository;
 
     // Chức năng: lấy danh sách tất cả bác sĩ.
     public List<DoctorResponse> getAllDoctors() {
@@ -106,8 +110,26 @@ public class DoctorService {
                 STATUS_COMPLETED);
     }
 
+    // Chức năng: lấy danh sách thuốc active cho bác sĩ kê đơn.
+    public List<DoctorMedicineResponse> getMyMedicines() {
+        return medicineRepository.findByIsActiveTrueOrderByMedicineNameAsc().stream()
+                .map(this::toDoctorMedicineResponse)
+                .toList();
+    }
+
     // Chức năng: lời khuyên của bác sĩ.
     private DoctorResponse toDoctorResponse(User doctor) {
         return new DoctorResponse(doctor.getId(), doctor.getUsername(), doctor.getIsActive());
+    }
+
+    private DoctorMedicineResponse toDoctorMedicineResponse(Medicine medicine) {
+        return new DoctorMedicineResponse(
+                medicine.getId(),
+                medicine.getMedicineName(),
+                medicine.getUnit() == null || medicine.getUnit().isBlank() ? "Khác" : medicine.getUnit(),
+                medicine.getUnit(),
+                medicine.getSellingPrice(),
+                medicine.getStockQuantity(),
+                medicine.getIsActive());
     }
 }
