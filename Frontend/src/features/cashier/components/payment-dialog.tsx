@@ -6,6 +6,24 @@ import { DollarSign, Pill } from "lucide-react";
 import { Prescription } from "@/types/pharmacy.type";
 import styles from "../cashier.module.css";
 
+const normalizeServiceName = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const isConsultationServiceName = (serviceName?: string | null) => {
+  if (!serviceName) {
+    return false;
+  }
+
+  const normalized = normalizeServiceName(serviceName);
+  return ["kham", "consultation", "examination", "tu van"].some((keyword) =>
+    normalized.includes(keyword),
+  );
+};
+
 interface PaymentDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -35,10 +53,16 @@ function PaymentDialog({
 }: PaymentDialogProps) {
   if (!prescription) return null;
 
+  const serviceItems = prescription.serviceItems ?? [];
+  const totalServiceFee = parseFloat(paymentData.serviceFee || "0");
+  const consultationService = serviceItems.find((item) => isConsultationServiceName(item.serviceName));
+  const consultationFee = consultationService ? consultationService.lineTotal : totalServiceFee;
+  const additionalServiceFee = Math.max(totalServiceFee - consultationFee, 0);
+
   const payableAmount = Math.max(
     0,
     prescription.totalMedicationCost +
-      parseFloat(paymentData.serviceFee || "0") -
+      totalServiceFee -
       parseFloat(paymentData.insuranceDiscount || "0"),
   );
 
@@ -173,7 +197,22 @@ function PaymentDialog({
             <div className={styles.summaryBox}>
               <div className={styles.summaryList}>
                 <div className={styles.summaryRow}><span className={styles.summaryMuted}>Tiền thuốc:</span><span className={styles.amountValue}>{prescription.totalMedicationCost.toLocaleString("vi-VN")}đ</span></div>
-                <div className={styles.summaryRow}><span className={styles.summaryMuted}>Phí khám:</span><span className={styles.amountValue}>{parseFloat(paymentData.serviceFee || "0").toLocaleString("vi-VN")}đ</span></div>
+                {serviceItems.length > 0 && consultationFee > 0 ? (
+                  <>
+                    <div className={styles.summaryRow}>
+                      <span className={styles.summaryMuted}>Phí khám ban đầu:</span>
+                      <span className={styles.amountValue}>{consultationFee.toLocaleString("vi-VN")}đ</span>
+                    </div>
+                    {additionalServiceFee > 0 && (
+                      <div className={styles.summaryRow}>
+                        <span className={styles.summaryMuted}>Dịch vụ chỉ định thêm:</span>
+                        <span className={styles.amountValue}>{additionalServiceFee.toLocaleString("vi-VN")}đ</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className={styles.summaryRow}><span className={styles.summaryMuted}>Phí khám:</span><span className={styles.amountValue}>{totalServiceFee.toLocaleString("vi-VN")}đ</span></div>
+                )}
                 {paymentData.insuranceDiscount && parseFloat(paymentData.insuranceDiscount) > 0 && (
                   <div className={`${styles.summaryRow} ${styles.summaryDiscount}`}>
                     <span>Giảm trừ BHYT (70%):</span><span className={styles.amountValue}>-{parseFloat(paymentData.insuranceDiscount).toLocaleString("vi-VN")}đ</span>
