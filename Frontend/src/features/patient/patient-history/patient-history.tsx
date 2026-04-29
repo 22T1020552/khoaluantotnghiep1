@@ -120,12 +120,10 @@ export function PatientHistory() {
     record: PatientMedicalRecordHistoryItemResponse,
     detail: PatientMedicalRecordDetailResponse | null
   ) => {
-    const medicineCost = Number(detail?.totalMedicineFee ?? record.totalMedicineFee ?? 0);
     const examinationCost = Number(detail?.totalServiceFee ?? record.totalServiceFee ?? 0);
-    const totalCost = Number(detail?.totalAmount ?? record.totalAmount ?? medicineCost + examinationCost);
+    const totalCost = examinationCost;
 
     return {
-      medicineCost,
       examinationCost,
       totalCost,
     };
@@ -137,7 +135,7 @@ export function PatientHistory() {
       {/* Header */}
       <div className={styles.header}>
         <h1 className={styles.title}>Lịch sử khám bệnh</h1>
-        <p className={styles.subtitle}>Xem lại hồ sơ bệnh án và đơn thuốc</p>
+        <p className={styles.subtitle}>Xem lại hồ sơ bệnh án, dịch vụ đã sử dụng và đơn thuốc</p>
       </div>
 
       {/* Thông tin bệnh nhân */}
@@ -181,7 +179,8 @@ export function PatientHistory() {
 
         {!loading && records.map((record) => {
           const detail = recordDetails[record.medicalRecordId] ?? null;
-          const { medicineCost, examinationCost, totalCost } = getCostBreakdown(record, detail);
+          const { examinationCost, totalCost } = getCostBreakdown(record, detail);
+          const serviceItems = detail?.services ?? [];
 
           return (
           <Card key={record.medicalRecordId} className={styles.recordCard}>
@@ -207,16 +206,13 @@ export function PatientHistory() {
                 </div>
               </div>
               <div className={styles.costRight}>
-                <p className={styles.costLabel}>Tổng tiền đã thanh toán</p>
+                <p className={styles.costLabel}>Tổng tiền khám</p>
                 <p className={styles.costValue}>
                   {totalCost.toLocaleString("vi-VN")}đ
                 </p>
                 <div className={styles.costBreakdown}>
                   <p>
                     Chi phí khám: <strong>{examinationCost.toLocaleString("vi-VN")}đ</strong>
-                  </p>
-                  <p>
-                    Tiền thuốc: <strong>{medicineCost.toLocaleString("vi-VN")}đ</strong>
                   </p>
                 </div>
               </div>
@@ -235,7 +231,24 @@ export function PatientHistory() {
                 <p className={styles.blockTextGreen}>{detail?.doctorAdvice || record.doctorAdvice || "Chưa cập nhật"}</p>
               </div>
 
-              {/* Danh sách Dịch vụ cận lâm sàng chưa có endpoint chi tiết ở phía patient API */}
+              {serviceItems.length > 0 && (
+                <div className={`${styles.block} ${styles.blockBlue}`} style={{ backgroundColor: '#ecfeff' }}>
+                  <div className={styles.blockTitleBlue} style={{ color: '#0f766e' }}>
+                    <Activity size={16} /> Dịch vụ đã sử dụng:
+                  </div>
+                  <ul className={styles.medList} style={{ color: '#0f766e' }}>
+                    {serviceItems.map((item, idx) => (
+                      <li key={item.serviceId ?? idx}>
+                        <span style={{ fontWeight: 500 }}>{item.serviceName || "Dịch vụ"}</span>
+                        {' - Số lượng: '}{item.quantity ?? 0}
+                        {' - Thành tiền: '}{((item.actualPrice || 0) * (item.quantity ?? 0)).toLocaleString("vi-VN")}đ
+                        {item.resultNote ? ` - Ghi chú: ${item.resultNote}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {record.appointmentTime && (
                 <div className={`${styles.block} ${styles.blockBlue}`} style={{ backgroundColor: '#f0f9ff' }}>
                   <div className={styles.blockTitleBlue} style={{ color: '#0369a1' }}>

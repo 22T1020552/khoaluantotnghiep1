@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DollarSign, Pill } from "lucide-react";
+import { DollarSign } from "lucide-react";
 import { Prescription } from "@/types/pharmacy.type";
 import styles from "../cashier.module.css";
 
@@ -23,6 +23,11 @@ const isConsultationServiceName = (serviceName?: string | null) => {
     normalized.includes(keyword),
   );
 };
+
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(
+    amount,
+  );
 
 interface PaymentDialogProps {
   isOpen: boolean;
@@ -55,15 +60,18 @@ function PaymentDialog({
 
   const serviceItems = prescription.serviceItems ?? [];
   const totalServiceFee = parseFloat(paymentData.serviceFee || "0");
-  const consultationService = serviceItems.find((item) => isConsultationServiceName(item.serviceName));
-  const consultationFee = consultationService ? consultationService.lineTotal : totalServiceFee;
-  const additionalServiceFee = Math.max(totalServiceFee - consultationFee, 0);
+  const consultationServices = serviceItems.filter((item) => isConsultationServiceName(item.serviceName));
+  const additionalServices = serviceItems.filter((item) => !isConsultationServiceName(item.serviceName));
+  const consultationFee =
+    consultationServices.length > 0
+      ? consultationServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0)
+      : totalServiceFee;
+  const additionalServiceFee = additionalServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+  const insuranceDiscount = parseFloat(paymentData.insuranceDiscount || "0");
 
   const payableAmount = Math.max(
     0,
-    prescription.totalMedicationCost +
-      totalServiceFee -
-      parseFloat(paymentData.insuranceDiscount || "0"),
+    totalServiceFee - insuranceDiscount,
   );
 
   const bankBin = process.env.NEXT_PUBLIC_CLINIC_BANK_BIN?.trim();
@@ -96,38 +104,12 @@ function PaymentDialog({
             </div>
           </div>
 
-          <div className={styles.dialogPrescriptionBox}>
-            <p className={styles.dialogPrescriptionTitle}>
-              <Pill size={14} /> Chi tiết đơn thuốc:
-            </p>
-            <div className={styles.dialogItems}>
-              {prescription.prescriptionItems.map((item, idx) => (
-                <div key={idx} className={styles.dialogItem}>
-                  <div className={styles.dialogItemTop}>
-                    <span className={styles.dialogItemName}>{item.medicationName} <span className={styles.itemDosage}>{item.dosage}</span></span>
-                    <span className={styles.dialogItemAmount}>
-                      {(item.price * item.quantity).toLocaleString("vi-VN")}đ
-                    </span>
-                  </div>
-                  <div className={styles.dialogItemMeta}>
-                    {item.quantity} {item.unit} × {item.price.toLocaleString("vi-VN")}đ
-                  </div>
-                  <div className={styles.dialogItemUsage}>{item.usage}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className={styles.formStack}>
-            <div>
-              <Label>Tiền thuốc (tự động tính)</Label>
-              <Input value={`${prescription.totalMedicationCost.toLocaleString("vi-VN")}đ`} disabled className={styles.readonlyInput} />
-            </div>
             <div>
               <Label>Phí khám</Label>
               <Input
-                type="number"
-                value={paymentData.serviceFee}
+                type="text"
+                value={formatCurrency(totalServiceFee)}
                 onChange={(e) => onPaymentDataChange("serviceFee", e.target.value)}
                 disabled
               />
@@ -196,32 +178,45 @@ function PaymentDialog({
 
             <div className={styles.summaryBox}>
               <div className={styles.summaryList}>
-                <div className={styles.summaryRow}><span className={styles.summaryMuted}>Tiền thuốc:</span><span className={styles.amountValue}>{prescription.totalMedicationCost.toLocaleString("vi-VN")}đ</span></div>
                 {serviceItems.length > 0 && consultationFee > 0 ? (
                   <>
                     <div className={styles.summaryRow}>
                       <span className={styles.summaryMuted}>Phí khám ban đầu:</span>
-                      <span className={styles.amountValue}>{consultationFee.toLocaleString("vi-VN")}đ</span>
+                      <span className={styles.amountValue}>{formatCurrency(consultationFee)}</span>
                     </div>
-                    {additionalServiceFee > 0 && (
-                      <div className={styles.summaryRow}>
-                        <span className={styles.summaryMuted}>Dịch vụ chỉ định thêm:</span>
-                        <span className={styles.amountValue}>{additionalServiceFee.toLocaleString("vi-VN")}đ</span>
+                    {consultationServices.map((item) => (
+                      <div key={`consult-${item.serviceId}`} className={styles.summaryRow}>
+                        <span className={styles.summaryMuted}>- {item.serviceName}</span>
+                        <span className={styles.amountValue}>{formatCurrency(item.lineTotal)}</span>
                       </div>
+                    ))}
+                    {additionalServiceFee > 0 && (
+                      <>
+                        <div className={styles.summaryRow}>
+                          <span className={styles.summaryMuted}>Dịch vụ chỉ định thêm:</span>
+                          <span className={styles.amountValue}>{formatCurrency(additionalServiceFee)}</span>
+                        </div>
+                        {additionalServices.map((item) => (
+                          <div key={`additional-${item.serviceId}`} className={styles.summaryRow}>
+                            <span className={styles.summaryMuted}>- {item.serviceName}</span>
+                            <span className={styles.amountValue}>{formatCurrency(item.lineTotal)}</span>
+                          </div>
+                        ))}
+                      </>
                     )}
                   </>
                 ) : (
-                  <div className={styles.summaryRow}><span className={styles.summaryMuted}>Phí khám:</span><span className={styles.amountValue}>{totalServiceFee.toLocaleString("vi-VN")}đ</span></div>
+                  <div className={styles.summaryRow}><span className={styles.summaryMuted}>Phí khám:</span><span className={styles.amountValue}>{formatCurrency(totalServiceFee)}</span></div>
                 )}
-                {paymentData.insuranceDiscount && parseFloat(paymentData.insuranceDiscount) > 0 && (
+                {insuranceDiscount > 0 && (
                   <div className={`${styles.summaryRow} ${styles.summaryDiscount}`}>
-                    <span>Giảm trừ BHYT (70%):</span><span className={styles.amountValue}>-{parseFloat(paymentData.insuranceDiscount).toLocaleString("vi-VN")}đ</span>
+                    <span>Giảm trừ BHYT (70%):</span><span className={styles.amountValue}>-{formatCurrency(insuranceDiscount)}</span>
                   </div>
                 )}
                 <div className={`${styles.summaryRow} ${styles.summaryTotal}`}>
                   <span className={styles.summaryTotalLabel}>Tổng cộng:</span>
                   <span className={styles.summaryTotalValue}>
-                    {payableAmount.toLocaleString("vi-VN")}đ
+                    {formatCurrency(payableAmount)}
                   </span>
                 </div>
               </div>

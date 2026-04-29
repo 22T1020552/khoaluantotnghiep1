@@ -8,17 +8,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import com.example.demo.exception.AppException;
 
+import com.example.demo.dto.DoctorPatientServiceItemResponse;
 import com.example.demo.dto.PatientMedicalRecordDetailResponse;
 import com.example.demo.dto.PatientMedicalRecordHistoryItemResponse;
 import com.example.demo.dto.PatientPrescriptionHistoryItemResponse;
 import com.example.demo.entity.Appointment;
 import com.example.demo.entity.Invoice;
 import com.example.demo.entity.MedicalRecord;
+import com.example.demo.entity.MedicalRecordServiceDetail;
 import com.example.demo.entity.Patient;
 import com.example.demo.entity.PrescriptionDetail;
 import com.example.demo.entity.User;
 import com.example.demo.repository.InvoiceRepository;
 import com.example.demo.repository.MedicalRecordRepository;
+import com.example.demo.repository.MedicalRecordServiceDetailRepository;
 import com.example.demo.repository.PatientRepository;
 import com.example.demo.repository.PrescriptionDetailRepository;
 import com.example.demo.repository.UserRepository;
@@ -32,6 +35,7 @@ public class PatientService {
     private final PatientRepository patientRepository;
     private final UserRepository userRepository;
     private final MedicalRecordRepository medicalRecordRepository;
+    private final MedicalRecordServiceDetailRepository medicalRecordServiceDetailRepository;
     private final PrescriptionDetailRepository prescriptionDetailRepository;
     private final InvoiceRepository invoiceRepository;
 
@@ -75,6 +79,12 @@ public class PatientService {
             .map(this::toPrescriptionItemResponse)
             .toList();
 
+        List<DoctorPatientServiceItemResponse> services = medicalRecordServiceDetailRepository
+            .findByMedicalRecord_Id(medicalRecordId)
+            .stream()
+            .map(this::toServiceItemResponse)
+            .toList();
+
         Invoice invoice = invoiceRepository.findByMedicalRecord_Id(medicalRecordId).orElse(null);
         BigDecimal totalServiceFee = invoice == null || invoice.getTotalServiceFee() == null
                 ? BigDecimal.ZERO
@@ -82,9 +92,7 @@ public class PatientService {
         BigDecimal totalMedicineFee = invoice == null || invoice.getTotalMedicineFee() == null
                 ? BigDecimal.ZERO
                 : invoice.getTotalMedicineFee();
-        BigDecimal totalAmount = invoice == null || invoice.getTotalAmount() == null
-                ? totalServiceFee.add(totalMedicineFee)
-                : invoice.getTotalAmount();
+        BigDecimal totalAmount = totalServiceFee;
 
         return new PatientMedicalRecordDetailResponse(
             medicalRecord.getId(),
@@ -102,6 +110,7 @@ public class PatientService {
             invoice != null && Boolean.TRUE.equals(invoice.getIsPaid()),
             invoice == null ? null : invoice.getPaidAt(),
             invoice == null ? null : invoice.getPaymentMethod(),
+            services,
             prescriptionItems
         );
         }
@@ -118,9 +127,7 @@ public class PatientService {
         BigDecimal totalMedicineFee = invoice == null || invoice.getTotalMedicineFee() == null
             ? BigDecimal.ZERO
             : invoice.getTotalMedicineFee();
-        BigDecimal totalAmount = invoice == null || invoice.getTotalAmount() == null
-            ? totalServiceFee.add(totalMedicineFee)
-            : invoice.getTotalAmount();
+        BigDecimal totalAmount = totalServiceFee;
 
         return new PatientMedicalRecordHistoryItemResponse(
             medicalRecord.getId(),
@@ -159,6 +166,16 @@ public class PatientService {
             detail.getUsageInstructions(),
             unitPrice,
             unitPrice.multiply(quantity)
+        );
+        }
+
+        private DoctorPatientServiceItemResponse toServiceItemResponse(MedicalRecordServiceDetail detail) {
+        return new DoctorPatientServiceItemResponse(
+            detail.getService() == null ? null : detail.getService().getId(),
+            detail.getService() == null ? null : detail.getService().getServiceName(),
+            detail.getQuantity(),
+            detail.getActualPrice(),
+            detail.getResultNote()
         );
         }
 }

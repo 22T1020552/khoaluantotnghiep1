@@ -72,6 +72,13 @@ export interface PatientMedicalRecordDetailResponse {
   paid: boolean;
   paidAt: string | null;
   paymentMethod: string | null;
+  services: {
+    serviceId: number | null;
+    serviceName: string | null;
+    quantity: number | null;
+    actualPrice: number;
+    resultNote: string | null;
+  }[];
   prescriptionItems: PatientPrescriptionHistoryItemResponse[];
 }
 

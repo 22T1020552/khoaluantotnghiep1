@@ -22,9 +22,7 @@ interface PatientInvoiceItem {
   doctorUsername: string | null;
   diagnosis: string | null;
   serviceTotal: number;
-  medicineTotal: number;
   totalAmount: number;
-  medicineCount: number;
 }
 
 const normalizeStatus = (status: string | null | undefined) => (status ?? "").trim().toUpperCase();
@@ -104,15 +102,11 @@ export function PatientInvoices() {
   }, [invoices, query]);
 
   const totalPaid = useMemo(() => {
-    return invoices.reduce((sum, item) => sum + item.totalAmount, 0);
+    return invoices.reduce((sum, item) => sum + item.serviceTotal, 0);
   }, [invoices]);
 
   const totalExaminationCost = useMemo(() => {
     return invoices.reduce((sum, item) => sum + item.serviceTotal, 0);
-  }, [invoices]);
-
-  const totalMedicineCost = useMemo(() => {
-    return invoices.reduce((sum, item) => sum + item.medicineTotal, 0);
   }, [invoices]);
 
   return (
@@ -132,10 +126,6 @@ export function PatientInvoices() {
         <Card className={styles.statCard}>
           <p className={styles.statLabel}>Tổng chi phí khám</p>
           <p className={styles.statValue}>{totalExaminationCost.toLocaleString("vi-VN")}đ</p>
-        </Card>
-        <Card className={styles.statCard}>
-          <p className={styles.statLabel}>Tổng tiền thuốc</p>
-          <p className={styles.statValue}>{totalMedicineCost.toLocaleString("vi-VN")}đ</p>
         </Card>
         <Card className={styles.statCard}>
           <p className={styles.statLabel}>Tổng đã thanh toán</p>
@@ -184,13 +174,8 @@ export function PatientInvoices() {
                 </div>
 
                 <div className={styles.amountRow}>
-                  <span>Chi phí thuốc ({invoice.medicineCount} mục)</span>
-                  <strong>{invoice.medicineTotal.toLocaleString("vi-VN")}đ</strong>
-                </div>
-
-                <div className={styles.amountRow}>
                   <span>Tổng đã thanh toán</span>
-                  <strong>{invoice.totalAmount.toLocaleString("vi-VN")}đ</strong>
+                  <strong>{invoice.serviceTotal.toLocaleString("vi-VN")}đ</strong>
                 </div>
               </article>
             ))}
@@ -205,10 +190,8 @@ function mapToInvoiceItem(
   history: PatientMedicalRecordHistoryItemResponse,
   detail: PatientMedicalRecordDetailResponse | null
 ): PatientInvoiceItem {
-  const medicineTotal = Number(detail?.totalMedicineFee ?? history.totalMedicineFee ?? 0);
   const serviceTotal = Number(detail?.totalServiceFee ?? history.totalServiceFee ?? 0);
-  const totalAmount = Number(detail?.totalAmount ?? history.totalAmount ?? medicineTotal + serviceTotal);
-  const medicineCount = detail?.prescriptionItems.length ?? history.prescriptionItemCount ?? 0;
+  const totalAmount = serviceTotal;
 
   return {
     invoiceCode: `HD-${history.invoiceId ?? history.medicalRecordId}`,
@@ -218,8 +201,6 @@ function mapToInvoiceItem(
     doctorUsername: detail?.doctorUsername ?? history.doctorUsername,
     diagnosis: detail?.diagnosis ?? history.diagnosis,
     serviceTotal,
-    medicineTotal,
     totalAmount,
-    medicineCount,
   };
 }

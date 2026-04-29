@@ -4,6 +4,11 @@ import { CheckCircle } from "lucide-react";
 import { Prescription } from "@/types/pharmacy.type";
 import styles from "../cashier.module.css";
 
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(
+    amount,
+  );
+
 const normalizeServiceName = (value: string) =>
   value
     .normalize("NFD")
@@ -38,9 +43,13 @@ function DispensedPrescriptions({ prescriptions }: DispensedPrescriptionsProps) 
             {(() => {
               const serviceItems = prescription.serviceItems ?? [];
               const totalServiceFee = prescription.serviceFee ?? 0;
-              const consultationService = serviceItems.find((item) => isConsultationServiceName(item.serviceName));
-              const consultationFee = consultationService ? consultationService.lineTotal : totalServiceFee;
-              const additionalServiceFee = Math.max(totalServiceFee - consultationFee, 0);
+              const consultationServices = serviceItems.filter((item) => isConsultationServiceName(item.serviceName));
+              const additionalServices = serviceItems.filter((item) => !isConsultationServiceName(item.serviceName));
+              const consultationFee =
+                consultationServices.length > 0
+                  ? consultationServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0)
+                  : totalServiceFee;
+              const additionalServiceFee = additionalServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
 
               return (
                 <>
@@ -63,30 +72,38 @@ function DispensedPrescriptions({ prescriptions }: DispensedPrescriptionsProps) 
                         {new Date(prescription.date).toLocaleDateString("vi-VN")}
                       </span>
                     </div>
-                    <div className={`${styles.amountRow} ${styles.amountBorder}`}>
-                      <span className={styles.amountLabel}>Tiền thuốc:</span>
-                      <span className={styles.amountValue}>
-                        {prescription.totalMedicationCost.toLocaleString("vi-VN")}đ
-                      </span>
-                    </div>
                     {serviceItems.length > 0 && consultationFee > 0 ? (
                       <>
-                        <div className={styles.amountRow}>
+                        <div className={`${styles.amountRow} ${styles.amountBorder}`}>
                           <span className={styles.amountLabel}>Phí khám ban đầu:</span>
-                          <span className={styles.amountValue}>{consultationFee.toLocaleString("vi-VN")}đ</span>
+                          <span className={styles.amountValue}>{formatCurrency(consultationFee)}</span>
                         </div>
-                        {additionalServiceFee > 0 && (
-                          <div className={styles.amountRow}>
-                            <span className={styles.amountLabel}>Dịch vụ chỉ định thêm:</span>
-                            <span className={styles.amountValue}>{additionalServiceFee.toLocaleString("vi-VN")}đ</span>
+                        {consultationServices.map((item) => (
+                          <div key={`consult-${item.serviceId}`} className={styles.amountRow}>
+                            <span className={styles.amountLabel}>- {item.serviceName}</span>
+                            <span className={styles.amountValue}>{formatCurrency(item.lineTotal)}</span>
                           </div>
+                        ))}
+                        {additionalServiceFee > 0 && (
+                          <>
+                            <div className={styles.amountRow}>
+                              <span className={styles.amountLabel}>Dịch vụ chỉ định thêm:</span>
+                              <span className={styles.amountValue}>{formatCurrency(additionalServiceFee)}</span>
+                            </div>
+                            {additionalServices.map((item) => (
+                              <div key={`additional-${item.serviceId}`} className={styles.amountRow}>
+                                <span className={styles.amountLabel}>- {item.serviceName}</span>
+                                <span className={styles.amountValue}>{formatCurrency(item.lineTotal)}</span>
+                              </div>
+                            ))}
+                          </>
                         )}
                       </>
                     ) : (
                       <div className={styles.amountRow}>
                         <span className={styles.amountLabel}>Phí khám:</span>
                         <span className={styles.amountValue}>
-                          {prescription.serviceFee?.toLocaleString("vi-VN")}đ
+                          {formatCurrency(totalServiceFee)}
                         </span>
                       </div>
                     )}
@@ -94,14 +111,14 @@ function DispensedPrescriptions({ prescriptions }: DispensedPrescriptionsProps) 
                       <div className={`${styles.amountRow} ${styles.discountRow}`}>
                         <span>Giảm trừ BHYT:</span>
                         <span className={styles.amountValue}>
-                          -{prescription.insuranceDiscount.toLocaleString("vi-VN")}đ
+                          -{formatCurrency(prescription.insuranceDiscount)}
                         </span>
                       </div>
                     )}
                     <div className={`${styles.amountRow} ${styles.totalRow}`}>
                       <span className={styles.totalLabel}>Tổng cộng:</span>
                       <span className={styles.totalValue}>
-                        {prescription.totalAmount?.toLocaleString("vi-VN")}đ
+                        {formatCurrency(prescription.totalAmount ?? totalServiceFee)}
                       </span>
                     </div>
                   </div>
@@ -114,7 +131,7 @@ function DispensedPrescriptions({ prescriptions }: DispensedPrescriptionsProps) 
         {prescriptions.length === 0 && (
           <Card className={styles.emptyCard}>
             <CheckCircle size={44} color="#cbd5e1" />
-            <p className={styles.emptyText}>Chưa có đơn thuốc được thanh toán</p>
+            <p className={styles.emptyText}>Chưa có hồ sơ được thanh toán</p>
           </Card>
         )}
       </div>
