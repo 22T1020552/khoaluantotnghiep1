@@ -7,7 +7,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Activity,
   Building2,
-  ClipboardList,
   LayoutDashboard,
   LogOut,
   Pill,
@@ -27,7 +26,6 @@ const navItems = [
   { href: '/admin/rooms', label: 'Phòng khám', icon: Building2 },
   { href: '/admin/medicines', label: 'Danh mục thuốc', icon: Pill },
   { href: '/admin/services', label: 'Dịch vụ', icon: Activity },
-  { href: '/admin/reports', label: 'Báo cáo', icon: ClipboardList },
   { href: '/admin/settings', label: 'Cấu hình', icon: Settings2 },
 ];
 

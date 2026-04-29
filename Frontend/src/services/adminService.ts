@@ -49,6 +49,39 @@ export interface AdminDashboardData {
   thisMonthAppointments: number;
 }
 
+export interface AdminRevenueChartPoint {
+  period: string;
+  revenue: number;
+}
+
+export interface AdminRevenueReportItem {
+  invoiceId: number;
+  medicalRecordId: number | null;
+  patientName: string | null;
+  paymentMethod: string | null;
+  paidAt: string | null;
+  totalServiceFee: number;
+  totalMedicineFee: number;
+  totalAmount: number;
+  services: string[];
+  medicines: string[];
+}
+
+export interface AdminRevenueReportResponse {
+  startTime: string;
+  endTime: string;
+  groupBy: string;
+  serviceFilter: string | null;
+  medicineFilter: string | null;
+  totalInvoices: number;
+  totalRevenue: number;
+  totalServiceRevenue: number;
+  totalMedicineRevenue: number;
+  items: AdminRevenueReportItem[];
+  chart: AdminRevenueChartPoint[];
+  message: string;
+}
+
 export interface AdminSystemSetting {
   settingKey: string;
   settingValue: string;
@@ -59,6 +92,19 @@ export interface AdminSystemSetting {
 export const adminService = {
   async getDashboard() {
     const response = await api.get<AdminDashboardData>("/api/admin/dashboard");
+    return response.data;
+  },
+
+  async getRevenueReport(params?: {
+    startTime?: string;
+    endTime?: string;
+    serviceFilter?: string;
+    medicineFilter?: string;
+    groupBy?: "DAY" | "MONTH" | "YEAR";
+  }) {
+    const response = await api.get<AdminRevenueReportResponse>("/api/admin/revenue-report", {
+      params,
+    });
     return response.data;
   },
 
