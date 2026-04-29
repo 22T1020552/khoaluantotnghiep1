@@ -15,14 +15,22 @@ import styles from "../booking.module.css";
 interface BookingFormProps {
   onSuccess: (appointmentId: number) => void;
 }
+<<<<<<< HEAD
 
+=======
+//Hàm chuẩn hóa thời gian để backend hiểu được
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 const toApiDateTime = (value: string) => {
   const normalized = value.trim();
   if (!normalized) {
     return normalized;
   }
 
+<<<<<<< HEAD
   // Backend expects LocalDateTime in yyyy-MM-dd'T'HH:mm:ss.
+=======
+  // Backend: yyyy-MM-dd'T'HH:mm:ss.
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   if (normalized.length === 16) {
     return `${normalized}:00`;
   }
@@ -34,6 +42,10 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
+<<<<<<< HEAD
+=======
+    gender: "",
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     dateOfBirth: "",
     hometown: "",
     phone: "",
@@ -48,6 +60,7 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
 
     const loadProfile = async () => {
       try {
+<<<<<<< HEAD
         const profile = await patientService.getProfile();
         if (!isMounted) {
           return;
@@ -56,6 +69,17 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
         setFormData((prev) => ({
           ...prev,
           fullName: profile.fullName ?? "",
+=======
+        const profile = await patientService.getProfile(); //Lấy thông tin của mình
+        if (!isMounted) {
+          return;
+        }
+        // Điền thông tin vào form nếu có
+        setFormData((prev) => ({
+          ...prev,
+          fullName: profile.fullName ?? "",
+          gender: profile.gender ?? "",
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
           phone: profile.phoneNumber ?? "",
           idNumber: profile.nationalId ?? "",
           insuranceNumber: profile.healthInsuranceNumber ?? "",
@@ -76,7 +100,11 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
     e.preventDefault();
     const normalizedReason = formData.reason.trim();
 
+<<<<<<< HEAD
     if (!formData.fullName || !formData.dateOfBirth || !formData.phone || !formData.reason || !formData.appointmentTime) {
+=======
+    if (!formData.fullName || !formData.gender || !formData.dateOfBirth || !formData.phone || !formData.reason || !formData.appointmentTime) {
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
       toast.error("Vui lòng điền đầy đủ thông tin bắt buộc");
       return;
     }
@@ -85,14 +113,22 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
       toast.error("Lý do khám cần tối thiểu 5 ký tự");
       return;
     }
+<<<<<<< HEAD
 
+=======
+    //Gói dữ liệu và gửi lên backend
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     try {
       setSubmitting(true);
       const createdAppointment = await patientService.createAppointment({
         appointmentTime: toApiDateTime(formData.appointmentTime),
         symptoms: normalizedReason,
       });
+<<<<<<< HEAD
 
+=======
+      // Gọi callback để thông báo cho component cha biết đã tạo thành công và truyền ID của lịch hẹn mới tạo
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
       onSuccess(createdAppointment.id);
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Không thể đặt lịch khám"));
@@ -115,6 +151,24 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
             <Input id="fullName" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} placeholder="Nguyễn Văn A" required />
           </div>
           <div>
+<<<<<<< HEAD
+=======
+            <Label htmlFor="gender">Giới tính <span className={styles.required}>*</span></Label>
+            <select
+              id="gender"
+              className={styles.selectInput}
+              value={formData.gender}
+              onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+              required
+            >
+              <option value="">-- Chọn giới tính --</option>
+              <option value="male">Nam</option>
+              <option value="female">Nữ</option>
+              <option value="other">Khác</option>
+            </select>
+          </div>
+          <div>
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
             <Label htmlFor="dateOfBirth">Ngày sinh <span className={styles.required}>*</span></Label>
             <Input id="dateOfBirth" type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} required />
           </div>

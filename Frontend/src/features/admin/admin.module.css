@@ -160,6 +160,16 @@
   font-size: 0.93rem;
 }
 
+<<<<<<< HEAD
+=======
+.keyCell {
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.85rem;
+  color: #1e293b;
+  word-break: break-all;
+}
+
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 .tableActions {
   display: flex;
   justify-content: flex-end;
@@ -398,3 +408,70 @@
     flex-direction: column;
   }
 }
+<<<<<<< HEAD
+=======
+
+@media (max-width: 900px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .cardsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.8rem 0.65rem;
+  }
+
+  .tableContainer {
+    overflow-x: auto;
+  }
+
+  .modal {
+    width: calc(100vw - 1rem);
+    max-width: 620px;
+  }
+}
+
+@media (max-width: 640px) {
+  .header h1 {
+    font-size: 1.3rem;
+  }
+
+  .header p {
+    font-size: 0.85rem;
+  }
+
+  .cardsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .statCard {
+    padding: 0.9rem;
+  }
+
+  .statValue {
+    font-size: 1.3rem;
+  }
+
+  .table {
+    min-width: 620px;
+  }
+
+  .itemHeader {
+    flex-direction: column;
+  }
+
+  .barRow {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .modalTitle {
+    font-size: 1rem;
+  }
+}
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6

@@ -49,6 +49,16 @@ export interface AdminDashboardData {
   thisMonthAppointments: number;
 }
 
+<<<<<<< HEAD
+=======
+export interface AdminSystemSetting {
+  settingKey: string;
+  settingValue: string;
+  description: string;
+  source: "DATABASE" | "APPLICATION_PROPERTIES" | "EMPTY";
+}
+
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 export const adminService = {
   async getDashboard() {
     const response = await api.get<AdminDashboardData>("/api/admin/dashboard");
@@ -167,4 +177,27 @@ export const adminService = {
   async deactivateMedicalService(serviceId: number) {
     await api.delete(`/api/admin/services/${serviceId}`);
   },
+<<<<<<< HEAD
+=======
+
+  async getSettings() {
+    const response = await api.get<AdminSystemSetting[]>("/api/admin/settings");
+    return response.data;
+  },
+
+  async getSetting(settingKey: string) {
+    const encodedKey = encodeURIComponent(settingKey);
+    const response = await api.get<AdminSystemSetting>(`/api/admin/settings/${encodedKey}`);
+    return response.data;
+  },
+
+  async updateSetting(settingKey: string, settingValue: string, description?: string) {
+    const encodedKey = encodeURIComponent(settingKey);
+    const response = await api.put<AdminSystemSetting>(`/api/admin/settings/${encodedKey}`, {
+      settingValue,
+      description,
+    });
+    return response.data;
+  },
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 };

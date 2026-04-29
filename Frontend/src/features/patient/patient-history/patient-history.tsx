@@ -116,12 +116,28 @@ export function PatientHistory() {
   const patientDisplayName = profile?.fullName || profile?.gmail || "Bệnh nhân";
   const patientAvatar = useMemo(() => createInitials(patientDisplayName), [patientDisplayName]);
 
+<<<<<<< HEAD
   const calculateTotalCost = (detail: PatientMedicalRecordDetailResponse | null) => {
     if (!detail) {
       return 0;
     }
 
     return Number(detail.totalAmount ?? detail.totalMedicineFee ?? 0);
+=======
+  const getCostBreakdown = (
+    record: PatientMedicalRecordHistoryItemResponse,
+    detail: PatientMedicalRecordDetailResponse | null
+  ) => {
+    const medicineCost = Number(detail?.totalMedicineFee ?? record.totalMedicineFee ?? 0);
+    const examinationCost = Number(detail?.totalServiceFee ?? record.totalServiceFee ?? 0);
+    const totalCost = Number(detail?.totalAmount ?? record.totalAmount ?? medicineCost + examinationCost);
+
+    return {
+      medicineCost,
+      examinationCost,
+      totalCost,
+    };
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   };
 
   return (
@@ -174,7 +190,11 @@ export function PatientHistory() {
 
         {!loading && records.map((record) => {
           const detail = recordDetails[record.medicalRecordId] ?? null;
+<<<<<<< HEAD
           const totalCost = calculateTotalCost(detail);
+=======
+          const { medicineCost, examinationCost, totalCost } = getCostBreakdown(record, detail);
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 
           return (
           <Card key={record.medicalRecordId} className={styles.recordCard}>
@@ -204,6 +224,17 @@ export function PatientHistory() {
                 <p className={styles.costValue}>
                   {totalCost.toLocaleString("vi-VN")}đ
                 </p>
+<<<<<<< HEAD
+=======
+                <div className={styles.costBreakdown}>
+                  <p>
+                    Chi phí khám: <strong>{examinationCost.toLocaleString("vi-VN")}đ</strong>
+                  </p>
+                  <p>
+                    Tiền thuốc: <strong>{medicineCost.toLocaleString("vi-VN")}đ</strong>
+                  </p>
+                </div>
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
               </div>
             </div>
 

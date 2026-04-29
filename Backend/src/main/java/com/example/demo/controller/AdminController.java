@@ -27,10 +27,13 @@ import com.example.demo.dto.AdminRoomAssignDoctorRequest;
 import com.example.demo.dto.AdminRoomCreateRequest;
 import com.example.demo.dto.AdminRoomResponse;
 import com.example.demo.dto.AdminRoomUpdateRequest;
+import com.example.demo.dto.AdminSystemSettingResponse;
 import com.example.demo.dto.AdminUpdateUserRequest;
+import com.example.demo.dto.AdminUpdateSystemSettingRequest;
 import com.example.demo.dto.AdminUserResponse;
 import com.example.demo.dto.DashboardResponse;
 import com.example.demo.service.AdminService;
+import com.example.demo.service.SystemSettingService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,13 +43,11 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
-@Tag(
-    name = "Admin",
-    description = "Quản trị hệ thống: dashboard, báo cáo doanh thu, người dùng, phòng khám, thuốc và dịch vụ."
-)
+@Tag(name = "Admin", description = "Quản trị hệ thống: dashboard, báo cáo doanh thu, người dùng, phòng khám, thuốc và dịch vụ.")
 public class AdminController {
 
     private final AdminService adminService;
+    private final SystemSettingService systemSettingService;
 
     @GetMapping("/dashboard")
     @Operation(summary = "Dashboard tổng quan", description = "Lấy số liệu tổng hợp cho trang quản trị.")
@@ -77,7 +78,8 @@ public class AdminController {
             @RequestParam(required = false) String medicineFilter,
             @RequestParam(required = false, defaultValue = "DAY") String groupBy,
             @RequestParam(defaultValue = "CSV") String format) {
-        byte[] fileBytes = adminService.exportRevenueReport(startTime, endTime, serviceFilter, medicineFilter, groupBy, format);
+        byte[] fileBytes = adminService.exportRevenueReport(startTime, endTime, serviceFilter, medicineFilter, groupBy,
+                format);
         String normalized = format == null ? "CSV" : format.trim().toUpperCase(java.util.Locale.ROOT);
         String fileName = "revenue-report." + ("PDF".equals(normalized) ? "pdf" : "csv");
         MediaType mediaType = "PDF".equals(normalized) ? MediaType.APPLICATION_PDF : MediaType.TEXT_PLAIN;
@@ -211,5 +213,27 @@ public class AdminController {
     public void deactivateMedicalService(@PathVariable Long serviceId) {
         adminService.deactivateMedicalService(serviceId);
     }
-}
 
+    @GetMapping("/settings")
+    @Operation(summary = "Danh sách cấu hình hệ thống", description = "Lấy danh sách cấu hình key-value để quản trị.")
+    // Chức năng: lấy toàn bộ cấu hình hệ thống cho màn hình admin.
+    public List<AdminSystemSettingResponse> getSystemSettings() {
+        return systemSettingService.getAllSettings();
+    }
+
+    @GetMapping("/settings/{settingKey}")
+    @Operation(summary = "Lấy cấu hình theo key", description = "Lấy một cấu hình hệ thống theo khóa.")
+    // Chức năng: lấy một cấu hình key-value theo khóa.
+    public AdminSystemSettingResponse getSystemSetting(@PathVariable String settingKey) {
+        return systemSettingService.getSetting(settingKey);
+    }
+
+    @PutMapping("/settings/{settingKey}")
+    @Operation(summary = "Cập nhật cấu hình", description = "Tạo mới hoặc cập nhật cấu hình hệ thống theo key.")
+    // Chức năng: lưu cấu hình key-value từ màn hình quản trị.
+    public AdminSystemSettingResponse updateSystemSetting(
+            @PathVariable String settingKey,
+            @Valid @RequestBody AdminUpdateSystemSettingRequest request) {
+        return systemSettingService.upsertSetting(settingKey, request.getSettingValue(), request.getDescription());
+    }
+}

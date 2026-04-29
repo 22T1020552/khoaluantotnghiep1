@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -46,14 +47,18 @@ import com.example.demo.entity.Appointment;
 import com.example.demo.entity.Invoice;
 import com.example.demo.entity.MedicalRecord;
 import com.example.demo.entity.MedicalRecordServiceDetail;
+import com.example.demo.entity.MedicalRecordServiceId;
+import com.example.demo.entity.MedicalService;
 import com.example.demo.entity.Medicine;
 import com.example.demo.entity.Patient;
 import com.example.demo.entity.PrescriptionDetail;
 import com.example.demo.repository.InvoiceRepository;
 import com.example.demo.repository.MedicalRecordRepository;
 import com.example.demo.repository.MedicalRecordServiceDetailRepository;
+import com.example.demo.repository.MedicalServiceRepository;
 import com.example.demo.repository.MedicineRepository;
 import com.example.demo.repository.PrescriptionDetailRepository;
+import com.example.demo.repository.RoomRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -69,12 +74,15 @@ public class InvoiceService {
     private static final DateTimeFormatter RECEIPT_TIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final Set<String> SUPPORTED_PAYMENT_METHODS = Set.of("TIEN_MAT", "CHUYEN_KHOAN", "POS");
     private static final BigDecimal HEALTH_INSURANCE_DISCOUNT_RATE = new BigDecimal("0.70");
+    private static final List<String> CONSULTATION_KEYWORDS = List.of("kham", "consultation", "examination", "tu van");
 
     private final InvoiceRepository invoiceRepository;
     private final MedicalRecordRepository medicalRecordRepository;
     private final MedicalRecordServiceDetailRepository medicalRecordServiceDetailRepository;
     private final PrescriptionDetailRepository prescriptionDetailRepository;
     private final MedicineRepository medicineRepository;
+    private final MedicalServiceRepository medicalServiceRepository;
+    private final RoomRepository roomRepository;
 
     // Chức năng: xử lý lấy thông tin theo mã số hồ sơ y tế.
     public Invoice getByMedicalRecordId(Long medicalRecordId) {
@@ -205,7 +213,8 @@ public class InvoiceService {
         }
 
         List<MedicalRecordServiceDetail> serviceDetails = medicalRecordServiceDetailRepository
-                .findByMedicalRecord_Id(medicalRecordId);
+            .findByMedicalRecord_Id(medicalRecordId);
+        serviceDetails = ensureConsultationService(medicalRecordId, medicalRecord, serviceDetails);
         BigDecimal totalServiceFee = serviceDetails.stream()
                 .map(this::serviceLineTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -230,6 +239,119 @@ public class InvoiceService {
         }
 
         return invoiceRepository.save(invoice);
+    }
+
+    private List<MedicalRecordServiceDetail> ensureConsultationService(
+            Long medicalRecordId,
+            MedicalRecord medicalRecord,
+            List<MedicalRecordServiceDetail> serviceDetails) {
+        MedicalService consultationService = resolveConsultationService(medicalRecord);
+        if (consultationService == null) {
+            return serviceDetails;
+        }
+
+        boolean alreadyAdded = serviceDetails.stream()
+                .anyMatch(detail -> detail.getService() != null
+                        && consultationService.getId().equals(detail.getService().getId()));
+        if (alreadyAdded) {
+            return serviceDetails;
+        }
+
+        MedicalRecordServiceId id = new MedicalRecordServiceId();
+        id.setMedicalRecordId(medicalRecordId);
+        id.setServiceId(consultationService.getId());
+
+        MedicalRecordServiceDetail detail = new MedicalRecordServiceDetail();
+        detail.setId(id);
+        detail.setMedicalRecord(medicalRecord);
+        detail.setService(consultationService);
+        detail.setQuantity(1);
+        detail.setActualPrice(defaultAmount(consultationService.getCurrentPrice()));
+        detail.setResultNote("Phí khám ban đầu");
+
+        MedicalRecordServiceDetail saved = medicalRecordServiceDetailRepository.save(detail);
+        List<MedicalRecordServiceDetail> updated = new ArrayList<>(serviceDetails);
+        updated.add(saved);
+        return updated;
+    }
+
+    private MedicalService resolveConsultationService(MedicalRecord medicalRecord) {
+        MedicalService byRoom = resolveConsultationServiceFromRoom(medicalRecord);
+        if (byRoom != null) {
+            return byRoom;
+        }
+
+        List<MedicalService> activeServices = medicalServiceRepository.findByIsActiveTrueOrderByServiceNameAsc();
+        for (MedicalService service : activeServices) {
+            if (isConsultationService(service)) {
+                return service;
+            }
+        }
+        return null;
+    }
+
+    private MedicalService resolveConsultationServiceFromRoom(MedicalRecord medicalRecord) {
+        if (medicalRecord == null || medicalRecord.getAppointment() == null) {
+            return null;
+        }
+
+        Appointment appointment = medicalRecord.getAppointment();
+        if (appointment.getDoctor() == null || appointment.getDoctor().getId() == null) {
+            return null;
+        }
+
+        List<com.example.demo.entity.Room> rooms = roomRepository.findByCurrentDoctor_Id(appointment.getDoctor().getId());
+        if (rooms.isEmpty()) {
+            return null;
+        }
+
+        String roomName = rooms.get(0).getRoomName();
+        if (roomName == null || roomName.isBlank()) {
+            return null;
+        }
+
+        String normalizedRoom = normalizeText(roomName);
+        if (normalizedRoom.isEmpty()) {
+            return null;
+        }
+
+        List<MedicalService> activeServices = medicalServiceRepository.findByIsActiveTrueOrderByServiceNameAsc();
+        for (MedicalService service : activeServices) {
+            if (service == null || service.getServiceName() == null) {
+                continue;
+            }
+            String normalizedService = normalizeText(service.getServiceName());
+            if (normalizedRoom.equals(normalizedService)) {
+                return service;
+            }
+        }
+        return null;
+    }
+
+    private boolean isConsultationService(MedicalService service) {
+        if (service == null || service.getServiceName() == null) {
+            return false;
+        }
+
+        String normalized = normalizeText(service.getServiceName());
+        for (String keyword : CONSULTATION_KEYWORDS) {
+            if (normalized.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeText(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT)
+                .trim();
+        return normalized;
     }
 
     @Transactional

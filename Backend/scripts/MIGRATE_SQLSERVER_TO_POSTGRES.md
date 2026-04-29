@@ -22,6 +22,16 @@ Use the following data type mapping when validating target schema:
   - `bcp`
   - `psql`
 
+## 2.1) Additional Schema Scripts
+
+Before running backend with dynamic admin settings, apply:
+
+```powershell
+psql -h localhost -U postgres -d KLTN -f .\scripts\add-system-settings-postgres.sql
+```
+
+This script is idempotent and also adds the `description` column if your `system_settings` table already exists.
+
 ## 3) One-command Migration Script
 
 From project root (`demo/demo`), run:

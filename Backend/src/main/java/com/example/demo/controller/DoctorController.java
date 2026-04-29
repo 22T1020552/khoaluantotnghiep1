@@ -14,10 +14,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.dto.DoctorClinicRoomRequest;
+import com.example.demo.dto.AdminMedicalServiceResponse;
+import com.example.demo.dto.DoctorMedicineResponse;
 import com.example.demo.dto.DoctorPatientHistoryDetailResponse;
 import com.example.demo.dto.DoctorPatientHistoryResponse;
 import com.example.demo.dto.DoctorResponse;
 import com.example.demo.entity.Appointment;
+import com.example.demo.service.AdminService;
 import com.example.demo.service.DoctorService;
 import com.example.demo.service.MedicalRecordService;
 
@@ -34,6 +37,7 @@ public class DoctorController {
 
     private final DoctorService doctorService;
     private final MedicalRecordService medicalRecordService;
+    private final AdminService adminService;
 
     @GetMapping
     @Operation(summary = "Danh sách bác sĩ", description = "Lấy danh sách bác sĩ hiện có.")
@@ -57,6 +61,21 @@ public class DoctorController {
         return doctorService.getMyCompletedPatients(authentication.getName(), date);
     }
 
+<<<<<<< HEAD
+=======
+    @GetMapping("/me/services")
+    @Operation(summary = "Danh sách dịch vụ khám", description = "Lấy danh sách dịch vụ để bác sĩ chọn trong ca khám.")
+    public List<AdminMedicalServiceResponse> getAvailableServicesForDoctor() {
+        return adminService.getAllMedicalServices();
+    }
+
+    @GetMapping("/me/medicines")
+    @Operation(summary = "Danh sách thuốc khám", description = "Lấy danh sách thuốc active để bác sĩ kê đơn.")
+    public List<DoctorMedicineResponse> getAvailableMedicinesForDoctor() {
+        return doctorService.getMyMedicines();
+    }
+
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     @PutMapping("/{doctorId}/clinic-room")
     @Operation(summary = "Cập nhật phòng kham", description = "Cập nhật thông tin phòng khám phụ trách của bác sĩ.")
     public DoctorResponse updateClinicRoom(

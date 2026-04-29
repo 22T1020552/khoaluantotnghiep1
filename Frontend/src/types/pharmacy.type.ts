@@ -76,6 +76,10 @@ export interface Prescription {
   date: string;
   status: "pending" | "dispensed";
   serviceFee?: number;
+<<<<<<< HEAD
+=======
+  serviceItems?: CashierServiceLine[];
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   insuranceDiscount?: number;
   totalAmount?: number;
   invoiceId?: number;

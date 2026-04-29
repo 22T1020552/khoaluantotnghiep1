@@ -10,16 +10,28 @@
   },
   "dependencies": {
     "axios": "^1.14.0",
+<<<<<<< HEAD
     "lucide-react": "^1.7.0",
     "next": "15.0.0",
     "react": "19.0.0-rc-65a56d0e-20241020",
     "react-dom": "19.0.0-rc-65a56d0e-20241020",
+=======
+    "lucide-react": "^1.8.0",
+    "next": "^16.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@types/node": "^20",
+<<<<<<< HEAD
     "@types/react": "^18",
     "@types/react-dom": "^18",
+=======
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     "typescript": "^5"
   }
 }

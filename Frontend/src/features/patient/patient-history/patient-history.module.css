@@ -149,6 +149,22 @@
   color: #16a34a; 
 }
 
+<<<<<<< HEAD
+=======
+.costBreakdown {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.costBreakdown p {
+  margin: 0;
+}
+
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 /* --- Colored Details Blocks --- */
 .detailsContainer {
   display: flex;

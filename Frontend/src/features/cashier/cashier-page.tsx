@@ -61,6 +61,10 @@ export function PharmacyDashboard() {
       date: paidAt || detail.appointmentTime,
       status,
       serviceFee,
+<<<<<<< HEAD
+=======
+      serviceItems: detail.services || [],
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
       insuranceDiscount,
       totalAmount,
       paymentMethod,

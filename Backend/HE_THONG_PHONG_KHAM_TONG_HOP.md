@@ -2,7 +2,7 @@
 
 ## 1) Tong quan hien trang
 
-He thong backend duoc xay dung bang Spring Boot va dang van hanh theo mo hinh phan quyen JWT voi cac role:
+Backend duoc xay dung bang Spring Boot va dang van hanh theo mo hinh JWT stateless voi cac role:
 
 - ADMIN
 - RECEPTIONIST
@@ -12,11 +12,15 @@ He thong backend duoc xay dung bang Spring Boot va dang van hanh theo mo hinh ph
 
 Nghiep vu dang co:
 
-- Xac thuc, dang ky benh nhan, quen mat khau OTP qua email.
-- Le tan duyet/tu choi lich hen, quan ly waiting queue.
-- Bac si kham benh, tao benh an, quan ly don thuoc va ket qua dich vu.
-- Thu ngan xu ly thanh toan, in bien lai, xuat PDF, tra cuu lich su giao dich.
-- Admin quan tri user, phong kham, thuoc, dich vu, dashboard va bao cao doanh thu.
+- Xac thuc tai khoan, refresh token, dang ky benh nhan.
+- Quen mat khau OTP qua email, co cooldown/rate-limit tren Redis.
+- Benh nhan dat lich, huy lich, xem lich hen va lich su benh an.
+- Le tan duyet lich, phan bac si, quan ly waiting queue, huy lich boi phong kham.
+- Bac si kham benh, tao benh an, ke don, ghi ket qua dich vu can lam sang, hoan tat benh an.
+- Thu ngan tong hop hoa don, xu ly thanh toan, in bien lai, xuat PDF, thong ke giao dich.
+- Admin quan tri user, phong kham, thuoc, dich vu, dashboard, bao cao doanh thu.
+- Admin quan tri cau hinh he thong key-value (settings).
+- Chatbot AI Gemini: hoi dap, luu lich su theo user/patient, xoa lich su.
 
 ## 2) Nen tang ky thuat
 
@@ -24,11 +28,11 @@ Nghiep vu dang co:
 - Spring Boot 3.5.13
 - Spring Data JPA
 - Spring Security + JWT
-- PostgreSQL (runtime database)
-- Redis (luu OTP quen mat khau, cooldown/rate-limit)
+- PostgreSQL
+- Redis
 - JavaMailSender (SMTP Gmail)
 - OpenAPI/Swagger UI
-- Apache PDFBox (xuat hoa don PDF)
+- Apache PDFBox
 
 ## 3) Kien truc tong the
 
@@ -37,15 +41,16 @@ He thong theo kien truc phan lop:
 - Controller: endpoint REST.
 - Service: nghiep vu.
 - Repository: truy van CSDL.
-- Entity + DTO: domain model va payload vao/ra.
-- Security/JWT: xac thuc va phan quyen.
-- Redis + SMTP: thanh phan ha tang cho OTP va thong bao.
+- Entity + DTO: model va payload request/response.
+- Security/JWT: xac thuc va phan quyen theo role.
+- Redis + SMTP: OTP, refresh token, gui mail thong bao.
+- Gemini integration: chatbot hoi dap va lich su hoi thoai.
 
 ### So do kien truc
 
 ```mermaid
 flowchart LR
-    FE[Frontend Web/App] --> API[Spring Boot REST API]
+    FE[Frontend] --> API[Spring Boot REST API]
 
     subgraph Backend
       SEC[Security + JWT]
@@ -61,17 +66,21 @@ flowchart LR
     R --> PG[(PostgreSQL)]
     S --> REDIS[(Redis)]
     S --> SMTP[SMTP Gmail]
+    S --> GEMINI[Gemini API]
 ```
 
-## 4) Phan quyen endpoint theo role
-
-Theo SecurityConfig hien tai:
+## 4) Phan quyen endpoint theo role (SecurityConfig)
 
 - Public:
+  - OPTIONS /\*\*
+  - /error/\*\*
   - /api/auth/\*\*
+  - /api/chatbot/ask
   - /v3/api-docs/\*\*
   - /swagger-ui/\*\*
   - /swagger-ui.html
+- Authenticated:
+  - /api/chatbot/history/\*\*
 - ADMIN:
   - /api/admin/\*\*
 - RECEPTIONIST, ADMIN:
@@ -80,7 +89,7 @@ Theo SecurityConfig hien tai:
 - DOCTOR, ADMIN:
   - /api/medical-records/\*\*
 - CASHIER, ADMIN:
-  - /api/invoices/\*\* (reserved)
+  - /api/invoices/\*\*
 - CASHIER:
   - /api/cashier/\*\*
 - DOCTOR:
@@ -90,23 +99,32 @@ Theo SecurityConfig hien tai:
 
 ## 5) Cac module nghiep vu
 
-### 5.1 Auth va OTP quen mat khau
+### 5.1 Auth va quan ly token
 
-- Dang nhap: POST /api/auth/login
-- Dang ky benh nhan: POST /api/auth/register/patient
-- Quen mat khau:
-  - POST /api/auth/forgot-password/send-otp
-  - POST /api/auth/forgot-password/verify-otp
-  - POST /api/auth/forgot-password/reset
+- POST /api/auth/login
+- POST /api/auth/register/patient
+- POST /api/auth/refresh
+- POST /api/auth/logout
 
 Dac diem:
 
-- OTP luu tren Redis co TTL.
-- Co cooldown va gioi han tan suat gui OTP.
-- Co gioi han so lan nhap OTP sai.
-- Gui OTP qua email.
+- Access token + refresh token JWT.
+- Refresh token luu/rotate qua Redis.
 
-### 5.2 Benh nhan
+### 5.2 OTP quen mat khau
+
+- POST /api/auth/forgot-password/send-otp
+- POST /api/auth/forgot-password/verify-otp
+- POST /api/auth/forgot-password/reset
+
+Dac diem:
+
+- OTP co TTL.
+- Co cooldown giua 2 lan gui OTP.
+- Co gioi han so lan gui va so lan nhap sai.
+- Gui OTP qua email SMTP.
+
+### 5.3 Benh nhan
 
 - GET /api/patient/profile
 - POST /api/patient/appointments
@@ -115,7 +133,7 @@ Dac diem:
 - GET /api/patient/medical-records
 - GET /api/patient/medical-records/{medicalRecordId}
 
-### 5.3 Le tan
+### 5.4 Le tan
 
 - GET /api/receptionist/appointments/today
 - GET /api/receptionist/appointments/from-booking
@@ -126,15 +144,13 @@ Dac diem:
 - PUT /api/receptionist/appointments/{appointmentId}/waiting-status
 - PUT /api/receptionist/appointments/{appointmentId}/cancel
 
-Ghi chu:
+### 5.5 Bac si va benh an
 
-- Khi approve: chuyen trang thai sang WAITING va gui email thong bao cho benh nhan.
-- Khi cancel boi le tan: chuyen sang CANCELLED_BY_CLINIC va gui email kem ly do tu choi.
-
-### 5.4 Bac si va benh an
+Doctor API:
 
 - GET /api/doctors
 - GET /api/doctors/me/waiting-patients
+- GET /api/doctors/me/completed-patients
 - PUT /api/doctors/{doctorId}/clinic-room
 - GET /api/doctors/appointments/{appointmentId}/patient-history
 - GET /api/doctors/appointments/{appointmentId}/patient-history/{medicalRecordId}
@@ -160,7 +176,7 @@ Medical Record API:
 - PUT /api/medical-records/{id}
 - DELETE /api/medical-records/{id}
 
-### 5.5 Thu ngan
+### 5.6 Thu ngan
 
 - GET /api/cashier/payment-queue
 - GET /api/cashier/payment-records/search
@@ -174,7 +190,7 @@ Medical Record API:
 - POST /api/cashier/invoices/{invoiceId}/print-receipt
 - GET /api/cashier/invoices/{invoiceId}/export-pdf
 
-### 5.6 Admin
+### 5.7 Admin
 
 - GET /api/admin/dashboard
 - GET /api/admin/revenue-report
@@ -195,6 +211,20 @@ Medical Record API:
 - POST /api/admin/services
 - PUT /api/admin/services/{serviceId}/price
 - DELETE /api/admin/services/{serviceId}
+- GET /api/admin/settings
+- GET /api/admin/settings/{settingKey}
+- PUT /api/admin/settings/{settingKey}
+
+### 5.8 AI Chatbot Gemini
+
+- POST /api/chatbot/ask
+- GET /api/chatbot/history
+- DELETE /api/chatbot/history
+
+Ghi chu:
+
+- /api/chatbot/ask cho phep guest va user da dang nhap.
+- /api/chatbot/history va xoa history yeu cau dang nhap.
 
 ## 6) Luong nghiep vu tong quat
 
@@ -204,46 +234,67 @@ sequenceDiagram
     actor R as Le tan
     actor D as Bac si
     actor C as Thu ngan
-    participant A as Auth API
-    participant AP as Appointment API
+    participant AUTH as Auth API
+    participant PAT as Patient API
     participant REC as Receptionist API
-    participant MR as MedicalRecord API
-    participant CA as Cashier API
+    participant DOC as Doctor/MedicalRecord API
+    participant CAS as Cashier API
     participant DB as PostgreSQL
 
-    P->>A: Dang ky/Dang nhap
-    A-->>P: JWT
+    P->>AUTH: Dang ky/Dang nhap
+    AUTH-->>P: JWT
 
-    P->>AP: Dat lich kham
-    AP->>DB: Luu appointment PENDING
+    P->>PAT: Dat lich kham
+    PAT->>DB: Tao appointment
 
-    R->>REC: Approve appointment
-    REC->>DB: Gan doctor + WAITING
+    R->>REC: Duyet/phan bac si
+    REC->>DB: Cap nhat trang thai WAITING
 
-    D->>MR: Tao/hoan tat benh an, don thuoc
-    MR->>DB: Luu medical record + prescription
+    D->>DOC: Kham + tao benh an + ke don + complete
+    DOC->>DB: Luu medical record/prescription/service result
 
-    C->>CA: Aggregate/Confirm payment
-    CA->>DB: Cap nhat invoice va paidAt
+    C->>CAS: Tong hop + xu ly thanh toan
+    CAS->>DB: Cap nhat invoice, paidAt, paymentMethod
 ```
 
-## 7) Cau hinh van hanh
+## 7) Data va ha tang
 
-Trong application.properties hien tai:
+- PostgreSQL:
+  - Luu user/patient/appointment/medical_record/prescription/invoice/room.
+  - Luu chatbot_messages (neu da chay script).
+  - Luu system_settings cho cau hinh dong.
+- Redis:
+  - OTP forgot-password.
+  - Metadata cooldown/rate-limit OTP.
+  - Refresh token.
+- SMTP Gmail:
+  - Gui OTP reset password.
+  - Gui thong bao lien quan dat lich.
 
-- CSDL: PostgreSQL
-- OTP store: Redis
-- Mail: Gmail SMTP
-- server.port=8081
-- spring.jpa.hibernate.ddl-auto=none
+## 8) Cau hinh runtime hien tai (application.properties)
 
-Script ho tro van hanh:
+- DB: spring.datasource.url/username/password (co fallback env DB_URL, DB_USERNAME, DB_PASSWORD).
+- JPA: spring.jpa.hibernate.ddl-auto=update.
+- CORS: app.cors.allowed-origin-patterns.
+- Gemini: ai.gemini.\* (model, endpoint, timeout, context/history).
+- Mail: spring.mail.\*
+- Redis: spring.data.redis.\*
+- OTP policy: auth.forgot-password.otp.\*
+- JWT policy: auth.jwt.\*
+- Logging rolling policy: logging.file._ + logging.logback.rollingpolicy._
+- Port: server.port=${PORT:8081}
 
-- scripts/start-redis.ps1/.cmd
-- scripts/stop-redis.ps1/.cmd
-- scripts/migrate-sqlserver-to-postgres.ps1/.cmd
+## 9) Script van hanh
 
-## 8) Luu y cap nhat tai lieu
+- scripts/start-redis.ps1, scripts/start-redis.cmd
+- scripts/stop-redis.ps1, scripts/stop-redis.cmd
+- scripts/add-chatbot-history-postgres.sql
+- scripts/add-system-settings-postgres.sql
+- scripts/migrate-sqlserver-to-postgres.ps1, scripts/migrate-sqlserver-to-postgres.cmd
+- scripts/MIGRATE_SQLSERVER_TO_POSTGRES.md
+- scripts/check-bom.ps1, scripts/remove-bom.ps1
 
-- Module AI chatbox va endpoint login-legacy khong con trong code hien tai.
-- Tai lieu nay can cap nhat lai moi khi co thay doi endpoint, role, hoac script van hanh.
+## 10) Luu y cap nhat tai lieu
+
+- Tai lieu nay da dong bo voi code backend hien tai (cap nhat 2026-04-20).
+- Khi thay doi endpoint, role mapping, script migration, hoac policy security/cau hinh, can cap nhat lai tai lieu ngay.

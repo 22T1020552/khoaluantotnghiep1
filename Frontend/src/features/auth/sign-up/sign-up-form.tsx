@@ -27,6 +27,10 @@ export function Register() {
   const [formData, setFormData] = useState({
     username: "",
     fullName: "",
+<<<<<<< HEAD
+=======
+    gender: "",
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     phoneNumber: "",
     gmail: "",
     password: "",
@@ -38,7 +42,11 @@ export function Register() {
   const handleRegister = async (e: FormEvent) => {
     e.preventDefault();
 
+<<<<<<< HEAD
     if (!formData.username.trim() || !formData.fullName.trim() || !formData.phoneNumber.trim() || !formData.gmail.trim() || !formData.password) {
+=======
+    if (!formData.username.trim() || !formData.fullName.trim() || !formData.gender || !formData.phoneNumber.trim() || !formData.gmail.trim() || !formData.password) {
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
       setNotice({ type: "error", message: "Vui lòng điền đầy đủ thông tin." });
       return;
     }
@@ -67,6 +75,10 @@ export function Register() {
         username: formData.username.trim(),
         password: formData.password,
         fullName: formData.fullName.trim(),
+<<<<<<< HEAD
+=======
+        gender: formData.gender,
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
         phoneNumber: formData.phoneNumber.trim(),
         gmail: formData.gmail.trim().toLowerCase(),
       });
@@ -139,6 +151,26 @@ export function Register() {
             </div>
 
             <div className={styles.field}>
+<<<<<<< HEAD
+=======
+              <Label htmlFor="gender">
+                Giới tính <span className="text-red-500">*</span>
+              </Label>
+              <select
+                id="gender"
+                className={styles.selectInput}
+                value={formData.gender}
+                onChange={(e) => updateField("gender", e.target.value)}
+              >
+                <option value="">-- Chọn giới tính --</option>
+                <option value="male">Nam</option>
+                <option value="female">Nữ</option>
+                <option value="other">Khác</option>
+              </select>
+            </div>
+
+            <div className={styles.field}>
+>>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
               <Label htmlFor="phoneNumber">
                 Số điện thoại <span className="text-red-500">*</span>
               </Label>
