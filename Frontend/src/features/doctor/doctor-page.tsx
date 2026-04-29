@@ -35,25 +35,31 @@ const mapDoctorAppointmentToUi = (
   item: Awaited<ReturnType<typeof doctorService.getWaitingPatients>>[number],
   queueNumber: number,
   status: "confirmed" | "completed",
-): Appointment => ({
-  id: item.id,
-  patient: {
-    id: item.patient.id,
-    full_name: item.patient.fullName || "Chưa cập nhật",
-    date_of_birth: "",
-    phone_number: item.patient.phoneNumber || "",
-    hometown: "",
-    national_id: item.patient.nationalId || "",
-    insurance_number: item.patient.healthInsuranceNumber || "",
-    gender: item.patient.gender?.toUpperCase() === "FEMALE" ? "female" : "male",
-  },
-  doctor_name: item.doctor?.username || "BS phụ trách",
-  symptoms: item.symptoms || "",
-  scheduled_time: formatTime(item.appointmentTime),
-  appointment_time: item.appointmentTime,
-  queue_number: queueNumber,
-  status,
-});
+): Appointment => {
+  const genderValue = item.patient.gender?.toUpperCase();
+  let gender: "male" | "female" = "male";
+  if (genderValue === "FEMALE" || genderValue === "NỮ") gender = "female";
+  
+  return {
+    id: item.id,
+    patient: {
+      id: item.patient.id,
+      full_name: item.patient.fullName || "Chưa cập nhật",
+      date_of_birth: item.patient.dateOfBirth || "",
+      phone_number: item.patient.phoneNumber || "",
+      hometown: item.patient.hometown || "",
+      national_id: item.patient.nationalId || "",
+      insurance_number: item.patient.healthInsuranceNumber || "",
+      gender,
+    },
+    doctor_name: item.doctor?.username || "BS phụ trách",
+    symptoms: item.symptoms || "",
+    scheduled_time: formatTime(item.appointmentTime),
+    appointment_time: item.appointmentTime,
+    queue_number: queueNumber,
+    status,
+  };
+};
 
 const isPastAppointmentDay = (value?: string | null) => {
   if (!value) return false;

@@ -68,32 +68,7 @@ export function ExaminationModal(props: ExaminationModalProps) {
           />
 
           {/* LỊCH SỬ KHÁM CŨ */}
-          <div className={styles.panelBorder}>
-            <div className={`${styles.flexBetween} ${styles.mb2}`}>
-              <h4 className={styles.titleSmall}>Hồ sơ bệnh án cũ của bệnh nhân</h4>
-              <span className={styles.textSmall}>Đối chiếu tiền sử khám</span>
-            </div>
-
-            {props.historyLoading && <p className={styles.textSmall}>Đang tải lịch sử bệnh án...</p>}
-            {!props.historyLoading && props.historyRows.length === 0 && <p className={styles.textSmall}>Bệnh nhân chưa có hồ sơ khám cũ tại phòng khám.</p>}
-
-            {!props.historyLoading && props.historyRows.length > 0 && (
-              <div className={styles.rowStack}>
-                {props.historyRows.map((row) => (
-                  <div key={row.medicalRecordId} className={styles.itemCard}>
-                    <div className={styles.flexBetween}>
-                      <div>
-                        <p className={styles.textSmall}><strong>Ngày khám:</strong> {formatDate(row.appointmentTime)}</p>
-                        <p className={styles.textSmall}><strong>Chẩn đoán cũ:</strong> {row.oldDiagnosis || "-"}</p>
-                      </div>
-                      <button type="button" className={`${styles.button} ${styles.outline}`} onClick={() => props.onViewHistoryDetail(row.medicalRecordId)}>
-                        Xem chi tiết
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div>
 
             {props.historyDetailLoading && <p className={styles.textSmall}>Đang tải chi tiết hồ sơ...</p>}
             {props.historyDetail && (
