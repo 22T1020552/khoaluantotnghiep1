@@ -36,7 +36,9 @@ export function PharmacyDashboard() {
     const totalMedicationCost = Number(detail.totalMedicineFee || 0);
     const serviceFee = Number(detail.totalServiceFee || 0);
     const totalAmount = Number(detail.totalAmount || 0);
-    const insuranceDiscount = Math.max(totalMedicationCost + serviceFee - totalAmount, 0);
+    const rawInsuranceDiscount = Math.max(totalMedicationCost + serviceFee - totalAmount, 0);
+    const insuranceDiscount = Math.min(rawInsuranceDiscount, serviceFee);
+    const payableServiceAmount = Math.max(serviceFee - insuranceDiscount, 0);
 
     return {
       id: `RX-${detail.invoiceId}`,
@@ -47,7 +49,7 @@ export function PharmacyDashboard() {
       insuranceNumber: insuranceDiscount > 0 ? "Có áp dụng" : "",
       doctor: `HS #${detail.medicalRecordId}`,
       diagnosis: "Theo bệnh án từ bác sĩ",
-      treatment: "Thanh toán và cấp phát thuốc theo đơn",
+      treatment: "Thanh toán dịch vụ khám theo chỉ định",
       prescriptionItems: (detail.medicines || []).map((item) => ({
         medicationId: String(item.medicineId),
         medicationName: item.medicineName,
@@ -66,7 +68,7 @@ export function PharmacyDashboard() {
       serviceItems: detail.services || [],
 >>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
       insuranceDiscount,
-      totalAmount,
+      totalAmount: payableServiceAmount,
       paymentMethod,
     };
   };
@@ -172,8 +174,8 @@ export function PharmacyDashboard() {
       <main className={styles.mainArea}>
         <div className={styles.container}>
           <div className={styles.header}>
-            <h1>Quầy thuốc & Thu ngân</h1>
-            <p>Kê thuốc theo đơn và thanh toán viện phí</p>
+            <h1>Thu ngân phòng khám</h1>
+            <p>Thanh toán phí khám và các dịch vụ được chỉ định</p>
           </div>
 
           {loading && <div className={styles.emptyBox}>Đang tải dữ liệu...</div>}

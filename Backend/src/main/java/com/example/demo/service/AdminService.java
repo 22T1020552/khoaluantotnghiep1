@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.Year;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -648,29 +650,61 @@ public class AdminService {
     private List<AdminRevenueChartPointResponse> buildRevenueChart(
             List<AdminRevenueReportItemResponse> items,
             String groupBy) {
-        TreeMap<String, BigDecimal> bucket = new TreeMap<>();
+        String normalizedGroupBy = groupBy == null ? GROUP_DAY : groupBy;
 
-        for (AdminRevenueReportItemResponse item : items) {
-            if (item.getPaidAt() == null) {
-                continue;
+        return switch (normalizedGroupBy) {
+            case GROUP_MONTH -> {
+                TreeMap<YearMonth, BigDecimal> bucket = new TreeMap<>();
+                for (AdminRevenueReportItemResponse item : items) {
+                    if (item.getPaidAt() == null) {
+                        continue;
+                    }
+                    YearMonth key = YearMonth.from(item.getPaidAt());
+                    BigDecimal amount = item.getTotalAmount() == null ? BigDecimal.ZERO : item.getTotalAmount();
+                    bucket.put(key, bucket.getOrDefault(key, BigDecimal.ZERO).add(amount));
+                }
+
+                List<AdminRevenueChartPointResponse> points = new ArrayList<>();
+                for (var entry : bucket.entrySet()) {
+                    points.add(new AdminRevenueChartPointResponse(entry.getKey().format(MONTH_FORMAT), entry.getValue()));
+                }
+                yield points;
             }
+            case GROUP_YEAR -> {
+                TreeMap<Year, BigDecimal> bucket = new TreeMap<>();
+                for (AdminRevenueReportItemResponse item : items) {
+                    if (item.getPaidAt() == null) {
+                        continue;
+                    }
+                    Year key = Year.of(item.getPaidAt().getYear());
+                    BigDecimal amount = item.getTotalAmount() == null ? BigDecimal.ZERO : item.getTotalAmount();
+                    bucket.put(key, bucket.getOrDefault(key, BigDecimal.ZERO).add(amount));
+                }
 
-            String normalizedGroupBy = groupBy == null ? GROUP_DAY : groupBy;
-            String key = switch (normalizedGroupBy) {
-                case GROUP_MONTH -> item.getPaidAt().format(MONTH_FORMAT);
-                case GROUP_YEAR -> item.getPaidAt().format(YEAR_FORMAT);
-                default -> item.getPaidAt().format(DAY_FORMAT);
-            };
+                List<AdminRevenueChartPointResponse> points = new ArrayList<>();
+                for (var entry : bucket.entrySet()) {
+                    points.add(new AdminRevenueChartPointResponse(entry.getKey().format(YEAR_FORMAT), entry.getValue()));
+                }
+                yield points;
+            }
+            default -> {
+                TreeMap<LocalDate, BigDecimal> bucket = new TreeMap<>();
+                for (AdminRevenueReportItemResponse item : items) {
+                    if (item.getPaidAt() == null) {
+                        continue;
+                    }
+                    LocalDate key = item.getPaidAt().toLocalDate();
+                    BigDecimal amount = item.getTotalAmount() == null ? BigDecimal.ZERO : item.getTotalAmount();
+                    bucket.put(key, bucket.getOrDefault(key, BigDecimal.ZERO).add(amount));
+                }
 
-            BigDecimal amount = item.getTotalAmount() == null ? BigDecimal.ZERO : item.getTotalAmount();
-            bucket.put(key, bucket.getOrDefault(key, BigDecimal.ZERO).add(amount));
-        }
-
-        List<AdminRevenueChartPointResponse> points = new ArrayList<>();
-        for (var entry : bucket.entrySet()) {
-            points.add(new AdminRevenueChartPointResponse(entry.getKey(), entry.getValue()));
-        }
-        return points;
+                List<AdminRevenueChartPointResponse> points = new ArrayList<>();
+                for (var entry : bucket.entrySet()) {
+                    points.add(new AdminRevenueChartPointResponse(entry.getKey().format(DAY_FORMAT), entry.getValue()));
+                }
+                yield points;
+            }
+        };
     }
 
     // Chức năng: xử lý xuất báo cáo sang định dạng CSV byte.

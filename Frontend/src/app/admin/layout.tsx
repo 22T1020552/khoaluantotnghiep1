@@ -10,7 +10,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Activity,
   Building2,
-  ClipboardList,
   LayoutDashboard,
   LogOut,
   Pill,
@@ -34,9 +33,12 @@ const navItems = [
   { href: '/admin/rooms', label: 'Phòng khám', icon: Building2 },
   { href: '/admin/medicines', label: 'Danh mục thuốc', icon: Pill },
   { href: '/admin/services', label: 'Dịch vụ', icon: Activity },
+<<<<<<< HEAD
   { href: '/admin/reports', label: 'Báo cáo', icon: ClipboardList },
 <<<<<<< HEAD
 =======
+=======
+>>>>>>> 35356c066a402fc03e5917b0f20255ed18d8b9d1
   { href: '/admin/settings', label: 'Cấu hình', icon: Settings2 },
 >>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 ];

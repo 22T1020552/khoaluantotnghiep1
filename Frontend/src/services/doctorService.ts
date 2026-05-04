@@ -8,6 +8,8 @@ export interface DoctorPatient {
   healthInsuranceNumber?: string | null;
   phoneNumber?: string | null;
   gmail?: string | null;
+  dateOfBirth?: string | null;
+  hometown?: string | null;
 }
 
 export interface DoctorUser {

@@ -20,7 +20,11 @@
     "next": "^16.2.4",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
+<<<<<<< HEAD
 >>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
+=======
+    "recharts": "^3.8.1",
+>>>>>>> 35356c066a402fc03e5917b0f20255ed18d8b9d1
     "sonner": "^2.0.7"
   },
   "devDependencies": {
