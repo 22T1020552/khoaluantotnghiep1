@@ -15,22 +15,14 @@ import styles from "../booking.module.css";
 interface BookingFormProps {
   onSuccess: (appointmentId: number) => void;
 }
-<<<<<<< HEAD
-
-=======
 //Hàm chuẩn hóa thời gian để backend hiểu được
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 const toApiDateTime = (value: string) => {
   const normalized = value.trim();
   if (!normalized) {
     return normalized;
   }
 
-<<<<<<< HEAD
-  // Backend expects LocalDateTime in yyyy-MM-dd'T'HH:mm:ss.
-=======
   // Backend: yyyy-MM-dd'T'HH:mm:ss.
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   if (normalized.length === 16) {
     return `${normalized}:00`;
   }
@@ -42,10 +34,7 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
-<<<<<<< HEAD
-=======
     gender: "",
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     dateOfBirth: "",
     hometown: "",
     phone: "",
@@ -60,16 +49,6 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
 
     const loadProfile = async () => {
       try {
-<<<<<<< HEAD
-        const profile = await patientService.getProfile();
-        if (!isMounted) {
-          return;
-        }
-
-        setFormData((prev) => ({
-          ...prev,
-          fullName: profile.fullName ?? "",
-=======
         const profile = await patientService.getProfile(); //Lấy thông tin của mình
         if (!isMounted) {
           return;
@@ -79,7 +58,6 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
           ...prev,
           fullName: profile.fullName ?? "",
           gender: profile.gender ?? "",
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
           phone: profile.phoneNumber ?? "",
           idNumber: profile.nationalId ?? "",
           insuranceNumber: profile.healthInsuranceNumber ?? "",
@@ -100,11 +78,7 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
     e.preventDefault();
     const normalizedReason = formData.reason.trim();
 
-<<<<<<< HEAD
-    if (!formData.fullName || !formData.dateOfBirth || !formData.phone || !formData.reason || !formData.appointmentTime) {
-=======
-    if (!formData.fullName || !formData.gender || !formData.dateOfBirth || !formData.phone || !formData.reason || !formData.appointmentTime) {
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
+    if (!formData.fullName || !formData.gender || !formData.phone || !formData.reason || !formData.appointmentTime) {
       toast.error("Vui lòng điền đầy đủ thông tin bắt buộc");
       return;
     }
@@ -113,22 +87,14 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
       toast.error("Lý do khám cần tối thiểu 5 ký tự");
       return;
     }
-<<<<<<< HEAD
-
-=======
     //Gói dữ liệu và gửi lên backend
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     try {
       setSubmitting(true);
       const createdAppointment = await patientService.createAppointment({
         appointmentTime: toApiDateTime(formData.appointmentTime),
         symptoms: normalizedReason,
       });
-<<<<<<< HEAD
-
-=======
       // Gọi callback để thông báo cho component cha biết đã tạo thành công và truyền ID của lịch hẹn mới tạo
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
       onSuccess(createdAppointment.id);
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Không thể đặt lịch khám"));
@@ -148,11 +114,15 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
         <div className={styles.grid}>
           <div className={styles.fullWidth}>
             <Label htmlFor="fullName">Họ và tên <span className={styles.required}>*</span></Label>
-            <Input id="fullName" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} placeholder="Nguyễn Văn A" required />
+            <Input
+              id="fullName"
+              value={formData.fullName}
+              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+              placeholder="Nguyễn Văn A"
+              required
+            />
           </div>
           <div>
-<<<<<<< HEAD
-=======
             <Label htmlFor="gender">Giới tính <span className={styles.required}>*</span></Label>
             <select
               id="gender"
@@ -168,19 +138,38 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
             </select>
           </div>
           <div>
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
-            <Label htmlFor="dateOfBirth">Ngày sinh <span className={styles.required}>*</span></Label>
-            <Input id="dateOfBirth" type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} required />
+            <Label htmlFor="dateOfBirth">Ngày sinh</Label>
+            <Input
+              id="dateOfBirth"
+              type="date"
+              value={formData.dateOfBirth}
+              onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+            />
           </div>
           <div>
             <Label htmlFor="phone">Số điện thoại <span className={styles.required}>*</span></Label>
-            <Input id="phone" type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="0123456789" required />
+            <Input
+              id="phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              placeholder="0123456789"
+              required
+            />
           </div>
           <div className={styles.fullWidth}>
             <Label htmlFor="hometown">Quê quán</Label>
-            <Input id="hometown" value={formData.hometown} onChange={(e) => setFormData({ ...formData, hometown: e.target.value })} placeholder="Thành phố, Tỉnh" />
+            <Input
+              id="hometown"
+              value={formData.hometown}
+              onChange={(e) => setFormData({ ...formData, hometown: e.target.value })}
+              placeholder="Thành phố, Tỉnh"
+            />
           </div>
         </div>
+        <p className={styles.mutedNote}>
+          Thông tin cá nhân được lấy từ hồ sơ bệnh nhân. Bạn có thể chỉnh sửa nếu cần.
+        </p>
       </div>
 
       {/* Giấy tờ tùy thân */}
@@ -192,11 +181,21 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
         <div className={styles.grid}>
           <div>
             <Label htmlFor="idNumber">Số CCCD/CMND</Label>
-            <Input id="idNumber" value={formData.idNumber} onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })} placeholder="001234567890" />
+            <Input
+              id="idNumber"
+              value={formData.idNumber}
+              onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
+              placeholder="001234567890"
+            />
           </div>
           <div>
             <Label htmlFor="insuranceNumber">Số thẻ BHYT</Label>
-            <Input id="insuranceNumber" value={formData.insuranceNumber} onChange={(e) => setFormData({ ...formData, insuranceNumber: e.target.value })} placeholder="DN1234567890123" />
+            <Input
+              id="insuranceNumber"
+              value={formData.insuranceNumber}
+              onChange={(e) => setFormData({ ...formData, insuranceNumber: e.target.value })}
+              placeholder="DN1234567890123"
+            />
           </div>
         </div>
       </div>

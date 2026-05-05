@@ -160,8 +160,6 @@
   font-size: 0.93rem;
 }
 
-<<<<<<< HEAD
-=======
 .keyCell {
   font-family: "Consolas", "Courier New", monospace;
   font-size: 0.85rem;
@@ -169,7 +167,6 @@
   word-break: break-all;
 }
 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 .tableActions {
   display: flex;
   justify-content: flex-end;
@@ -532,8 +529,6 @@
     flex-direction: column;
   }
 }
-<<<<<<< HEAD
-=======
 
 @media (max-width: 900px) {
   .container {
@@ -598,4 +593,3 @@
     font-size: 1rem;
   }
 }
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6

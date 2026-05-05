@@ -3,21 +3,15 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8081";
 const AUTH_STORAGE_KEY = "clinic-auth-session";
 
-<<<<<<< HEAD
-=======
 const DEFAULT_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS ?? 10000);
 const CLIENT_TIMEOUT_STORAGE_KEY = "client.requestTimeoutMs";
 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 export interface StoredAuthSession {
   token: string;
   refreshToken?: string;
   username: string;
   role: string;
-<<<<<<< HEAD
-=======
   clientTimeoutMs?: number;
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 }
 
 export const getStoredAuthSession = (): StoredAuthSession | null => {
@@ -43,8 +37,6 @@ export const saveStoredAuthSession = (session: StoredAuthSession) => {
     return;
   }
 
-<<<<<<< HEAD
-=======
   try {
     const existingRaw = window.localStorage.getItem(AUTH_STORAGE_KEY);
     if (existingRaw) {
@@ -58,7 +50,6 @@ export const saveStoredAuthSession = (session: StoredAuthSession) => {
     }
   } catch {}
 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
 };
 
@@ -88,26 +79,6 @@ const isAuthEndpoint = (url?: string) => {
   ].some((endpoint) => url.includes(endpoint));
 };
 
-<<<<<<< HEAD
-const shouldForceLogoutOnForbidden = (url?: string) => {
-  if (!url) {
-    return false;
-  }
-
-  return [
-    "/api/admin/",
-    "/api/receptionist/",
-    "/api/doctors/",
-    "/api/cashier/",
-    "/api/patient/",
-    "/api/appointments/",
-    "/api/invoices/",
-    "/api/medical-records/",
-  ].some((prefix) => url.includes(prefix));
-};
-
-=======
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 const normalizeRole = (role: unknown) => String(role ?? "").toUpperCase();
 
 export const api = axios.create({
@@ -115,8 +86,6 @@ export const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-<<<<<<< HEAD
-=======
   timeout: (() => {
     try {
       if (typeof window !== "undefined") {
@@ -130,7 +99,6 @@ export const api = axios.create({
 
     return DEFAULT_TIMEOUT_MS;
   })(),
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 });
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
@@ -167,22 +135,6 @@ api.interceptors.response.use(
     const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
     const status = error.response?.status;
 
-<<<<<<< HEAD
-    if (status === 403 && shouldForceLogoutOnForbidden(originalRequest?.url)) {
-      clearStoredAuthSession();
-
-      if (typeof window !== "undefined") {
-        const currentPath = window.location.pathname;
-        if (!currentPath.startsWith("/signin")) {
-          window.location.assign("/signin");
-        }
-      }
-
-      return Promise.reject(error);
-    }
-
-=======
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     if (!originalRequest || status !== 401 || originalRequest._retry || isAuthEndpoint(originalRequest.url)) {
       return Promise.reject(error);
     }
@@ -245,8 +197,6 @@ api.interceptors.response.use(
 
 export const getApiErrorMessage = (error: unknown, fallback = "Không thể kết nối tới máy chủ") => {
   if (axios.isAxiosError(error)) {
-<<<<<<< HEAD
-=======
     const status = error.response?.status;
     const messageText = String(error.message ?? "").toLowerCase();
 
@@ -274,7 +224,6 @@ export const getApiErrorMessage = (error: unknown, fallback = "Không thể kế
       return "Yêu cầu quá thời gian chờ. Vui lòng kiểm tra kết nối mạng hoặc thử lại.";
     }
 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     const responseData = error.response?.data as
       | { message?: string; error?: string; details?: string | Record<string, string> }
       | string
@@ -312,8 +261,6 @@ export const getApiErrorMessage = (error: unknown, fallback = "Không thể kế
 
   return fallback;
 };
-<<<<<<< HEAD
-=======
 
 export const setApiTimeout = (ms: number) => {
   if (typeof ms !== "number" || Number.isNaN(ms) || ms <= 0) return;
@@ -348,4 +295,3 @@ export const setStoredUserClientTimeout = (ms: number) => {
     setApiTimeout(ms);
   } catch {}
 };
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6

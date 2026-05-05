@@ -1,54 +1,34 @@
 'use client';
 
 import { useEffect, useState } from "react";
-<<<<<<< HEAD
-import Link from "next/link";
-=======
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 import { toast } from "sonner";
 
 import { DashboardStats } from "./components/dashboard-stats";
 import { PendingAppointments } from "./components/pending-appointment";
 import { ConfirmedAppointments } from "./components/confirm-appointment";
-<<<<<<< HEAD
-=======
 import { CancelledAppointments } from "./components/cancelled-appointment";
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 import { ConfirmModal } from "./components/confirm-modal";
 import { useReceptionistDashboard } from "@/hooks/useReceptionistDashboard";
 import { getApiErrorMessage } from "@/services/api";
 import { receptionistService, type ReceptionistAppointment } from "@/services/receptionistService";
 import styles from "@/styles/common.module.css";
 
-<<<<<<< HEAD
-interface ReceptionistDashboardProps {
-  routeView?: "all" | "pending" | "confirmed";
-}
-
-export function ReceptionistDashboard({ routeView = "all" }: ReceptionistDashboardProps) {
-=======
 export function ReceptionistDashboard() {
   // Thành phần chính của lễ tân: hiển thị lịch hẹn chờ xác nhận/đã xác nhận và thao tác duyệt/hủy.
   const [activeView, setActiveView] = useState<"all" | "pending" | "confirmed" | "cancelled">("all");
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   const [selectedAppointment, setSelectedAppointment] = useState<ReceptionistAppointment | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     pendingAppointments,
     confirmedAppointments,
-<<<<<<< HEAD
-=======
     cancelledAppointments,
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     doctorOptions,
     totalCount,
     isLoading,
     loadDashboardData,
   } = useReceptionistDashboard();
 
-<<<<<<< HEAD
-=======
   const isOverdueAppointment = (appointment: ReceptionistAppointment) => {
     const appointmentTimestamp = new Date(appointment.appointmentTime).getTime();
     if (Number.isNaN(appointmentTimestamp)) {
@@ -107,7 +87,6 @@ export function ReceptionistDashboard() {
   })();
 
   // Tìm tên phòng theo doctorId để hiển thị ở danh sách lịch đã xác nhận.
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   const resolveRoomName = (doctorId?: number) => {
     if (!doctorId) {
       return "Chưa có";
@@ -118,11 +97,6 @@ export function ReceptionistDashboard() {
   };
 
   useEffect(() => {
-<<<<<<< HEAD
-    loadDashboardData().catch((error) => {
-      toast.error(getApiErrorMessage(error, "Không thể tải dữ liệu lễ tân"));
-    });
-=======
     let disposed = false;
 
     const refresh = async (showErrorToast: boolean) => {
@@ -145,7 +119,6 @@ export function ReceptionistDashboard() {
       disposed = true;
       window.clearInterval(intervalId);
     };
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   }, [loadDashboardData]);
 
   // Xử lý khi Lễ tân bấm nút "Xác nhận" trên thẻ lịch hẹn
@@ -154,10 +127,7 @@ export function ReceptionistDashboard() {
   };
 
   // Xử lý khi Lễ tân submit form trong Modal
-<<<<<<< HEAD
-=======
   // Chuẩn hóa datetime-local sang định dạng LocalDateTime backend mong đợi.
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   const toApiDateTime = (value: string) => {
     const normalized = value.trim();
     if (!normalized) {
@@ -171,13 +141,10 @@ export function ReceptionistDashboard() {
     return normalized;
   };
 
-<<<<<<< HEAD
-=======
   // Xác nhận lịch hẹn với bác sĩ và thời gian đã chọn.
   // Bước 1: Kiểm tra đã có lịch hẹn đang chọn.
   // Bước 2: Gọi API approve để gán bác sĩ + giờ khám.
   // Bước 3: Đóng modal, reload dữ liệu và hiển thị thông báo.
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   const handleConfirmAppointment = async (doctorId: number, appointmentTime: string) => {
     if (!selectedAppointment) {
       return;
@@ -201,10 +168,7 @@ export function ReceptionistDashboard() {
   };
 
   // Xử lý khi Lễ tân bấm Hủy
-<<<<<<< HEAD
-=======
   // Hủy lịch hẹn sau khi người dùng xác nhận, sau đó tải lại dashboard.
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   const handleCancelAppointment = async (id: number) => {
     if (!confirm("Bạn có chắc muốn hủy lịch hẹn này?")) {
       return;
@@ -232,36 +196,12 @@ export function ReceptionistDashboard() {
           </div>
 
           <DashboardStats 
-<<<<<<< HEAD
-            pendingCount={pendingAppointments.length} 
-=======
             pendingCount={visiblePendingAppointments.length} 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
             confirmedCount={confirmedAppointments.length} 
             totalCount={totalCount} 
           />
 
           <div className={styles.flexRow}>
-<<<<<<< HEAD
-            <Link
-              href="/receptionist"
-              className={`${styles.button} ${routeView === "all" ? styles.primary : styles.outline}`}
-            >
-              Tất cả
-            </Link>
-            <Link
-              href="/receptionist/pending"
-              className={`${styles.button} ${routeView === "pending" ? styles.primary : styles.outline}`}
-            >
-              Chờ xác nhận
-            </Link>
-            <Link
-              href="/receptionist/confirmed"
-              className={`${styles.button} ${routeView === "confirmed" ? styles.primary : styles.outline}`}
-            >
-              Đã xác nhận
-            </Link>
-=======
             <button
               type="button"
               className={`${styles.button} ${activeView === "all" ? styles.primary : styles.outline}`}
@@ -290,7 +230,6 @@ export function ReceptionistDashboard() {
             >
               Đã hủy
             </button>
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
           </div>
 
           {isLoading && (
@@ -301,33 +240,21 @@ export function ReceptionistDashboard() {
             </div>
           )}
 
-<<<<<<< HEAD
-          {!isLoading && routeView !== "confirmed" && (
-            <PendingAppointments 
-              appointments={pendingAppointments} 
-=======
           {!isLoading && (activeView === "all" || activeView === "pending") && (
             <PendingAppointments 
               appointments={visiblePendingAppointments} 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
               onConfirmClick={handleOpenConfirmModal} 
               onCancelClick={handleCancelAppointment} 
               disabled={isSubmitting}
             />
           )}
 
-<<<<<<< HEAD
-          {!isLoading && routeView !== "pending" && (
-=======
           {!isLoading && (activeView === "all" || activeView === "confirmed") && (
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
             <ConfirmedAppointments 
               appointments={confirmedAppointments} 
               resolveRoomName={resolveRoomName}
             />
           )}
-<<<<<<< HEAD
-=======
 
           {!isLoading && activeView === "cancelled" && (
             <CancelledAppointments
@@ -335,7 +262,6 @@ export function ReceptionistDashboard() {
               resolveRoomName={resolveRoomName}
             />
           )}
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
         </div>
       </main>
 
@@ -347,11 +273,7 @@ export function ReceptionistDashboard() {
           onConfirm={handleConfirmAppointment}
           submitting={isSubmitting}
         />
-<<<<<<< HEAD
-      )}
-=======
       )}  
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     </>
   );
 }

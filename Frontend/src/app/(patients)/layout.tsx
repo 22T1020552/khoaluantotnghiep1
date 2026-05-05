@@ -15,11 +15,8 @@ import {
   FileText,
   Receipt,
   LogOut,
-<<<<<<< HEAD
-=======
   Menu,
   X,
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 } from 'lucide-react';
 
 export default function PatientsLayout({
@@ -31,10 +28,7 @@ export default function PatientsLayout({
   const router = useRouter();
   const { username, logout } = useAuth();
   const [displayName, setDisplayName] = useState('Bệnh nhân');
-<<<<<<< HEAD
-=======
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 
   useEffect(() => {
     let isMounted = true;
@@ -67,13 +61,10 @@ export default function PatientsLayout({
     };
   }, [username]);
 
-<<<<<<< HEAD
-=======
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   const handleLogout = async () => {
     await logout();
     toast.success('Đăng xuất thành công');
@@ -85,11 +76,6 @@ export default function PatientsLayout({
   return (
     <div className={styles.container}>
       <aside className={styles.sidebar}>
-<<<<<<< HEAD
-        <BrandLogo className={styles.logoContainer} />
-
-        <nav className={styles.nav}>
-=======
         <div className={styles.mobileTopBar}>
           <button
             type="button"
@@ -119,7 +105,6 @@ export default function PatientsLayout({
         <BrandLogo className={styles.logoContainer} />
 
         <nav className={`${styles.nav} ${mobileMenuOpen ? '' : styles.navCollapsed}`}>
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
           <Link
             href="/dashboard"
             className={`${styles.navItem} ${isActive('/dashboard') ? styles.active : ''}`}
@@ -146,11 +131,7 @@ export default function PatientsLayout({
           </Link>
         </nav>
 
-<<<<<<< HEAD
-        <div className={styles.sidebarFooter}>
-=======
         <div className={`${styles.sidebarFooter} ${styles.desktopSidebarFooter}`}>
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
           <div className={styles.userInfo}>
             <img src="https://github.com/shadcn.png" alt="Avatar" className={styles.avatar} />
             <div>

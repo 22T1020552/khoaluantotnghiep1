@@ -1,23 +1,3 @@
-<<<<<<< HEAD
-import styles from "@/styles/common.module.css";
-
-interface MedicalRecordFormProps {
-  diagnosis: string;
-  doctorAdvice: string;
-  onChange: (field: string, value: string) => void;
-}
-
-export function MedicalRecordForm({ diagnosis, doctorAdvice, onChange }: MedicalRecordFormProps) {
-  return (
-    <>
-      <div className={styles.formGroup}>
-        <label className={styles.label}>Chẩn đoán *</label>
-        <textarea
-          className={styles.input}
-          rows={3}
-          value={diagnosis}
-          onChange={(e) => onChange("diagnosis", e.target.value)}
-=======
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import styles from "@/styles/common.module.css";
@@ -49,23 +29,11 @@ export function MedicalRecordForm(props: MedicalRecordFormProps) {
           rows={3}
           value={props.medicalRecord.diagnosis}
           onChange={(e) => props.onChange("diagnosis", e.target.value)}
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
           placeholder="Nhập chẩn đoán..."
         />
       </div>
 
       <div className={styles.formGroup}>
-<<<<<<< HEAD
-        <label className={styles.label}>Phương pháp điều trị / Lời khuyên *</label>
-        <textarea
-          className={styles.input}
-          rows={3}
-          value={doctorAdvice}
-          onChange={(e) => onChange("doctor_advice", e.target.value)}
-          placeholder="Nhập lời khuyên điều trị..."
-        />
-      </div>
-=======
         <Label className={styles.label}>Phương pháp điều trị / Lời khuyên *</Label>
         <Textarea
           className={styles.input}
@@ -103,7 +71,6 @@ export function MedicalRecordForm(props: MedicalRecordFormProps) {
           </div>
         )}
       </div>
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     </>
   );
 }

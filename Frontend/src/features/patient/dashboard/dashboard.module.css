@@ -93,8 +93,6 @@
   border-top: 1px solid #e2e8f0;
 }
 
-<<<<<<< HEAD
-=======
 .mobileTopBar {
   display: none;
 }
@@ -145,7 +143,6 @@
   cursor: pointer;
 }
 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 .userInfo {
   display: flex;
   align-items: center;
@@ -367,8 +364,6 @@
   background: transparent;
   cursor: pointer;
   color: #dc2626;
-<<<<<<< HEAD
-=======
 }
 
 @media (max-width: 1024px) {
@@ -511,5 +506,4 @@
   .mobileUserMeta {
     display: none;
   }
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 }

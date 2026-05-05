@@ -170,8 +170,6 @@
 
 .submitBtn {
   flex: 1;
-<<<<<<< HEAD
-=======
 }
 
 .selectInput {
@@ -189,5 +187,9 @@
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
+}
+
+.mutedNote {
+  font-size: 0.875rem;
+  color: #6b7280;
 }

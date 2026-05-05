@@ -3,10 +3,7 @@ import { api } from "./api";
 export interface PatientProfileResponse {
   patientId: number;
   fullName: string;
-<<<<<<< HEAD
-=======
   gender: string;
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
   nationalId: string;
   phoneNumber: string;
   healthInsuranceNumber: string;

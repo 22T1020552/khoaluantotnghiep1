@@ -49,10 +49,6 @@ export interface AdminDashboardData {
   thisMonthAppointments: number;
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
 export interface AdminRevenueChartPoint {
   period: string;
   revenue: number;
@@ -86,7 +82,6 @@ export interface AdminRevenueReportResponse {
   message: string;
 }
 
->>>>>>> 35356c066a402fc03e5917b0f20255ed18d8b9d1
 export interface AdminSystemSetting {
   settingKey: string;
   settingValue: string;
@@ -94,7 +89,6 @@ export interface AdminSystemSetting {
   source: "DATABASE" | "APPLICATION_PROPERTIES" | "EMPTY";
 }
 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 export const adminService = {
   async getDashboard() {
     const response = await api.get<AdminDashboardData>("/api/admin/dashboard");
@@ -226,8 +220,6 @@ export const adminService = {
   async deactivateMedicalService(serviceId: number) {
     await api.delete(`/api/admin/services/${serviceId}`);
   },
-<<<<<<< HEAD
-=======
 
   async getSettings() {
     const response = await api.get<AdminSystemSetting[]>("/api/admin/settings");
@@ -248,5 +240,4 @@ export const adminService = {
     });
     return response.data;
   },
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 };

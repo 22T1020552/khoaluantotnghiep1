@@ -105,20 +105,10 @@ export function PatientInvoices() {
     return invoices.reduce((sum, item) => sum + item.serviceTotal, 0);
   }, [invoices]);
 
-<<<<<<< HEAD
-=======
   const totalExaminationCost = useMemo(() => {
     return invoices.reduce((sum, item) => sum + item.serviceTotal, 0);
   }, [invoices]);
 
-<<<<<<< HEAD
-  const totalMedicineCost = useMemo(() => {
-    return invoices.reduce((sum, item) => sum + item.medicineTotal, 0);
-  }, [invoices]);
-
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
-=======
->>>>>>> 35356c066a402fc03e5917b0f20255ed18d8b9d1
   return (
     <main className={styles.page}>
       <section className={styles.headerSection}>
@@ -134,20 +124,10 @@ export function PatientInvoices() {
           <p className={styles.statValue}>{invoices.length}</p>
         </Card>
         <Card className={styles.statCard}>
-<<<<<<< HEAD
-=======
           <p className={styles.statLabel}>Tổng chi phí khám</p>
           <p className={styles.statValue}>{totalExaminationCost.toLocaleString("vi-VN")}đ</p>
         </Card>
         <Card className={styles.statCard}>
-<<<<<<< HEAD
-          <p className={styles.statLabel}>Tổng tiền thuốc</p>
-          <p className={styles.statValue}>{totalMedicineCost.toLocaleString("vi-VN")}đ</p>
-        </Card>
-        <Card className={styles.statCard}>
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
-=======
->>>>>>> 35356c066a402fc03e5917b0f20255ed18d8b9d1
           <p className={styles.statLabel}>Tổng đã thanh toán</p>
           <p className={styles.statValue}>{totalPaid.toLocaleString("vi-VN")}đ</p>
         </Card>
@@ -189,11 +169,7 @@ export function PatientInvoices() {
                 <p className={styles.diagnosis}>Chẩn đoán: {invoice.diagnosis ?? "Chưa cập nhật"}</p>
 
                 <div className={styles.amountRow}>
-<<<<<<< HEAD
-                  <span>Tiền dịch vụ</span>
-=======
                   <span>Chi phí khám</span>
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
                   <strong>{invoice.serviceTotal.toLocaleString("vi-VN")}đ</strong>
                 </div>
 

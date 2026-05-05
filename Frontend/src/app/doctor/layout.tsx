@@ -1,18 +1,11 @@
 'use client';
 
 import React from 'react';
-<<<<<<< HEAD
-import Link from 'next/link';
-import { LayoutDashboard, LogOut } from 'lucide-react';
-import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
-=======
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, LogOut, Menu, X } from 'lucide-react';
 import { toast } from 'sonner';
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 import { BrandLogo } from '@/components/layout/brand-logo';
 import { useAuth } from '@/hooks/useAuth';
 import styles from '@/styles/common.module.css';
@@ -22,10 +15,6 @@ export default function DoctorLayout({
 }: {
   children: React.ReactNode;
 }) {
-<<<<<<< HEAD
-  const router = useRouter();
-  const { username, logout } = useAuth();
-=======
   const pathname = usePathname();
   const router = useRouter();
   const { username, logout } = useAuth();
@@ -34,7 +23,6 @@ export default function DoctorLayout({
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 
   const handleLogout = async () => {
     await logout();
@@ -45,11 +33,6 @@ export default function DoctorLayout({
   return (
     <div className={styles.pageLayout}>
       <aside className={styles.sidebar}>
-<<<<<<< HEAD
-        <BrandLogo className={styles.logoContainer} />
-
-        <nav className={styles.nav}>
-=======
         <div className={styles.mobileTopBar}>
           <button
             type="button"
@@ -79,17 +62,12 @@ export default function DoctorLayout({
         <BrandLogo className={styles.logoContainer} />
 
         <nav className={`${styles.nav} ${mobileMenuOpen ? '' : styles.navCollapsed}`}>
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
           <Link href="/doctor" className={`${styles.navItem} ${styles.active}`}>
             <LayoutDashboard size={20} /> Tổng quan
           </Link>
         </nav>
 
-<<<<<<< HEAD
-        <div className={styles.sidebarFooter}>
-=======
         <div className={`${styles.sidebarFooter} ${styles.desktopSidebarFooter}`}>
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
           <div className={styles.userInfo}>
             <img src="https://github.com/shadcn.png" alt="Avatar" className={styles.avatar} />
             <div>

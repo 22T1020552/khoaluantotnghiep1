@@ -1,16 +1,10 @@
 'use client';
 
 import React from 'react';
-<<<<<<< HEAD
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, LogOut, Receipt } from 'lucide-react';
-=======
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, LogOut, Receipt, Menu, X } from 'lucide-react';
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 import { toast } from 'sonner';
 import { BrandLogo } from '@/components/layout/brand-logo';
 import { useAuth } from '@/hooks/useAuth';
@@ -24,14 +18,11 @@ export default function CashierLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { username, logout } = useAuth();
-<<<<<<< HEAD
-=======
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 
   const handleLogout = async () => {
     await logout();
@@ -45,11 +36,6 @@ export default function CashierLayout({
   return (
     <div className={styles.pageLayout}>
       <aside className={styles.sidebar}>
-<<<<<<< HEAD
-        <BrandLogo className={styles.logoContainer} />
-
-        <nav className={styles.nav}>
-=======
         <div className={styles.mobileTopBar}>
           <button
             type="button"
@@ -79,7 +65,6 @@ export default function CashierLayout({
         <BrandLogo className={styles.logoContainer} />
 
         <nav className={`${styles.nav} ${mobileMenuOpen ? '' : styles.navCollapsed}`}>
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
           <Link href="/cashier" className={`${styles.navItem} ${isPaymentActive ? styles.active : ''}`}>
             <LayoutDashboard size={20} /> Thanh toán
           </Link>
@@ -88,11 +73,7 @@ export default function CashierLayout({
           </Link>
         </nav>
 
-<<<<<<< HEAD
-        <div className={styles.sidebarFooter}>
-=======
         <div className={`${styles.sidebarFooter} ${styles.desktopSidebarFooter}`}>
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
           <div className={styles.userInfo}>
             <img src="https://github.com/shadcn.png" alt="Avatar" className={styles.avatar} />
             <div>

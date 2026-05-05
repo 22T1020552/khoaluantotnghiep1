@@ -6,8 +6,6 @@ import { DollarSign } from "lucide-react";
 import { Prescription } from "@/types/pharmacy.type";
 import styles from "../cashier.module.css";
 
-<<<<<<< HEAD
-=======
 const normalizeServiceName = (value: string) =>
   value
     .normalize("NFD")
@@ -26,15 +24,11 @@ const isConsultationServiceName = (serviceName?: string | null) => {
   );
 };
 
-<<<<<<< HEAD
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
-=======
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(
     amount,
   );
 
->>>>>>> 35356c066a402fc03e5917b0f20255ed18d8b9d1
 interface PaymentDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,12 +58,6 @@ function PaymentDialog({
 }: PaymentDialogProps) {
   if (!prescription) return null;
 
-<<<<<<< HEAD
-  const payableAmount = Math.max(
-    0,
-    prescription.totalMedicationCost +
-      parseFloat(paymentData.serviceFee || "0") -
-=======
   const serviceItems = prescription.serviceItems ?? [];
   const totalServiceFee = parseFloat(paymentData.serviceFee || "0");
   const consultationServices = serviceItems.filter((item) => isConsultationServiceName(item.serviceName));
@@ -83,14 +71,7 @@ function PaymentDialog({
 
   const payableAmount = Math.max(
     0,
-<<<<<<< HEAD
-    prescription.totalMedicationCost +
-      totalServiceFee -
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
-      parseFloat(paymentData.insuranceDiscount || "0"),
-=======
     totalServiceFee - insuranceDiscount,
->>>>>>> 35356c066a402fc03e5917b0f20255ed18d8b9d1
   );
 
   const bankBin = process.env.NEXT_PUBLIC_CLINIC_BANK_BIN?.trim();
@@ -197,13 +178,6 @@ function PaymentDialog({
 
             <div className={styles.summaryBox}>
               <div className={styles.summaryList}>
-<<<<<<< HEAD
-                <div className={styles.summaryRow}><span className={styles.summaryMuted}>Tiền thuốc:</span><span className={styles.amountValue}>{prescription.totalMedicationCost.toLocaleString("vi-VN")}đ</span></div>
-<<<<<<< HEAD
-                <div className={styles.summaryRow}><span className={styles.summaryMuted}>Phí khám:</span><span className={styles.amountValue}>{parseFloat(paymentData.serviceFee || "0").toLocaleString("vi-VN")}đ</span></div>
-=======
-=======
->>>>>>> 35356c066a402fc03e5917b0f20255ed18d8b9d1
                 {serviceItems.length > 0 && consultationFee > 0 ? (
                   <>
                     <div className={styles.summaryRow}>
@@ -234,12 +208,7 @@ function PaymentDialog({
                 ) : (
                   <div className={styles.summaryRow}><span className={styles.summaryMuted}>Phí khám:</span><span className={styles.amountValue}>{formatCurrency(totalServiceFee)}</span></div>
                 )}
-<<<<<<< HEAD
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
-                {paymentData.insuranceDiscount && parseFloat(paymentData.insuranceDiscount) > 0 && (
-=======
                 {insuranceDiscount > 0 && (
->>>>>>> 35356c066a402fc03e5917b0f20255ed18d8b9d1
                   <div className={`${styles.summaryRow} ${styles.summaryDiscount}`}>
                     <span>Giảm trừ BHYT (70%):</span><span className={styles.amountValue}>-{formatCurrency(insuranceDiscount)}</span>
                   </div>

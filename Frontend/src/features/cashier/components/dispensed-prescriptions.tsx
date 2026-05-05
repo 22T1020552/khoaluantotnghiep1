@@ -4,16 +4,11 @@ import { CheckCircle } from "lucide-react";
 import { Prescription } from "@/types/pharmacy.type";
 import styles from "../cashier.module.css";
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(
     amount,
   );
 
->>>>>>> 35356c066a402fc03e5917b0f20255ed18d8b9d1
 const normalizeServiceName = (value: string) =>
   value
     .normalize("NFD")
@@ -32,7 +27,6 @@ const isConsultationServiceName = (serviceName?: string | null) => {
   );
 };
 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 interface DispensedPrescriptionsProps {
   prescriptions: Prescription[];
 }
@@ -46,54 +40,6 @@ function DispensedPrescriptions({ prescriptions }: DispensedPrescriptionsProps) 
       <div className={styles.doneGrid}>
         {prescriptions.map((prescription, idx) => (
           <Card key={`${prescription.id}-${prescription.invoiceId ?? "na"}-${idx}`} className={styles.doneCard}>
-<<<<<<< HEAD
-            <div className={styles.doneHeader}>
-              <div>
-                <h3 className={styles.doneName}>{prescription.patientName}</h3>
-                <p className={styles.donePhone}>{prescription.phone}</p>
-              </div>
-              <Badge className={styles.doneBadge}>Đã thanh toán</Badge>
-            </div>
-
-            <div className={styles.amountList}>
-              <div className={styles.amountRow}>
-                <span className={styles.amountLabel}>Bác sĩ:</span>
-                <span className={styles.amountValue}>{prescription.doctor}</span>
-              </div>
-              <div className={styles.amountRow}>
-                <span className={styles.amountLabel}>Ngày khám:</span>
-                <span className={styles.amountValue}>
-                  {new Date(prescription.date).toLocaleDateString("vi-VN")}
-                </span>
-              </div>
-              <div className={`${styles.amountRow} ${styles.amountBorder}`}>
-                <span className={styles.amountLabel}>Tiền thuốc:</span>
-                <span className={styles.amountValue}>
-                  {prescription.totalMedicationCost.toLocaleString("vi-VN")}đ
-                </span>
-              </div>
-              <div className={styles.amountRow}>
-                <span className={styles.amountLabel}>Phí khám:</span>
-                <span className={styles.amountValue}>
-                  {prescription.serviceFee?.toLocaleString("vi-VN")}đ
-                </span>
-              </div>
-              {prescription.insuranceDiscount && prescription.insuranceDiscount > 0 && (
-                <div className={`${styles.amountRow} ${styles.discountRow}`}>
-                  <span>Giảm trừ BHYT:</span>
-                  <span className={styles.amountValue}>
-                    -{prescription.insuranceDiscount.toLocaleString("vi-VN")}đ
-                  </span>
-                </div>
-              )}
-              <div className={`${styles.amountRow} ${styles.totalRow}`}>
-                <span className={styles.totalLabel}>Tổng cộng:</span>
-                <span className={styles.totalValue}>
-                  {prescription.totalAmount?.toLocaleString("vi-VN")}đ
-                </span>
-              </div>
-            </div>
-=======
             {(() => {
               const serviceItems = prescription.serviceItems ?? [];
               const totalServiceFee = prescription.serviceFee ?? 0;
@@ -179,7 +125,6 @@ function DispensedPrescriptions({ prescriptions }: DispensedPrescriptionsProps) 
                 </>
               );
             })()}
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
           </Card>
         ))}
 

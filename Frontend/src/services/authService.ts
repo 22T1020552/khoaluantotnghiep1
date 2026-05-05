@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import { clearStoredAuthSession, getStoredAuthSession, saveStoredAuthSession, api } from "./api";
-=======
 import { clearStoredAuthSession, getStoredAuthSession, saveStoredAuthSession, api, setApiTimeout } from "./api";
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 import type {
   AuthResponse,
   AuthSession,
@@ -92,13 +88,10 @@ export const authService = {
     const response = await api.post<AuthResponse>("/api/auth/refresh", { refreshToken });
     const session = toSession(response.data);
     saveStoredAuthSession(session);
-<<<<<<< HEAD
-=======
     try {
       const s = getStoredAuthSession();
       if (s?.clientTimeoutMs) setApiTimeout(Number(s.clientTimeoutMs));
     } catch {}
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     return session;
   },
 
@@ -117,13 +110,10 @@ export const authService = {
       }
     }
 
-<<<<<<< HEAD
-=======
     try {
       if (stored?.clientTimeoutMs) setApiTimeout(Number(stored.clientTimeoutMs));
     } catch {}
 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     return stored;
   },
 
@@ -131,13 +121,10 @@ export const authService = {
     const response = await api.post<AuthResponse>("/api/auth/login", payload);
     const session = toSession(response.data);
     saveStoredAuthSession(session);
-<<<<<<< HEAD
-=======
     try {
       const s = getStoredAuthSession();
       if (s?.clientTimeoutMs) setApiTimeout(Number(s.clientTimeoutMs));
     } catch {}
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     return session;
   },
 
@@ -145,13 +132,10 @@ export const authService = {
     const response = await api.post<AuthResponse>("/api/auth/register/patient", payload);
     const session = toSession(response.data);
     saveStoredAuthSession(session);
-<<<<<<< HEAD
-=======
     try {
       const s = getStoredAuthSession();
       if (s?.clientTimeoutMs) setApiTimeout(Number(s.clientTimeoutMs));
     } catch {}
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     return session;
   },
 
