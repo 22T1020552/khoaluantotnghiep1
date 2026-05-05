@@ -24,11 +24,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-<<<<<<< HEAD
-=======
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
@@ -58,13 +55,9 @@ import com.example.demo.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 
 @Service
+@SuppressWarnings("null")
 public class GeminiChatbotService {
-
-<<<<<<< HEAD
-=======
     private static final Logger logger = LoggerFactory.getLogger(GeminiChatbotService.class);
-
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     private static final String MESSAGE_ROLE_USER = "USER";
     private static final String MESSAGE_ROLE_ASSISTANT = "ASSISTANT";
 
@@ -130,13 +123,6 @@ public class GeminiChatbotService {
             throw AppException.of(HttpStatus.BAD_REQUEST, "Nội dung câu hỏi là bắt buộc");
         }
 
-<<<<<<< HEAD
-        User user = resolveUserIfAuthenticated(username);
-        List<ChatbotMessage> recentHistory = user == null
-                ? List.of()
-                : loadRecentMessages(user.getId(), normalizeHistoryContextLimit());
-        String businessContext = buildBusinessContext(normalizedMessage, user);
-=======
         User user = null;
         List<ChatbotMessage> recentHistory = List.of();
         String businessContext;
@@ -144,18 +130,17 @@ public class GeminiChatbotService {
         try {
             user = resolveUserIfAuthenticated(username);
             recentHistory = user == null
-                ? List.of()
-                : loadRecentMessages(user.getId(), normalizeHistoryContextLimit());
+                    ? List.of()
+                    : loadRecentMessages(user.getId(), normalizeHistoryContextLimit());
             businessContext = buildBusinessContext(normalizedMessage, user);
         } catch (Exception contextError) {
             logger.warn("Không thể nạp ngữ cảnh hội thoại cho user '{}': {}. Hệ thống sẽ tiếp tục ở chế độ guest.",
-                username,
-                contextError.getMessage());
+                    username,
+                    contextError.getMessage());
             user = null;
             recentHistory = List.of();
             businessContext = buildBusinessContext(normalizedMessage, null);
         }
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 
         URI uri = buildGenerateContentUri();
 
@@ -184,16 +169,12 @@ public class GeminiChatbotService {
             String answer = extractAnswer(body);
 
             if (user != null) {
-<<<<<<< HEAD
-                saveHistoryExchange(user, normalizedMessage, answer);
-=======
                 try {
                     saveHistoryExchange(user, normalizedMessage, answer);
                 } catch (Exception persistenceError) {
                     logger.warn("Không thể lưu lịch sử chatbot cho user {}: {}", user.getId(),
                             persistenceError.getMessage());
                 }
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
             }
 
             return new ChatbotAskResponse(answer, geminiProperties.getModel());

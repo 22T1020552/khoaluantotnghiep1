@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class SystemSettingService {
 
     private static final Pattern KEY_PATTERN = Pattern.compile("[a-zA-Z0-9._-]{1,120}");

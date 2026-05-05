@@ -52,6 +52,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class MedicalRecordService {
 
     private static final String STATUS_WAITING = "WAITING";
@@ -132,13 +133,9 @@ public class MedicalRecordService {
 
     // Chức năng: xử lý get by appointment id.
     public MedicalRecord getByAppointmentId(Long appointmentId) {
-<<<<<<< HEAD
-        return medicalRecordRepository.findByAppointment_Id(appointmentId)
-=======
         return medicalRecordRepository.findAllByAppointment_IdOrderByCreatedAtDescIdDesc(appointmentId)
-            .stream()
-            .findFirst()
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
+                .stream()
+                .findFirst()
                 .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND,
                         "Không tìm thấy bệnh án theo lịch hẹn"));
     }
@@ -769,4 +766,3 @@ public class MedicalRecordService {
         }
     }
 }
-

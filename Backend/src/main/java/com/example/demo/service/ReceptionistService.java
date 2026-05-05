@@ -26,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class ReceptionistService {
 
     public static final String STATUS_PENDING_CONFIRMATION = "PENDING";
@@ -47,6 +48,14 @@ public class ReceptionistService {
             STATUS_WAITING,
             STATUS_IN_PROGRESS,
             STATUS_COMPLETED);
+
+    private static final Set<String> RECEPTIONIST_QUERY_STATUSES = Set.of(
+            STATUS_PENDING_CONFIRMATION,
+            STATUS_WAITING,
+            STATUS_IN_PROGRESS,
+            STATUS_COMPLETED,
+            STATUS_CANCELLED,
+            STATUS_CANCELLED_BY_CLINIC);
 
     private final AppointmentRepository appointmentRepository;
     private final UserRepository userRepository;
@@ -109,10 +118,15 @@ public class ReceptionistService {
         }
 
         String normalizedStatus = normalizeStatus(status);
-        if (!WAITING_STATUSES.contains(normalizedStatus)) {
+        if (!RECEPTIONIST_QUERY_STATUSES.contains(normalizedStatus)) {
             throw AppException.of(
                     HttpStatus.BAD_REQUEST,
-                    "Trạng thái không hợp lệ. Cho phép: PENDING, WAITING, IN_PROGRESS, COMPLETED");
+                    "Trạng thái không hợp lệ. Cho phép: PENDING, WAITING, IN_PROGRESS, COMPLETED, CANCELLED");
+        }
+
+        if (STATUS_CANCELLED.equals(normalizedStatus)) {
+            return appointmentRepository.findByStatusInOrderByAppointmentTimeAsc(
+                    List.of(STATUS_CANCELLED, STATUS_CANCELLED_BY_CLINIC));
         }
 
         return appointmentRepository.findByStatusOrderByAppointmentTimeAsc(normalizedStatus);
@@ -306,4 +320,3 @@ public class ReceptionistService {
         return left.toLowerCase(Locale.ROOT).contains(right.toLowerCase(Locale.ROOT));
     }
 }
-

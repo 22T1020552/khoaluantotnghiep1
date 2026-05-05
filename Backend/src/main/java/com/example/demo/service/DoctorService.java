@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class DoctorService {
 
     private static final String STATUS_WAITING = "WAITING";
@@ -108,8 +109,6 @@ public class DoctorService {
         return appointmentRepository.findByDoctor_IdAndStatusOrderByAppointmentTimeAsc(
                 doctor.getId(),
                 STATUS_COMPLETED);
-<<<<<<< HEAD
-=======
     }
 
     // Chức năng: lấy danh sách thuốc active cho bác sĩ kê đơn.
@@ -117,15 +116,13 @@ public class DoctorService {
         return medicineRepository.findByIsActiveTrueOrderByMedicineNameAsc().stream()
                 .map(this::toDoctorMedicineResponse)
                 .toList();
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
+
     }
 
     // Chức năng: lời khuyên của bác sĩ.
     private DoctorResponse toDoctorResponse(User doctor) {
         return new DoctorResponse(doctor.getId(), doctor.getUsername(), doctor.getIsActive());
     }
-<<<<<<< HEAD
-=======
 
     private DoctorMedicineResponse toDoctorMedicineResponse(Medicine medicine) {
         return new DoctorMedicineResponse(
@@ -137,5 +134,4 @@ public class DoctorService {
                 medicine.getStockQuantity(),
                 medicine.getIsActive());
     }
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
 }

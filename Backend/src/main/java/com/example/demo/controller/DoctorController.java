@@ -49,7 +49,7 @@ public class DoctorController {
     @Operation(summary = "Danh sách bệnh nhân đang chờ", description = "Lấy danh sách bệnh nhân đang chờ khám của bác sĩ đang đăng nhập.")
     public List<Appointment> getMyWaitingPatients(
             Authentication authentication,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam(name = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return doctorService.getMyWaitingPatients(authentication.getName(), date);
     }
 
@@ -57,12 +57,10 @@ public class DoctorController {
     @Operation(summary = "Danh sách bệnh nhân đã khám", description = "Lấy danh sách bệnh nhân đã hoàn tất khám của bác sĩ đang đăng nhập.")
     public List<Appointment> getMyCompletedPatients(
             Authentication authentication,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam(name = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return doctorService.getMyCompletedPatients(authentication.getName(), date);
     }
 
-<<<<<<< HEAD
-=======
     @GetMapping("/me/services")
     @Operation(summary = "Danh sách dịch vụ khám", description = "Lấy danh sách dịch vụ để bác sĩ chọn trong ca khám.")
     public List<AdminMedicalServiceResponse> getAvailableServicesForDoctor() {
@@ -75,7 +73,6 @@ public class DoctorController {
         return doctorService.getMyMedicines();
     }
 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     @PutMapping("/{doctorId}/clinic-room")
     @Operation(summary = "Cập nhật phòng kham", description = "Cập nhật thông tin phòng khám phụ trách của bác sĩ.")
     public DoctorResponse updateClinicRoom(

@@ -63,6 +63,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class AdminService {
 
     private static final String GROUP_DAY = "DAY";
@@ -666,7 +667,8 @@ public class AdminService {
 
                 List<AdminRevenueChartPointResponse> points = new ArrayList<>();
                 for (var entry : bucket.entrySet()) {
-                    points.add(new AdminRevenueChartPointResponse(entry.getKey().format(MONTH_FORMAT), entry.getValue()));
+                    points.add(
+                            new AdminRevenueChartPointResponse(entry.getKey().format(MONTH_FORMAT), entry.getValue()));
                 }
                 yield points;
             }
@@ -683,7 +685,8 @@ public class AdminService {
 
                 List<AdminRevenueChartPointResponse> points = new ArrayList<>();
                 for (var entry : bucket.entrySet()) {
-                    points.add(new AdminRevenueChartPointResponse(entry.getKey().format(YEAR_FORMAT), entry.getValue()));
+                    points.add(
+                            new AdminRevenueChartPointResponse(entry.getKey().format(YEAR_FORMAT), entry.getValue()));
                 }
                 yield points;
             }
@@ -799,4 +802,3 @@ public class AdminService {
     }
 
 }
-

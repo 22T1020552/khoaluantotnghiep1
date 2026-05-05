@@ -28,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class AppointmentService {
 
     private static final String STATUS_PENDING_CONFIRMATION = "PENDING";
@@ -63,6 +64,7 @@ public class AppointmentService {
         PatientPrefillResponse response = new PatientPrefillResponse();
         response.setPatientId(patient.getId());
         response.setFullName(patient.getFullName());
+        response.setGender(patient.getGender());
         response.setNationalId(patient.getNationalId());
         response.setPhoneNumber(patient.getPhoneNumber());
         response.setHealthInsuranceNumber(patient.getHealthInsuranceNumber());
@@ -195,7 +197,8 @@ public class AppointmentService {
             LocalTime start = LocalTime.parse(parts[0]);
             LocalTime end = LocalTime.parse(parts[1]);
             if (!end.isAfter(start)) {
-                throw AppException.of(HttpStatus.BAD_REQUEST, "Thời gian kết thúc của timeSlot phải sau thời gian bắt đầu");
+                throw AppException.of(HttpStatus.BAD_REQUEST,
+                        "Thời gian kết thúc của timeSlot phải sau thời gian bắt đầu");
             }
         } catch (DateTimeParseException ex) {
             throw AppException.of(HttpStatus.BAD_REQUEST, "Giá trị timeSlot không hợp lệ");
@@ -273,4 +276,3 @@ public class AppointmentService {
         return status.trim().toUpperCase();
     }
 }
-

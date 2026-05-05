@@ -32,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class NotificationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NotificationService.class);
@@ -45,6 +46,7 @@ public class NotificationService {
 
     private final MailProperties mailProperties;
     private final SystemSettingService systemSettingService;
+    private final JavaMailSender mailSender;
     private final UserRepository userRepository;
     private final RoomRepository roomRepository;
 
@@ -70,15 +72,11 @@ public class NotificationService {
         String host = resolveMailHost();
         int port = resolveMailPort();
         LOGGER.info(
-<<<<<<< HEAD
-                "Cấu hình thông báo email khi khởi động: đã cấu hình người gửi={}, danh sách người nhận='{}'",
-=======
-                "Mail notification config at startup: host={}, port={}, senderConfigured={}, configuredRecipients='{}'",
-                host,
-                port,
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
-                !from.isBlank(),
-                configuredRecipients);
+            "Mail notification config at startup: host={}, port={}, senderConfigured={}, configuredRecipients='{}'",
+            host,
+            port,
+            !from.isBlank(),
+            configuredRecipients);
     }
 
     // Chức năng: thông báo cho bệnh nhân về việc hủy lịch khám.
@@ -98,9 +96,7 @@ public class NotificationService {
             return;
         }
 
-        String patientName = patient.getFullName() == null || patient.getFullName().isBlank()
-                ? "Quý khách"
-                : patient.getFullName().trim();
+        String patientName = resolvePatientName(patient, "Quý khách");
         String appointmentTime = appointment.getAppointmentTime() == null
                 ? "Không có"
                 : appointment.getAppointmentTime().format(APPOINTMENT_TIME_FORMAT);
@@ -129,13 +125,8 @@ public class NotificationService {
                 reason));
 
         try {
-<<<<<<< HEAD
-            mailSender.send(message);
-            LOGGER.info("Đã gửi email hủy lịch do phòng khám: appointmentId={}, recipient={}", appointment.getId(),
-=======
-            buildMailSender().send(message);
-            LOGGER.info("Sent clinic-cancelled appointment email: appointmentId={}, recipient={}", appointment.getId(),
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
+                mailSender.send(message);
+                LOGGER.info("Đã gửi email hủy lịch do phòng khám: appointmentId={}, recipient={}", appointment.getId(),
                     recipient);
         } catch (MailException ex) {
             LOGGER.error(
@@ -163,9 +154,7 @@ public class NotificationService {
             return;
         }
 
-        String patientName = patient.getFullName() == null || patient.getFullName().isBlank()
-                ? "Quý khách"
-                : patient.getFullName().trim();
+        String patientName = resolvePatientName(patient, "Quý khách");
         String appointmentTime = appointment.getAppointmentTime() == null
                 ? "Không có"
                 : appointment.getAppointmentTime().format(APPOINTMENT_TIME_FORMAT);
@@ -197,13 +186,8 @@ public class NotificationService {
                 doctorName));
 
         try {
-<<<<<<< HEAD
             mailSender.send(message);
             LOGGER.info("Đã gửi email chấp nhận lịch khám: appointmentId={}, recipient={}", appointment.getId(),
-=======
-            buildMailSender().send(message);
-            LOGGER.info("Sent approved appointment email: appointmentId={}, recipient={}", appointment.getId(),
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
                     recipient);
         } catch (MailException ex) {
             LOGGER.error(
@@ -248,7 +232,7 @@ public class NotificationService {
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(from);
-        message.setTo(recipients.toArray(String[]::new));
+        message.setTo(recipients.toArray(new String[0]));
         message.setSubject("[Phòng khám] Có bệnh nhân mới đặt lịch");
         message.setText("""
                 Lễ tân có lịch hẹn mới:
@@ -267,13 +251,8 @@ public class NotificationService {
                 appointment.getStatus()));
 
         try {
-<<<<<<< HEAD
             mailSender.send(message);
             LOGGER.info("Đã gửi email lịch hẹn mới cho lễ tân: appointmentId={}, recipients={}", appointment.getId(),
-=======
-            buildMailSender().send(message);
-            LOGGER.info("Sent receptionist booking email: appointmentId={}, recipients={}", appointment.getId(),
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
                     recipients);
         } catch (MailException ex) {
             LOGGER.error(
@@ -316,17 +295,10 @@ public class NotificationService {
                     """.formatted(otp));
 
         try {
-<<<<<<< HEAD
             mailSender.send(message);
             LOGGER.info("Đã gửi email OTP quên mật khẩu: recipient={}", to);
         } catch (MailException ex) {
             LOGGER.error("Không thể gửi email OTP quên mật khẩu: recipient={}, error={}", to, ex.getMessage(), ex);
-=======
-            buildMailSender().send(message);
-            LOGGER.info("Sent forgot-password OTP email: recipient={}", to);
-        } catch (MailException ex) {
-            LOGGER.error("Failed to send forgot-password OTP email: recipient={}, error={}", to, ex.getMessage(), ex);
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
             throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Hiện không thể gửi email OTP");
         }
     }
@@ -425,6 +397,7 @@ public class NotificationService {
         }
     }
 
+    @SuppressWarnings("unused")
     private JavaMailSender buildMailSender() {
         JavaMailSenderImpl dynamicSender = new JavaMailSenderImpl();
         dynamicSender.setHost(resolveMailHost());
@@ -448,5 +421,12 @@ public class NotificationService {
         }
 
         return dynamicSender;
+    }
+
+    private String resolvePatientName(Patient patient, String fallback) {
+        if (patient == null || patient.getFullName() == null || patient.getFullName().isBlank()) {
+            return fallback;
+        }
+        return patient.getFullName().trim();
     }
 }

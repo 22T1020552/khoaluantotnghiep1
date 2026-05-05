@@ -19,12 +19,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-<<<<<<< HEAD
-=======
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
     @ExceptionHandler(AppException.class)
     public ResponseEntity<Map<String, Object>> handleAppException(AppException ex, HttpServletRequest request) {
         return buildErrorResponse(
@@ -76,10 +72,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleUnexpectedException(Exception ex, HttpServletRequest request) {
-<<<<<<< HEAD
-=======
         log.error("Unhandled exception at {}", request.getRequestURI(), ex);
->>>>>>> 7db75c0f9435daf86f2f483deffbd38c81a426f6
         return buildErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "INTERNAL_SERVER_ERROR",
