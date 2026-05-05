@@ -78,7 +78,7 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
     e.preventDefault();
     const normalizedReason = formData.reason.trim();
 
-    if (!formData.fullName || !formData.gender || !formData.dateOfBirth || !formData.phone || !formData.reason || !formData.appointmentTime) {
+    if (!formData.fullName || !formData.gender || !formData.phone || !formData.reason || !formData.appointmentTime) {
       toast.error("Vui lòng điền đầy đủ thông tin bắt buộc");
       return;
     }
@@ -114,7 +114,13 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
         <div className={styles.grid}>
           <div className={styles.fullWidth}>
             <Label htmlFor="fullName">Họ và tên <span className={styles.required}>*</span></Label>
-            <Input id="fullName" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} placeholder="Nguyễn Văn A" required />
+            <Input
+              id="fullName"
+              value={formData.fullName}
+              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+              placeholder="Nguyễn Văn A"
+              required
+            />
           </div>
           <div>
             <Label htmlFor="gender">Giới tính <span className={styles.required}>*</span></Label>
@@ -132,18 +138,38 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
             </select>
           </div>
           <div>
-            <Label htmlFor="dateOfBirth">Ngày sinh <span className={styles.required}>*</span></Label>
-            <Input id="dateOfBirth" type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} required />
+            <Label htmlFor="dateOfBirth">Ngày sinh</Label>
+            <Input
+              id="dateOfBirth"
+              type="date"
+              value={formData.dateOfBirth}
+              onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+            />
           </div>
           <div>
             <Label htmlFor="phone">Số điện thoại <span className={styles.required}>*</span></Label>
-            <Input id="phone" type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="0123456789" required />
+            <Input
+              id="phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              placeholder="0123456789"
+              required
+            />
           </div>
           <div className={styles.fullWidth}>
             <Label htmlFor="hometown">Quê quán</Label>
-            <Input id="hometown" value={formData.hometown} onChange={(e) => setFormData({ ...formData, hometown: e.target.value })} placeholder="Thành phố, Tỉnh" />
+            <Input
+              id="hometown"
+              value={formData.hometown}
+              onChange={(e) => setFormData({ ...formData, hometown: e.target.value })}
+              placeholder="Thành phố, Tỉnh"
+            />
           </div>
         </div>
+        <p className={styles.mutedNote}>
+          Thông tin cá nhân được lấy từ hồ sơ bệnh nhân. Bạn có thể chỉnh sửa nếu cần.
+        </p>
       </div>
 
       {/* Giấy tờ tùy thân */}
@@ -155,11 +181,21 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
         <div className={styles.grid}>
           <div>
             <Label htmlFor="idNumber">Số CCCD/CMND</Label>
-            <Input id="idNumber" value={formData.idNumber} onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })} placeholder="001234567890" />
+            <Input
+              id="idNumber"
+              value={formData.idNumber}
+              onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
+              placeholder="001234567890"
+            />
           </div>
           <div>
             <Label htmlFor="insuranceNumber">Số thẻ BHYT</Label>
-            <Input id="insuranceNumber" value={formData.insuranceNumber} onChange={(e) => setFormData({ ...formData, insuranceNumber: e.target.value })} placeholder="DN1234567890123" />
+            <Input
+              id="insuranceNumber"
+              value={formData.insuranceNumber}
+              onChange={(e) => setFormData({ ...formData, insuranceNumber: e.target.value })}
+              placeholder="DN1234567890123"
+            />
           </div>
         </div>
       </div>

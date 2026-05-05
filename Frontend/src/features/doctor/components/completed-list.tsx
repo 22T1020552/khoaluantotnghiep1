@@ -39,7 +39,6 @@ export function CompletedList({ appointments }: CompletedListProps) {
             <div className={styles.notePurple}>
               <div className={styles.flexBetween}>
                 <p className={styles.textSmall}><strong>Đơn thuốc</strong></p>
-                <p className={styles.textSmall}><strong>Tổng: {appointment.total_medicine_cost?.toLocaleString("vi-VN")}đ</strong></p>
               </div>
               <div className={styles.rowStack}>
                 {appointment.prescription_items.map((item) => (
@@ -47,9 +46,6 @@ export function CompletedList({ appointments }: CompletedListProps) {
                     <div className={styles.flexBetween}>
                       <span className={styles.textSmall}>
                         {item.medicine.medicine_name} {item.medicine.dosage}
-                      </span>
-                      <span className={styles.textSmall}>
-                        {(item.medicine.selling_price * item.quantity).toLocaleString("vi-VN")}đ
                       </span>
                     </div>
                     <p className={styles.textSmall}>
@@ -81,11 +77,6 @@ export function CompletedList({ appointments }: CompletedListProps) {
             </div>
           )}
 
-          {!!appointment.total_exam_cost && (
-            <div className={styles.summaryCard}>
-              <p className={styles.textSmall}><strong>Tổng chi phí (thuốc + dịch vụ): {appointment.total_exam_cost.toLocaleString("vi-VN")}đ</strong></p>
-            </div>
-          )}
         </div>
       ))}
     </div>

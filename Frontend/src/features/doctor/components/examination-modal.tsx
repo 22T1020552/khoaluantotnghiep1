@@ -23,9 +23,7 @@ interface ExaminationModalProps {
   historyDetail: any;
   historyLoading: boolean;
   historyDetailLoading: boolean;
-  totalMedicineCost: number;
   totalServiceCost: number;
-  grandTotalCost: number;
   onClose: () => void;
   onComplete: () => void;
   onMedicalRecordChange: (field: string, value: string) => void;
@@ -147,7 +145,6 @@ export function ExaminationModal(props: ExaminationModalProps) {
           <PrescriptionSection 
             prescriptions={props.prescriptions}
             availableMedicines={props.availableMedicines}
-            totalCost={props.totalMedicineCost}
             onAddMedicine={props.onAddMedicine}
             onUpdatePrescription={props.onUpdatePrescription}
             onRemoveMedicine={props.onRemoveMedicine}
@@ -155,9 +152,7 @@ export function ExaminationModal(props: ExaminationModalProps) {
 
           {/* TỔNG CHI PHÍ */}
           <div className={styles.summaryCard}>
-            <p className={styles.textSmall}>Tiền thuốc: {props.totalMedicineCost.toLocaleString("vi-VN")}đ</p>
             <p className={styles.textSmall}>Tiền dịch vụ: {props.totalServiceCost.toLocaleString("vi-VN")}đ</p>
-            <p className={styles.textSmall}><strong>Tổng tạm tính: {props.grandTotalCost.toLocaleString("vi-VN")}đ</strong></p>
           </div>
         </div>
 

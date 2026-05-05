@@ -5,7 +5,6 @@ interface PrescriptionSectionProps {
   prescriptions: PrescriptionItem[];
   availableMedicines: Medicine[];
   catalogMessage?: string | null;
-  totalCost: number;
   onAddMedicine: (medicine: Medicine) => void;
   onUpdatePrescription: (
     medicineId: number,
@@ -19,7 +18,6 @@ export function PrescriptionSection({
   prescriptions,
   availableMedicines,
   catalogMessage,
-  totalCost,
   onAddMedicine,
   onUpdatePrescription,
   onRemoveMedicine,
@@ -45,9 +43,6 @@ export function PrescriptionSection({
         <div className={styles.panelPurple}>
           <div className={`${styles.flexBetween} ${styles.mb2}`}>
             <h4 className={styles.titleSmall}>Thuốc đã kê</h4>
-            <span className={styles.titleSmall}>
-              Tổng: {totalCost.toLocaleString("vi-VN")}đ
-            </span>
           </div>
 
           <div className={styles.rowStack}>
@@ -57,7 +52,6 @@ export function PrescriptionSection({
                   <span className={styles.titleSmall}>
                     {item.medicine?.medicine_name} {item.medicine?.dosage}
                   </span>
-                  <span>{((item.medicine?.selling_price || 0) * item.quantity).toLocaleString("vi-VN")}đ</span>
                 </div>
 
                 <div className={`${styles.grid2} ${styles.mb1}`}>
@@ -126,9 +120,6 @@ export function PrescriptionSection({
             >
               <p className={`${styles.textMedium} ${styles.textSmall}`}>{medicine.medicine_name}</p>
               <p className={`${styles.textSmall} ${styles.textMuted}`}>{medicine.dosage}</p>
-              <p className={`${styles.textSmall} ${styles.textMuted}`}>
-                {medicine.selling_price.toLocaleString("vi-VN")}đ/{medicine.unit}
-              </p>
               <p className={`${styles.textSmall} ${styles.textMuted}`}>Tồn: {medicine.stock_quantity}</p>
             </div>
           ))}

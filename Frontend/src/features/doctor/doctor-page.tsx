@@ -129,7 +129,6 @@ export function DoctorQueue() {
               service_id: service.serviceId, service_name: service.serviceName, quantity: service.quantity, actual_price: service.actualPrice, result_note: service.resultNote || "",
             }));
 
-            const totalMedicineCost = prescriptionItems.reduce((sum, item) => sum + (item.medicine?.selling_price || 0) * item.quantity, 0);
             const totalServiceCost = serviceItems.reduce((sum, item) => sum + item.actual_price * item.quantity, 0);
 
             return {
@@ -138,9 +137,9 @@ export function DoctorQueue() {
               doctor_advice: record.doctorAdvice || detail?.doctorAdvice || "",
               prescription_items: prescriptionItems,
               service_items: serviceItems,
-              total_medicine_cost: totalMedicineCost,
+              total_medicine_cost: 0,
               total_service_cost: totalServiceCost,
-              total_exam_cost: totalMedicineCost + totalServiceCost,
+              total_exam_cost: totalServiceCost,
             };
           } catch {
             return appointment;
@@ -250,9 +249,7 @@ export function DoctorQueue() {
 
   const handleRemoveService = (serviceId: number) => setSelectedServices((prev) => prev.filter((item) => item.service_id !== serviceId));
 
-  const getTotalMedicineCost = () => prescriptions.reduce((sum, p) => sum + (p.medicine?.selling_price || 0) * p.quantity, 0);
   const getTotalServiceCost = () => selectedServices.reduce((sum, item) => sum + item.actual_price * item.quantity, 0);
-  const getGrandTotalCost = () => getTotalMedicineCost() + getTotalServiceCost();
 
   const handleCompleteExam = async () => {
     if (!selectedAppointment) return;
@@ -282,7 +279,7 @@ export function DoctorQueue() {
       if (prescriptions.length > 0) await doctorService.savePrescription(recordId);
       await doctorService.completeMedicalRecord(recordId);
 
-      setAppointments((prev) => prev.map((a) => a.id === selectedAppointment.id ? { ...a, status: "completed" as const, diagnosis: medicalRecord.diagnosis, doctor_advice: medicalRecord.doctor_advice, prescription_items: prescriptions, service_items: selectedServices, total_medicine_cost: getTotalMedicineCost(), total_service_cost: getTotalServiceCost(), total_exam_cost: getGrandTotalCost() } : a));
+      setAppointments((prev) => prev.map((a) => a.id === selectedAppointment.id ? { ...a, status: "completed" as const, diagnosis: medicalRecord.diagnosis, doctor_advice: medicalRecord.doctor_advice, prescription_items: prescriptions, service_items: selectedServices, total_medicine_cost: 0, total_service_cost: getTotalServiceCost(), total_exam_cost: getTotalServiceCost() } : a));
       setIsExamining(false);
       setSelectedAppointment(null);
       setMedicalRecordId(null);
@@ -369,9 +366,7 @@ export function DoctorQueue() {
             historyDetail={historyDetail}
             historyLoading={historyLoading}
             historyDetailLoading={historyDetailLoading}
-            totalMedicineCost={getTotalMedicineCost()}
             totalServiceCost={getTotalServiceCost()}
-            grandTotalCost={getGrandTotalCost()}
             onClose={handleCloseExam}
             onComplete={handleCompleteExam}
             onMedicalRecordChange={handleMedicalRecordChange}
