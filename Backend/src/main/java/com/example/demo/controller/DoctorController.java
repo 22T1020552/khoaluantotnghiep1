@@ -49,7 +49,7 @@ public class DoctorController {
     @Operation(summary = "Danh sách bệnh nhân đang chờ", description = "Lấy danh sách bệnh nhân đang chờ khám của bác sĩ đang đăng nhập.")
     public List<Appointment> getMyWaitingPatients(
             Authentication authentication,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam(name = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return doctorService.getMyWaitingPatients(authentication.getName(), date);
     }
 
@@ -57,7 +57,7 @@ public class DoctorController {
     @Operation(summary = "Danh sách bệnh nhân đã khám", description = "Lấy danh sách bệnh nhân đã hoàn tất khám của bác sĩ đang đăng nhập.")
     public List<Appointment> getMyCompletedPatients(
             Authentication authentication,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam(name = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return doctorService.getMyCompletedPatients(authentication.getName(), date);
     }
 
