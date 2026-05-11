@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class RefreshTokenService {
 
     private static final String REFRESH_TOKEN_KEY_PREFIX = "auth:refresh:token:";
@@ -85,4 +86,3 @@ public class RefreshTokenService {
         return MessageDigest.isEqual(leftBytes, rightBytes);
     }
 }
-

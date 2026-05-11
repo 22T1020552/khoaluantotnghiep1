@@ -29,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class AuthService {
 
     private static final String RESET_OTP_KEY_PREFIX = "auth:forgot-password:otp:";
@@ -562,4 +563,3 @@ public class AuthService {
     }
 
 }
-
