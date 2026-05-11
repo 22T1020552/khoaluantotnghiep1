@@ -55,10 +55,9 @@ import com.example.demo.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 
 @Service
+@SuppressWarnings("null")
 public class GeminiChatbotService {
-
     private static final Logger logger = LoggerFactory.getLogger(GeminiChatbotService.class);
-
     private static final String MESSAGE_ROLE_USER = "USER";
     private static final String MESSAGE_ROLE_ASSISTANT = "ASSISTANT";
 
@@ -131,13 +130,13 @@ public class GeminiChatbotService {
         try {
             user = resolveUserIfAuthenticated(username);
             recentHistory = user == null
-                ? List.of()
-                : loadRecentMessages(user.getId(), normalizeHistoryContextLimit());
+                    ? List.of()
+                    : loadRecentMessages(user.getId(), normalizeHistoryContextLimit());
             businessContext = buildBusinessContext(normalizedMessage, user);
         } catch (Exception contextError) {
             logger.warn("Không thể nạp ngữ cảnh hội thoại cho user '{}': {}. Hệ thống sẽ tiếp tục ở chế độ guest.",
-                username,
-                contextError.getMessage());
+                    username,
+                    contextError.getMessage());
             user = null;
             recentHistory = List.of();
             businessContext = buildBusinessContext(normalizedMessage, null);

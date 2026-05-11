@@ -32,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class NotificationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NotificationService.class);
@@ -45,6 +46,7 @@ public class NotificationService {
 
     private final MailProperties mailProperties;
     private final SystemSettingService systemSettingService;
+    private final JavaMailSender mailSender;
     private final UserRepository userRepository;
     private final RoomRepository roomRepository;
 
@@ -70,14 +72,14 @@ public class NotificationService {
         String host = resolveMailHost();
         int port = resolveMailPort();
         LOGGER.info(
-                "Mail notification config at startup: host={}, port={}, senderConfigured={}, configuredRecipients='{}'",
-                host,
-                port,
-                !from.isBlank(),
-                configuredRecipients);
+            "Mail notification config at startup: host={}, port={}, senderConfigured={}, configuredRecipients='{}'",
+            host,
+            port,
+            !from.isBlank(),
+            configuredRecipients);
     }
 
-    // Chức năng:Thông báo cho bệnh nhân về việc hủy lịch khám.
+    // Chức năng: thông báo cho bệnh nhân về việc hủy lịch khám.
     public void notifyClinicCancelledAppointment(Appointment appointment, String cancellationReason) {
         Patient patient = appointment.getPatient();
         String recipient = patient == null || patient.getGmail() == null ? "" : patient.getGmail().trim();
@@ -90,47 +92,45 @@ public class NotificationService {
 
         String from = resolveSenderEmail();
         if (from.isBlank()) {
-            LOGGER.warn("Skip clinic-cancelled appointment email because spring.mail.username is empty");
+            LOGGER.warn("Bỏ qua gửi email hủy lịch do phòng khám vì spring.mail.username đang trống");
             return;
         }
 
-        String patientName = patient.getFullName() == null || patient.getFullName().isBlank()
-                ? "Quy khach"
-                : patient.getFullName().trim();
+        String patientName = resolvePatientName(patient, "Quý khách");
         String appointmentTime = appointment.getAppointmentTime() == null
                 ? "Không có"
                 : appointment.getAppointmentTime().format(APPOINTMENT_TIME_FORMAT);
         String reason = (cancellationReason == null || cancellationReason.isBlank())
-                ? "Phong kham can dieu chinh lich tiep nhan"
+                ? "Phòng khám cần điều chỉnh lịch tiếp nhận"
                 : cancellationReason.trim();
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(from);
         message.setTo(recipient);
-        message.setSubject("[Phong kham] Lich kham cua ban da bi tu choi");
+        message.setSubject("[Phòng khám] Lịch khám của bạn đã bị từ chối");
         message.setText("""
-                Xin chao %s,
+                Xin chào %s,
 
-                Rat tiec, lich kham cua ban chua the duoc tiep nhan.
-                - Ma lich hen: %s
-                - Thoi gian du kien: %s
-                - Ly do tu choi: %s
+                Rất tiếc, lịch khám của bạn chưa thể được tiếp nhận.
+                - Mã lịch hẹn: %s
+                - Thời gian dự kiến: %s
+                - Lý do từ chối: %s
 
-                Mong ban thong cam va hen gap lai ban o lan kham sau.
-                Vui long dat lich moi hoac lien he le tan de duoc ho tro.
-                """.formatted(
+                Mong bạn thông cảm và hẹn gặp lại bạn ở lần khám sau.
+                Vui lòng đặt lịch mới hoặc liên hệ lễ tân để được hỗ trợ.
+                    """.formatted(
                 patientName,
                 appointment.getId(),
                 appointmentTime,
                 reason));
 
         try {
-            buildMailSender().send(message);
-            LOGGER.info("Sent clinic-cancelled appointment email: appointmentId={}, recipient={}", appointment.getId(),
+                mailSender.send(message);
+                LOGGER.info("Đã gửi email hủy lịch do phòng khám: appointmentId={}, recipient={}", appointment.getId(),
                     recipient);
         } catch (MailException ex) {
             LOGGER.error(
-                    "Failed to send clinic-cancelled appointment email: appointmentId={}, recipient={}, error={}",
+                    "Không thể gửi email hủy lịch do phòng khám: appointmentId={}, recipient={}, error={}",
                     appointment.getId(),
                     recipient,
                     ex.getMessage(),
@@ -150,13 +150,11 @@ public class NotificationService {
 
         String from = resolveSenderEmail();
         if (from.isBlank()) {
-            LOGGER.warn("Skip approved appointment email because spring.mail.username is empty");
+            LOGGER.warn("Bỏ qua gửi email chấp nhận lịch vì spring.mail.username đang trống");
             return;
         }
 
-        String patientName = patient.getFullName() == null || patient.getFullName().isBlank()
-                ? "Quy khach"
-                : patient.getFullName().trim();
+        String patientName = resolvePatientName(patient, "Quý khách");
         String appointmentTime = appointment.getAppointmentTime() == null
                 ? "Không có"
                 : appointment.getAppointmentTime().format(APPOINTMENT_TIME_FORMAT);
@@ -169,18 +167,18 @@ public class NotificationService {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(from);
         message.setTo(recipient);
-        message.setSubject("[Phong kham] Lich kham cua ban da duoc chap nhan");
+        message.setSubject("[Phòng khám] Lịch khám của bạn đã được chấp nhận");
         message.setText("""
-                Xin chao %s,
+                Xin chào %s,
 
-                Lich kham cua ban da duoc chap nhan.
-                - Ma lich hen: %s
-                - Ngay gio kham: %s
-                - Phong kham: %s
-                - Bac si phu trach: %s
+                Lịch khám của bạn đã được chấp nhận.
+                - Mã lịch hẹn: %s
+                - Ngày giờ khám: %s
+                - Phòng khám: %s
+                - Bác sĩ phụ trách: %s
 
-                Vui long den som 10-15 phut de lam thu tuc. Hen gap lai ban tai phong kham.
-                """.formatted(
+                Vui lòng đến sớm 10-15 phút để làm thủ tục. Hẹn gặp lại bạn tại phòng khám.
+                    """.formatted(
                 patientName,
                 appointment.getId(),
                 appointmentTime,
@@ -188,12 +186,12 @@ public class NotificationService {
                 doctorName));
 
         try {
-            buildMailSender().send(message);
-            LOGGER.info("Sent approved appointment email: appointmentId={}, recipient={}", appointment.getId(),
+            mailSender.send(message);
+            LOGGER.info("Đã gửi email chấp nhận lịch khám: appointmentId={}, recipient={}", appointment.getId(),
                     recipient);
         } catch (MailException ex) {
             LOGGER.error(
-                    "Failed to send approved appointment email: appointmentId={}, recipient={}, error={}",
+                    "Không thể gửi email chấp nhận lịch khám: appointmentId={}, recipient={}, error={}",
                     appointment.getId(),
                     recipient,
                     ex.getMessage(),
@@ -206,18 +204,18 @@ public class NotificationService {
         String configuredRecipients = resolveReceptionistEmailsConfig();
         List<String> recipients = resolveReceptionistRecipients(configuredRecipients);
         LOGGER.info(
-                "Preparing receptionist booking email: appointmentId={}, recipientCount={}, configuredRecipients='{}'",
+                "Đang chuẩn bị email thông báo lịch hẹn mới cho lễ tân: appointmentId={}, recipientCount={}, configuredRecipients='{}'",
                 appointment.getId(),
                 recipients.size(),
                 configuredRecipients);
         if (recipients.isEmpty()) {
-            LOGGER.warn("Skip receptionist booking email because no recipient was configured");
+            LOGGER.warn("Bỏ qua gửi email lịch hẹn mới cho lễ tân vì chưa có người nhận hợp lệ");
             return;
         }
 
         String from = resolveSenderEmail();
         if (from.isBlank()) {
-            LOGGER.warn("Skip receptionist booking email because spring.mail.username is empty");
+            LOGGER.warn("Bỏ qua gửi email lịch hẹn mới cho lễ tân vì spring.mail.username đang trống");
             return;
         }
 
@@ -234,17 +232,17 @@ public class NotificationService {
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(from);
-        message.setTo(recipients.toArray(String[]::new));
-        message.setSubject("[Phong kham] Co benh nhan moi dat lich");
+        message.setTo(recipients.toArray(new String[0]));
+        message.setSubject("[Phòng khám] Có bệnh nhân mới đặt lịch");
         message.setText("""
-                Le tan co lich hen moi:
-                - Ma lich hen: %s
-                - Ten benh nhan: %s
-                - So dien thoai: %s
-                - Thoi gian hen: %s
-                - Trieu chung: %s
-                - Trang thai: %s
-                """.formatted(
+                Lễ tân có lịch hẹn mới:
+                - Mã lịch hẹn: %s
+                - Tên bệnh nhân: %s
+                - Số điện thoại: %s
+                - Thời gian hẹn: %s
+                - Triệu chứng: %s
+                - Trạng thái: %s
+                    """.formatted(
                 appointment.getId(),
                 patientName,
                 patientPhone,
@@ -253,12 +251,12 @@ public class NotificationService {
                 appointment.getStatus()));
 
         try {
-            buildMailSender().send(message);
-            LOGGER.info("Sent receptionist booking email: appointmentId={}, recipients={}", appointment.getId(),
+            mailSender.send(message);
+            LOGGER.info("Đã gửi email lịch hẹn mới cho lễ tân: appointmentId={}, recipients={}", appointment.getId(),
                     recipients);
         } catch (MailException ex) {
             LOGGER.error(
-                    "Failed to send receptionist booking email: appointmentId={}, recipients={}, error={}",
+                    "Không thể gửi email lịch hẹn mới cho lễ tân: appointmentId={}, recipients={}, error={}",
                     appointment.getId(),
                     recipients,
                     ex.getMessage(),
@@ -297,10 +295,10 @@ public class NotificationService {
                     """.formatted(otp));
 
         try {
-            buildMailSender().send(message);
-            LOGGER.info("Sent forgot-password OTP email: recipient={}", to);
+            mailSender.send(message);
+            LOGGER.info("Đã gửi email OTP quên mật khẩu: recipient={}", to);
         } catch (MailException ex) {
-            LOGGER.error("Failed to send forgot-password OTP email: recipient={}, error={}", to, ex.getMessage(), ex);
+            LOGGER.error("Không thể gửi email OTP quên mật khẩu: recipient={}, error={}", to, ex.getMessage(), ex);
             throw AppException.of(HttpStatus.SERVICE_UNAVAILABLE, "Hiện không thể gửi email OTP");
         }
     }
@@ -399,6 +397,7 @@ public class NotificationService {
         }
     }
 
+    @SuppressWarnings("unused")
     private JavaMailSender buildMailSender() {
         JavaMailSenderImpl dynamicSender = new JavaMailSenderImpl();
         dynamicSender.setHost(resolveMailHost());
@@ -422,5 +421,12 @@ public class NotificationService {
         }
 
         return dynamicSender;
+    }
+
+    private String resolvePatientName(Patient patient, String fallback) {
+        if (patient == null || patient.getFullName() == null || patient.getFullName().isBlank()) {
+            return fallback;
+        }
+        return patient.getFullName().trim();
     }
 }
