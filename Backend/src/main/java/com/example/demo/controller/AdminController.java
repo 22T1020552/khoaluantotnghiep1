@@ -43,6 +43,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 @Tag(name = "Admin", description = "Quản trị hệ thống: dashboard, báo cáo doanh thu, người dùng, phòng khám, thuốc và dịch vụ.")
 public class AdminController {
 
@@ -60,11 +61,11 @@ public class AdminController {
     @Operation(summary = "Báo cáo doanh thu", description = "Lấy báo cáo doanh thu có bộ lọc thời gian, dịch vụ, thuốc và kiểu gom nhóm.")
     // Chức năng: xử lý lấy báo cáo doanh thu và biểu đồ.
     public AdminRevenueReportResponse getRevenueReport(
-            @RequestParam(required = false) java.time.LocalDateTime startTime,
-            @RequestParam(required = false) java.time.LocalDateTime endTime,
-            @RequestParam(required = false) String serviceFilter,
-            @RequestParam(required = false) String medicineFilter,
-            @RequestParam(required = false, defaultValue = "DAY") String groupBy) {
+            @RequestParam(name = "startTime", required = false) java.time.LocalDateTime startTime,
+            @RequestParam(name = "endTime", required = false) java.time.LocalDateTime endTime,
+            @RequestParam(name = "serviceFilter", required = false) String serviceFilter,
+            @RequestParam(name = "medicineFilter", required = false) String medicineFilter,
+            @RequestParam(name = "groupBy", required = false, defaultValue = "DAY") String groupBy) {
         return adminService.getRevenueReport(startTime, endTime, serviceFilter, medicineFilter, groupBy);
     }
 
@@ -72,12 +73,12 @@ public class AdminController {
     @Operation(summary = "Xuất báo cáo doanh thu", description = "Xuất báo cáo doanh thu sang CSV hoac PDF.")
     // Chức năng: xử lý xuất báo cáo sang dạng CSV/PDF.
     public ResponseEntity<byte[]> exportRevenueReport(
-            @RequestParam(required = false) java.time.LocalDateTime startTime,
-            @RequestParam(required = false) java.time.LocalDateTime endTime,
-            @RequestParam(required = false) String serviceFilter,
-            @RequestParam(required = false) String medicineFilter,
-            @RequestParam(required = false, defaultValue = "DAY") String groupBy,
-            @RequestParam(defaultValue = "CSV") String format) {
+            @RequestParam(name = "startTime", required = false) java.time.LocalDateTime startTime,
+            @RequestParam(name = "endTime", required = false) java.time.LocalDateTime endTime,
+            @RequestParam(name = "serviceFilter", required = false) String serviceFilter,
+            @RequestParam(name = "medicineFilter", required = false) String medicineFilter,
+            @RequestParam(name = "groupBy", required = false, defaultValue = "DAY") String groupBy,
+            @RequestParam(name = "format", defaultValue = "CSV") String format) {
         byte[] fileBytes = adminService.exportRevenueReport(startTime, endTime, serviceFilter, medicineFilter, groupBy,
                 format);
         String normalized = format == null ? "CSV" : format.trim().toUpperCase(java.util.Locale.ROOT);
@@ -109,7 +110,7 @@ public class AdminController {
     @Operation(summary = "Cập nhật người dùng", description = "Cập nhật thông tin và trạng thái user theo userId.")
     // Chức năng: xử lý cập nhật người dùng.
     public AdminUserResponse updateUser(
-            @PathVariable Long userId,
+            @PathVariable("userId") Long userId,
             @Valid @RequestBody AdminUpdateUserRequest request) {
         return adminService.updateUser(userId, request);
     }
@@ -117,7 +118,7 @@ public class AdminController {
     @DeleteMapping("/users/{userId}")
     @Operation(summary = "Xóa người dùng", description = "Vô hiệu hóa hoặc xóa user theo userId.")
     // Chức năng: xử lý xóa user.
-    public void deleteUser(@PathVariable Long userId) {
+    public void deleteUser(@PathVariable("userId") Long userId) {
         adminService.deleteUser(userId);
     }
 
@@ -139,7 +140,7 @@ public class AdminController {
     @Operation(summary = "Cập nhật phòng", description = "Cập nhật tên phòng khám.")
     // Chức năng: xử lý cập nhật thông tin phòng khám.
     public AdminRoomResponse updateRoom(
-            @PathVariable Long roomId,
+            @PathVariable("roomId") Long roomId,
             @Valid @RequestBody AdminRoomUpdateRequest request) {
         return adminService.updateRoom(roomId, request.getRoomName());
     }
@@ -148,7 +149,7 @@ public class AdminController {
     @Operation(summary = "Gán bác sĩ vào phòng", description = "Phân công bác sĩ phụ trách phòng khám.")
     // Chức năng: xử lý phân bác sĩ vào phòng khám.
     public AdminRoomResponse assignDoctorToRoom(
-            @PathVariable Long roomId,
+            @PathVariable("roomId") Long roomId,
             @Valid @RequestBody AdminRoomAssignDoctorRequest request) {
         return adminService.assignDoctorToRoom(roomId, request.getDoctorId());
     }
@@ -171,7 +172,7 @@ public class AdminController {
     @Operation(summary = "Cập nhật thuốc", description = "Cập nhật thông tin thuốc theo medicineId.")
     // Chức năng: xử lý cập nhật thông tin thuốc.
     public AdminMedicineResponse updateMedicine(
-            @PathVariable Long medicineId,
+            @PathVariable("medicineId") Long medicineId,
             @Valid @RequestBody AdminMedicineUpdateRequest request) {
         return adminService.updateMedicine(medicineId, request);
     }
@@ -179,7 +180,7 @@ public class AdminController {
     @DeleteMapping("/medicines/{medicineId}")
     @Operation(summary = "Ngừng sử dụng thuốc", description = "Vô hiệu hóa thuốc trong danh mục.")
     // Chức năng: xử lý vô hiệu hóa thuốc.
-    public void deactivateMedicine(@PathVariable Long medicineId) {
+    public void deactivateMedicine(@PathVariable("medicineId") Long medicineId) {
         adminService.deactivateMedicine(medicineId);
     }
 
@@ -202,7 +203,7 @@ public class AdminController {
     @Operation(summary = "Cập nhật giá dịch vụ", description = "Cập nhật giá hiện hành của dịch vụ.")
     // Chức năng: xử lý cập nhật giá dịch vụ.
     public AdminMedicalServiceResponse updateMedicalServicePrice(
-            @PathVariable Long serviceId,
+            @PathVariable("serviceId") Long serviceId,
             @Valid @RequestBody AdminMedicalServiceUpdatePriceRequest request) {
         return adminService.updateMedicalServicePrice(serviceId, request.getCurrentPrice());
     }
@@ -210,7 +211,7 @@ public class AdminController {
     @DeleteMapping("/services/{serviceId}")
     @Operation(summary = "Ngừng sử dụng dịch vụ", description = "Vô hiệu hóa dịch vụ y tế trong danh mục.")
     // Chức năng: xử lý vô hiệu hóa dịch vụ.
-    public void deactivateMedicalService(@PathVariable Long serviceId) {
+    public void deactivateMedicalService(@PathVariable("serviceId") Long serviceId) {
         adminService.deactivateMedicalService(serviceId);
     }
 
@@ -224,7 +225,7 @@ public class AdminController {
     @GetMapping("/settings/{settingKey}")
     @Operation(summary = "Lấy cấu hình theo key", description = "Lấy một cấu hình hệ thống theo khóa.")
     // Chức năng: lấy một cấu hình key-value theo khóa.
-    public AdminSystemSettingResponse getSystemSetting(@PathVariable String settingKey) {
+    public AdminSystemSettingResponse getSystemSetting(@PathVariable("settingKey") String settingKey) {
         return systemSettingService.getSetting(settingKey);
     }
 
@@ -232,7 +233,7 @@ public class AdminController {
     @Operation(summary = "Cập nhật cấu hình", description = "Tạo mới hoặc cập nhật cấu hình hệ thống theo key.")
     // Chức năng: lưu cấu hình key-value từ màn hình quản trị.
     public AdminSystemSettingResponse updateSystemSetting(
-            @PathVariable String settingKey,
+            @PathVariable("settingKey") String settingKey,
             @Valid @RequestBody AdminUpdateSystemSettingRequest request) {
         return systemSettingService.upsertSetting(settingKey, request.getSettingValue(), request.getDescription());
     }

@@ -1,0 +1,42 @@
+package com.example.demo.config.seeder;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.stereotype.Component;
+
+import lombok.RequiredArgsConstructor;
+
+@Component
+@RequiredArgsConstructor
+public class DataSeeder implements ApplicationRunner {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(DataSeeder.class);
+
+    @Value("${app.seed.enabled:true}")
+    private boolean seedEnabled;
+
+    private final UserSeeder userSeeder;
+    private final PatientSeeder patientSeeder;
+    private final MedicineSeeder medicineSeeder;
+    private final MedicalServiceSeeder medicalServiceSeeder;
+    private final RoomSeeder roomSeeder;
+    private final SystemSettingSeeder systemSettingSeeder;
+
+    @Override
+    public void run(ApplicationArguments args) {
+        if (!seedEnabled) {
+            LOGGER.info("[DataSeeder] Seed startup data is disabled");
+            return;
+        }
+
+        userSeeder.seed();
+        patientSeeder.seed();
+        medicineSeeder.seed();
+        medicalServiceSeeder.seed();
+        roomSeeder.seed();
+        systemSettingSeeder.seed();
+    }
+}

@@ -11,6 +11,7 @@ public class AdminMedicineResponse {
 
     private Long id;
     private String medicineName;
+    private String medicineType;
     private String unit;
     private BigDecimal sellingPrice;
     private Integer stockQuantity;

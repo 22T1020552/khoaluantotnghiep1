@@ -63,6 +63,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class AdminService {
 
     private static final String GROUP_DAY = "DAY";
@@ -398,6 +399,7 @@ public class AdminService {
     // Chức năng: xử lý tạo thuốc mới.
     public AdminMedicineResponse createMedicine(AdminMedicineCreateRequest request) {
         String normalizedMedicineName = normalizeRequiredText(request.getMedicineName(), "Tên thuốc là bắt buộc");
+        String normalizedMedicineType = normalizeRequiredText(request.getMedicineType(), "Loại thuốc là bắt buộc");
 
         if (medicineRepository.existsByMedicineNameIgnoreCase(normalizedMedicineName)) {
             throw AppException.of(HttpStatus.CONFLICT, "Tên thuốc đã tồn tại");
@@ -405,6 +407,7 @@ public class AdminService {
 
         Medicine medicine = new Medicine();
         medicine.setMedicineName(normalizedMedicineName);
+        medicine.setMedicineType(normalizedMedicineType);
         medicine.setUnit(normalizeOptionalText(request.getUnit()));
         medicine.setSellingPrice(request.getSellingPrice());
         Integer stockQuantity = request.getStockQuantity();
@@ -432,6 +435,10 @@ public class AdminService {
 
         if (request.getUnit() != null) {
             medicine.setUnit(normalizeOptionalText(request.getUnit()));
+        }
+        if (request.getMedicineType() != null) {
+            String normalizedMedicineType = normalizeOptionalText(request.getMedicineType());
+            medicine.setMedicineType(normalizedMedicineType == null ? "Khác" : normalizedMedicineType);
         }
         if (request.getSellingPrice() != null) {
             medicine.setSellingPrice(request.getSellingPrice());
@@ -537,6 +544,7 @@ public class AdminService {
         return new AdminMedicineResponse(
                 medicine.getId(),
                 medicine.getMedicineName(),
+                medicine.getMedicineType(),
                 medicine.getUnit(),
                 medicine.getSellingPrice(),
                 medicine.getStockQuantity(),
@@ -666,7 +674,8 @@ public class AdminService {
 
                 List<AdminRevenueChartPointResponse> points = new ArrayList<>();
                 for (var entry : bucket.entrySet()) {
-                    points.add(new AdminRevenueChartPointResponse(entry.getKey().format(MONTH_FORMAT), entry.getValue()));
+                    points.add(
+                            new AdminRevenueChartPointResponse(entry.getKey().format(MONTH_FORMAT), entry.getValue()));
                 }
                 yield points;
             }
@@ -683,7 +692,8 @@ public class AdminService {
 
                 List<AdminRevenueChartPointResponse> points = new ArrayList<>();
                 for (var entry : bucket.entrySet()) {
-                    points.add(new AdminRevenueChartPointResponse(entry.getKey().format(YEAR_FORMAT), entry.getValue()));
+                    points.add(
+                            new AdminRevenueChartPointResponse(entry.getKey().format(YEAR_FORMAT), entry.getValue()));
                 }
                 yield points;
             }
@@ -799,4 +809,3 @@ public class AdminService {
     }
 
 }
-
