@@ -64,6 +64,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class InvoiceService {
 
     private static final String STATUS_WAITING_PAYMENT = "CHO_THANH_TOAN";
@@ -213,19 +214,15 @@ public class InvoiceService {
         }
 
         List<MedicalRecordServiceDetail> serviceDetails = medicalRecordServiceDetailRepository
-            .findByMedicalRecord_Id(medicalRecordId);
+                .findByMedicalRecord_Id(medicalRecordId);
         serviceDetails = ensureConsultationService(medicalRecordId, medicalRecord, serviceDetails);
         BigDecimal totalServiceFee = serviceDetails.stream()
                 .map(this::serviceLineTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        List<PrescriptionDetail> prescriptionDetails = prescriptionDetailRepository
-                .findByMedicalRecord_Id(medicalRecordId);
-        BigDecimal totalMedicineFee = prescriptionDetails.stream()
-                .map(this::medicineLineTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalMedicineFee = BigDecimal.ZERO;
 
-        BigDecimal totalAmount = totalServiceFee.add(totalMedicineFee);
+        BigDecimal totalAmount = totalServiceFee;
 
         invoice.setMedicalRecord(medicalRecord);
         invoice.setTotalServiceFee(totalServiceFee);
@@ -300,7 +297,8 @@ public class InvoiceService {
             return null;
         }
 
-        List<com.example.demo.entity.Room> rooms = roomRepository.findByCurrentDoctor_Id(appointment.getDoctor().getId());
+        List<com.example.demo.entity.Room> rooms = roomRepository
+                .findByCurrentDoctor_Id(appointment.getDoctor().getId());
         if (rooms.isEmpty()) {
             return null;
         }
@@ -589,20 +587,13 @@ public class InvoiceService {
         List<CashierMedicineLineItemResponse> medicines = medicalRecordId == null
                 ? List.of()
                 : prescriptionDetailRepository.findByMedicalRecord_Id(medicalRecordId).stream()
-                        .map(detail -> {
-                            BigDecimal unitPrice = (detail.getMedicine() != null
-                                    && detail.getMedicine().getSellingPrice() != null)
-                                            ? detail.getMedicine().getSellingPrice()
-                                            : BigDecimal.ZERO;
-                            BigDecimal quantity = BigDecimal.valueOf(detail.getQuantity());
-                            return new CashierMedicineLineItemResponse(
-                                    detail.getMedicine() == null ? null : detail.getMedicine().getId(),
-                                    detail.getMedicine() == null ? null : detail.getMedicine().getMedicineName(),
-                                    detail.getQuantity(),
-                                    detail.getUsageInstructions(),
-                                    unitPrice,
-                                    unitPrice.multiply(quantity));
-                        })
+                        .map(detail -> new CashierMedicineLineItemResponse(
+                                detail.getMedicine() == null ? null : detail.getMedicine().getId(),
+                                detail.getMedicine() == null ? null : detail.getMedicine().getMedicineName(),
+                                detail.getQuantity(),
+                                detail.getUsageInstructions(),
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO))
                         .toList();
 
         return new CashierPaymentRecordDetailResponse(
@@ -896,4 +887,3 @@ public class InvoiceService {
         return value == null ? 0 : value;
     }
 }
-

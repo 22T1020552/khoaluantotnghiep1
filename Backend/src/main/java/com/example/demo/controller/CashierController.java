@@ -31,10 +31,8 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/cashier")
 @RequiredArgsConstructor
-@Tag(
-    name = "Cashier",
-    description = "Nghiệp vụ thu ngan: hang doi thanh toan, xu ly giao dich, in bien lai va xuat hoa don PDF."
-)
+@SuppressWarnings("null")
+@Tag(name = "Cashier", description = "Nghiệp vụ thu ngan: hang doi thanh toan, xu ly giao dich, in bien lai va xuat hoa don PDF.")
 public class CashierController {
 
     private final InvoiceService invoiceService;
@@ -43,43 +41,46 @@ public class CashierController {
     @Operation(summary = "Hàng đợi chờ thanh toán", description = "Lấy danh sách hồ sơ đang chờ thu ngân xử lý.")
     // Chức năng: xử lý lấy tất cả hóa đơn đang chờ thanh toán.
     public List<CashierWaitingPaymentItemResponse> getWaitingPaymentQueue(
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(name = "keyword", required = false) String keyword) {
         return invoiceService.getWaitingPaymentQueue(keyword);
     }
 
     @GetMapping("/payment-records/search")
     @Operation(summary = "Tìm giao dịch", description = "Tìm thông tin thanh toán theo mã hồ sơ, tên bệnh nhân hoặc từ khóa.")
     // Chức năng: xử lý tìm kiếm hồ sơ thanh toán.
-    public CashierPaymentRecordDetailResponse searchPaymentRecord(@RequestParam String keyword) {
+    public CashierPaymentRecordDetailResponse searchPaymentRecord(
+            @RequestParam(name = "keyword") String keyword) {
         return invoiceService.searchPaymentRecord(keyword);
     }
 
     @GetMapping("/invoices/{invoiceId}/paid-detail")
     @Operation(summary = "Chi tiết hóa đơn đã thanh toán", description = "Lấy thông tin chi tiết giao dịch đã thanh toán để đối soát.")
     // Chức năng: xử lý lấy thông tin chi tiết hóa đơn đã thanh toán.
-    public CashierPaymentRecordDetailResponse getPaidInvoiceDetail(@PathVariable Long invoiceId) {
+    public CashierPaymentRecordDetailResponse getPaidInvoiceDetail(
+            @PathVariable("invoiceId") Long invoiceId) {
         return invoiceService.getPaidInvoiceDetail(invoiceId);
     }
 
     @GetMapping("/transaction-history")
     @Operation(summary = "Lịch sử giao dịch", description = "Thống kê giao dịch theo khoảng thời gian và hình thức thanh toán.")
     public CashierTransactionHistoryResponse getTransactionHistory(
-            @RequestParam(required = false) java.time.LocalDateTime startTime,
-            @RequestParam(required = false) java.time.LocalDateTime endTime,
-            @RequestParam(required = false) String paymentMethod) {
+            @RequestParam(name = "startTime", required = false) java.time.LocalDateTime startTime,
+            @RequestParam(name = "endTime", required = false) java.time.LocalDateTime endTime,
+            @RequestParam(name = "paymentMethod", required = false) String paymentMethod) {
         return invoiceService.getTransactionHistory(startTime, endTime, paymentMethod);
     }
 
-
     @GetMapping("/invoices/by-medical-record")
     @Operation(summary = "Tìm hóa đơn theo bệnh án", description = "Lấy hóa đơn dựa trên medicalRecordId.")
-    public Invoice getInvoiceByMedicalRecordId(@RequestParam Long medicalRecordId) {
+    public Invoice getInvoiceByMedicalRecordId(
+            @RequestParam(name = "medicalRecordId") Long medicalRecordId) {
         return invoiceService.getByMedicalRecordId(medicalRecordId);
     }
 
     @PostMapping("/invoices/aggregate")
     @Operation(summary = "Tổng hợp hóa đơn", description = "Tổng hợp tiền dịch vụ và thuốc từ bệnh án để tạo hóa đơn thanh toán.")
-    public Invoice aggregateInvoiceAmount(@RequestParam Long medicalRecordId) {
+    public Invoice aggregateInvoiceAmount(
+            @RequestParam(name = "medicalRecordId") Long medicalRecordId) {
         return invoiceService.aggregateInvoiceAmount(medicalRecordId);
     }
 
@@ -92,7 +93,7 @@ public class CashierController {
     @PostMapping("/invoices/{invoiceId}/process-payment")
     @Operation(summary = "Xử lý thanh toán", description = "Xử lý thanh toán voi phuong thuc thanh toan va tuy chon xuat hoa don.")
     public CashierProcessPaymentResponse processPayment(
-            @PathVariable Long invoiceId,
+            @PathVariable("invoiceId") Long invoiceId,
             @RequestBody CashierProcessPaymentRequest request) {
         return invoiceService.processPayment(invoiceId, request);
     }
@@ -107,7 +108,7 @@ public class CashierController {
     @Operation(summary = "In biên lai", description = "Gửi lệnh in biên lai tới máy in được chỉ định.")
     public CashierPrintReceiptResponse printReceipt(
             @PathVariable Long invoiceId,
-            @RequestParam(required = false) String printerName) {
+            @RequestParam(name = "printerName", required = false) String printerName) {
         return invoiceService.printReceipt(invoiceId, printerName);
     }
 
@@ -122,4 +123,3 @@ public class CashierController {
                 .body(pdf);
     }
 }
-
