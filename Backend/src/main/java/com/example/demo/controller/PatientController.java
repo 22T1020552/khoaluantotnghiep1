@@ -36,7 +36,7 @@ public class PatientController {
 
     @GetMapping("/profile")
     @Operation(summary = "Thông tin hồ sơ bệnh nhân")
-    public PatientPrefillResponse getProfile(@RequestParam(required = false) Long patientId) {
+    public PatientPrefillResponse getProfile(@RequestParam(name = "patientId", required = false) Long patientId) {
         return appointmentService.getPatientPrefill(patientId);
     }
 

@@ -18,6 +18,7 @@ export interface ReceptionistAppointment {
   appointmentTime: string;
   symptoms?: string | null;
   status: string;
+  cancellationReason?: string | null;
   patient: ReceptionistPatient;
   doctor?: ReceptionistDoctor | null;
 }
@@ -77,10 +78,10 @@ export const receptionistService = {
     return response.data;
   },
 
-  async cancelAppointment(appointmentId: number, cancellationReason?: string) {
+  async cancelAppointment(appointmentId: number, cancellationReason: string) {
     const response = await api.put<ReceptionistAppointment>(`/api/receptionist/appointments/${appointmentId}/cancel`, {
-      cancellationReason: cancellationReason?.trim() || undefined,
-      requireReason: false,
+      cancellationReason: cancellationReason.trim(),
+      requireReason: true,
     });
     return response.data;
   },

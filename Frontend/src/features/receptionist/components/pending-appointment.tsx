@@ -4,7 +4,7 @@ import styles from "@/styles/common.module.css";
 interface PendingAppointmentsProps {
   appointments: ReceptionistAppointment[];
   onConfirmClick: (appointment: ReceptionistAppointment) => void;
-  onCancelClick: (id: number) => void;
+  onCancelClick: (appointment: ReceptionistAppointment) => void;
   disabled?: boolean;
 }
 
@@ -52,7 +52,7 @@ export function PendingAppointments({ appointments, onConfirmClick, onCancelClic
                   <button className={`${styles.button} ${styles.primary}`} onClick={() => onConfirmClick(appointment)} disabled={disabled}>
                     Xác nhận
                   </button>
-                  <button className={`${styles.button} ${styles.outline}`} onClick={() => onCancelClick(appointment.id)} disabled={disabled}>
+                  <button className={`${styles.button} ${styles.outline}`} onClick={() => onCancelClick(appointment)} disabled={disabled}>
                     Hủy
                   </button>
                 </div>

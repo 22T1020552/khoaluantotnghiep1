@@ -8,6 +8,7 @@ import { PendingAppointments } from "./components/pending-appointment";
 import { ConfirmedAppointments } from "./components/confirm-appointment";
 import { CancelledAppointments } from "./components/cancelled-appointment";
 import { ConfirmModal } from "./components/confirm-modal";
+import { CancelAppointmentModal } from "./components/cancel-appointment-modal";
 import { useReceptionistDashboard } from "@/hooks/useReceptionistDashboard";
 import { getApiErrorMessage } from "@/services/api";
 import { receptionistService, type ReceptionistAppointment } from "@/services/receptionistService";
@@ -17,6 +18,7 @@ export function ReceptionistDashboard() {
   // Thành phần chính của lễ tân: hiển thị lịch hẹn chờ xác nhận/đã xác nhận và thao tác duyệt/hủy.
   const [activeView, setActiveView] = useState<"all" | "pending" | "confirmed" | "cancelled">("all");
   const [selectedAppointment, setSelectedAppointment] = useState<ReceptionistAppointment | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<ReceptionistAppointment | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
@@ -169,15 +171,20 @@ export function ReceptionistDashboard() {
 
   // Xử lý khi Lễ tân bấm Hủy
   // Hủy lịch hẹn sau khi người dùng xác nhận, sau đó tải lại dashboard.
-  const handleCancelAppointment = async (id: number) => {
-    if (!confirm("Bạn có chắc muốn hủy lịch hẹn này?")) {
+  const handleOpenCancelModal = (appointment: ReceptionistAppointment) => {
+    setCancelTarget(appointment);
+  };
+
+  const handleCancelAppointment = async (reason: string) => {
+    if (!cancelTarget) {
       return;
     }
 
     try {
       setIsSubmitting(true);
-      await receptionistService.cancelAppointment(id, "Hủy bởi lễ tân");
+      await receptionistService.cancelAppointment(cancelTarget.id, reason);
       toast.success("Đã hủy lịch hẹn");
+      setCancelTarget(null);
       await loadDashboardData();
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Không thể hủy lịch hẹn"));
@@ -244,7 +251,7 @@ export function ReceptionistDashboard() {
             <PendingAppointments 
               appointments={visiblePendingAppointments} 
               onConfirmClick={handleOpenConfirmModal} 
-              onCancelClick={handleCancelAppointment} 
+              onCancelClick={handleOpenCancelModal} 
               disabled={isSubmitting}
             />
           )}
@@ -273,7 +280,16 @@ export function ReceptionistDashboard() {
           onConfirm={handleConfirmAppointment}
           submitting={isSubmitting}
         />
-      )}  
+      )}
+
+      {cancelTarget && (
+        <CancelAppointmentModal
+          appointment={cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onConfirm={handleCancelAppointment}
+          submitting={isSubmitting}
+        />
+      )}
     </>
   );
 }

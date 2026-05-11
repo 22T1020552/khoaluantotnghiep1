@@ -28,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class AppointmentService {
 
     private static final String STATUS_PENDING_CONFIRMATION = "PENDING";
@@ -63,6 +64,7 @@ public class AppointmentService {
         PatientPrefillResponse response = new PatientPrefillResponse();
         response.setPatientId(patient.getId());
         response.setFullName(patient.getFullName());
+        response.setGender(patient.getGender());
         response.setNationalId(patient.getNationalId());
         response.setPhoneNumber(patient.getPhoneNumber());
         response.setHealthInsuranceNumber(patient.getHealthInsuranceNumber());
@@ -195,7 +197,8 @@ public class AppointmentService {
             LocalTime start = LocalTime.parse(parts[0]);
             LocalTime end = LocalTime.parse(parts[1]);
             if (!end.isAfter(start)) {
-                throw AppException.of(HttpStatus.BAD_REQUEST, "Thời gian kết thúc của timeSlot phải sau thời gian bắt đầu");
+                throw AppException.of(HttpStatus.BAD_REQUEST,
+                        "Thời gian kết thúc của timeSlot phải sau thời gian bắt đầu");
             }
         } catch (DateTimeParseException ex) {
             throw AppException.of(HttpStatus.BAD_REQUEST, "Giá trị timeSlot không hợp lệ");
@@ -230,9 +233,7 @@ public class AppointmentService {
     // Chức năng: xử lý lấy danh sách cuộc hẹn của bệnh nhân.
     public List<Appointment> getMyAppointments(String username) {
         Patient patient = patientService.getPatientFromUsername(username);
-        return appointmentRepository.findByPatient_IdAndStatusNotInOrderByAppointmentTimeDesc(
-                patient.getId(),
-                List.of(STATUS_CANCELLED, STATUS_CANCELLED_BY_CLINIC));
+        return appointmentRepository.findByPatient_IdOrderByAppointmentTimeDesc(patient.getId());
     }
 
     // Chức năng: xử lý bệnh nhân hủy cuộc hẹn.
@@ -262,6 +263,7 @@ public class AppointmentService {
 
         appointment.setStatus(STATUS_CANCELLED);
         appointment.setDoctor(null);
+        appointment.setCancellationReason(null);
         return appointmentRepository.save(appointment);
     }
 

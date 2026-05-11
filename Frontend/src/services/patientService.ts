@@ -20,6 +20,7 @@ export interface PatientAppointmentResponse {
   appointmentTime: string;
   symptoms: string;
   status: string;
+  cancellationReason?: string | null;
   doctor?: {
     id: number;
     username?: string;

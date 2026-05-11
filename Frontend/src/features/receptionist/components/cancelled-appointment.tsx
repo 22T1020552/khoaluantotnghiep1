@@ -18,7 +18,11 @@ const toStatusLabel = (status: string) => {
   return "Đã hủy";
 };
 
-const toCancelledReason = (status: string) => {
+const toCancelledReason = (status: string, cancellationReason?: string | null) => {
+  const reason = cancellationReason?.trim();
+  if (reason) {
+    return `Lý do: ${reason}`;
+  }
   if (status === "NO_SHOW_CANCELLED") {
     return "Lịch hẹn đã quá giờ nhưng bệnh nhân không đến khám.";
   }
@@ -59,7 +63,7 @@ export function CancelledAppointments({ appointments, resolveRoomName }: Cancell
                       <p>🏥 Phòng khám: {resolveRoomName(appointment.doctor?.id)}</p>
                       <p>📞 SĐT: {appointment.patient.phoneNumber || "Chưa có"}</p>
                     </div>
-                    <div className={styles.panelWarning}>{toCancelledReason(status)}</div>
+                    <div className={styles.panelWarning}>{toCancelledReason(status, appointment.cancellationReason)}</div>
                   </div>
                 </div>
               </div>

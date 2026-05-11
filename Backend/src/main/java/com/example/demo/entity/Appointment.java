@@ -39,4 +39,7 @@ public class Appointment {
 
     @Column(name = "symptoms", length = 500)
     private String symptoms;
+
+    @Column(name = "cancellation_reason", length = 500)
+    private String cancellationReason;
 }

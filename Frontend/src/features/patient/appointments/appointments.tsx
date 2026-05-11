@@ -105,6 +105,7 @@ const getBadgeClass = (status: string) => {
 
 const getSystemNotification = (appointment: PatientAppointmentResponse, status: string) => {
   const when = formatDateTime(appointment.appointmentTime);
+  const reason = appointment.cancellationReason?.trim();
 
   switch (status) {
     case "APPROVED":
@@ -132,7 +133,9 @@ const getSystemNotification = (appointment: PatientAppointmentResponse, status: 
     case "CANCELLED_BY_CLINIC":
       return {
         title: "Phòng khám đã hủy lịch",
-        message: `Lịch #${appointment.id} đã bị hủy từ phía phòng khám. Vui lòng đặt lịch mới hoặc liên hệ lễ tân để được hỗ trợ.`,
+        message: reason
+          ? `Lịch #${appointment.id} đã bị hủy từ phía phòng khám. Lý do: ${reason}.`
+          : `Lịch #${appointment.id} đã bị hủy từ phía phòng khám. Vui lòng đặt lịch mới hoặc liên hệ lễ tân để được hỗ trợ.`,
       };
     case NO_SHOW_CANCELLED_STATUS:
       return {
@@ -377,6 +380,7 @@ export function PatientAppointments() {
                 const status = getEffectiveStatus(item);
                 const doctorName = item.doctor?.fullName ?? item.doctor?.username ?? "Đang cập nhật";
                 const notification = getSystemNotification(item, status);
+                const cancellationReason = item.cancellationReason?.trim();
 
                 return (
                   <article
@@ -413,6 +417,15 @@ export function PatientAppointments() {
                         <strong>{notification.title}:</strong> {notification.message}
                       </p>
                     </div>
+
+                    {status === "CANCELLED_BY_CLINIC" && cancellationReason && (
+                      <div className={`${styles.notificationInline} ${styles.notificationInlineAlert}`}>
+                        <XCircle size={15} />
+                        <p>
+                          <strong>Lý do hủy:</strong> {cancellationReason}
+                        </p>
+                      </div>
+                    )}
 
                     {isCancellable(status) && (
                       <div className={styles.actions}>
