@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.dto.ReceptionistApproveRequest;
+import com.example.demo.dto.ReceptionistApproveResponse;
 import com.example.demo.dto.ReceptionistCancelAppointmentRequest;
 import com.example.demo.dto.ReceptionistDoctorOptionResponse;
+import com.example.demo.dto.ReceptionistRoomSuggestionResponse;
 import com.example.demo.dto.ReceptionistWaitingStatusUpdateRequest;
 import com.example.demo.entity.Appointment;
 import com.example.demo.service.ReceptionistService;
@@ -49,17 +51,28 @@ public class ReceptionistController {
         return receptionistService.getDoctorsBySpecialty(specialty);
     }
 
+    @GetMapping("/appointments/{appointmentId}/suggested-room")
+    @Operation(summary = "Phòng khám gợi ý theo lịch hẹn")
+    public ReceptionistRoomSuggestionResponse getSuggestedRoom(
+            @PathVariable("appointmentId") Long appointmentId) {
+        return receptionistService.getSuggestedRoom(appointmentId);
+    }
+
     @PutMapping("/appointments/{appointmentId}/approve")
     @Operation(summary = "Duyệt lịch hẹn")
-    public Appointment approveAppointment(
+    public ReceptionistApproveResponse approveAppointment(
             @PathVariable("appointmentId") Long appointmentId,
             @Valid @RequestBody ReceptionistApproveRequest request) {
-        return receptionistService.approveAppointment(appointmentId, request.getDoctorId(), request.getSpecialty());
+        return receptionistService.approveAppointment(
+                appointmentId,
+                request.getDoctorId(),
+                request.getAssignedRoomId(),
+                request.getSpecialty());
     }
 
     @PutMapping("/appointments/{appointmentId}/assign-doctor")
     @Operation(summary = "Phân công bác sĩ va chuyen hang cho")
-    public Appointment assignDoctorAndMoveToWaiting(
+    public ReceptionistApproveResponse assignDoctorAndMoveToWaiting(
             @PathVariable("appointmentId") Long appointmentId,
             @Valid @RequestBody ReceptionistApproveRequest request) {
         return receptionistService.assignDoctorAndMoveToWaiting(appointmentId, request.getDoctorId(),

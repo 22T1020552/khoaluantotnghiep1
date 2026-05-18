@@ -2,13 +2,15 @@ import { api } from "./api";
 
 export interface CashierWaitingPaymentItemResponse {
   invoiceId: number;
-  medicalRecordId: number;
+  appointmentId: number;
   patientId: number;
   patientName: string;
   phoneNumber: string;
   appointmentTime: string;
-  totalAmount: number;
-  paymentStatus: string;
+  grandTotal: number;
+  advanceAmount: number;
+  remainingAmount: number;
+  invoiceStatus: string;
 }
 
 export interface CashierServiceLineItemResponse {
@@ -30,29 +32,31 @@ export interface CashierMedicineLineItemResponse {
 
 export interface CashierPaymentRecordDetailResponse {
   invoiceId: number;
-  medicalRecordId: number;
+  appointmentId: number;
   patientId: number;
   patientName: string;
   phoneNumber: string;
   appointmentTime: string;
-  paymentStatus: string;
+  invoiceStatus: string;
   paymentMethod?: string | null;
   paidAt?: string | null;
   totalServiceFee: number;
   totalMedicineFee: number;
-  totalAmount: number;
+  grandTotal: number;
+  advanceAmount: number;
+  remainingAmount: number;
   services: CashierServiceLineItemResponse[];
   medicines: CashierMedicineLineItemResponse[];
 }
 
 export interface CashierTransactionHistoryItemResponse {
   invoiceId: number;
-  medicalRecordId: number;
+  appointmentId: number;
   patientId: number;
   patientName: string;
   paymentMethod: string;
   paidAt: string;
-  totalAmount: number;
+  grandTotal: number;
 }
 
 export interface CashierTransactionHistoryResponse {
@@ -78,13 +82,13 @@ export interface CashierProcessPaymentRequest {
 
 export interface CashierProcessPaymentResponse {
   invoiceId: number;
-  medicalRecordId: number;
+  appointmentId: number;
   paymentMethod: string;
   totalServiceFee: number;
   totalMedicineFee: number;
-  grossTotalAmount: number;
+  grandTotal: number;
   insuranceDiscountAmount: number;
-  totalAmount: number;
+  remainingAmount: number;
   insuranceApplied: boolean;
   paidAt: string;
   transactionStatus: string;

@@ -27,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 @SuppressWarnings("null")
 public class DoctorService {
 
-    private static final String STATUS_WAITING = "WAITING";
+    private static final String STATUS_IN_ROOM = "IN_ROOM";
     private static final String STATUS_COMPLETED = "COMPLETED";
 
     private final UserRepository userRepository;
@@ -80,14 +80,14 @@ public class DoctorService {
             LocalDateTime to = from.plusDays(1);
             return appointmentRepository.findByDoctor_IdAndStatusAndAppointmentTimeBetweenOrderByAppointmentTimeAsc(
                     doctor.getId(),
-                    STATUS_WAITING,
+                    STATUS_IN_ROOM,
                     from,
                     to);
         }
 
         return appointmentRepository.findByDoctor_IdAndStatusOrderByAppointmentTimeAsc(
                 doctor.getId(),
-                STATUS_WAITING);
+                STATUS_IN_ROOM);
     }
 
     // Chức năng: lấy danh sách bệnh nhân đã khám.

@@ -26,6 +26,8 @@ import com.example.demo.dto.AdminRevenueReportResponse;
 import com.example.demo.dto.AdminRoomAssignDoctorRequest;
 import com.example.demo.dto.AdminRoomCreateRequest;
 import com.example.demo.dto.AdminRoomResponse;
+import com.example.demo.dto.AdminRoomScheduleRequest;
+import com.example.demo.dto.AdminRoomScheduleResponse;
 import com.example.demo.dto.AdminRoomUpdateRequest;
 import com.example.demo.dto.AdminSystemSettingResponse;
 import com.example.demo.dto.AdminUpdateUserRequest;
@@ -152,6 +154,36 @@ public class AdminController {
             @PathVariable("roomId") Long roomId,
             @Valid @RequestBody AdminRoomAssignDoctorRequest request) {
         return adminService.assignDoctorToRoom(roomId, request.getDoctorId());
+    }
+
+    @GetMapping("/room-schedules")
+    @Operation(summary = "Lịch phân công phòng theo tháng", description = "Lấy lịch phân công phòng theo yyyy-MM.")
+    // Chức năng: xử lý lấy lịch phân công phòng.
+    public List<AdminRoomScheduleResponse> getRoomSchedules(@RequestParam(name = "month") String month) {
+        return adminService.getRoomSchedules(month);
+    }
+
+    @PostMapping("/room-schedules")
+    @Operation(summary = "Tạo lịch phân công phòng", description = "Tạo lịch phân công bác sĩ theo phòng.")
+    // Chức năng: xử lý tạo lịch phân công.
+    public AdminRoomScheduleResponse createRoomSchedule(@Valid @RequestBody AdminRoomScheduleRequest request) {
+        return adminService.createRoomSchedule(request);
+    }
+
+    @PutMapping("/room-schedules/{scheduleId}")
+    @Operation(summary = "Cập nhật lịch phân công phòng", description = "Cập nhật lịch phân công bác sĩ theo phòng.")
+    // Chức năng: xử lý cập nhật lịch phân công.
+    public AdminRoomScheduleResponse updateRoomSchedule(
+            @PathVariable("scheduleId") Long scheduleId,
+            @Valid @RequestBody AdminRoomScheduleRequest request) {
+        return adminService.updateRoomSchedule(scheduleId, request);
+    }
+
+    @DeleteMapping("/room-schedules/{scheduleId}")
+    @Operation(summary = "Xóa lịch phân công phòng", description = "Xóa lịch phân công bác sĩ theo phòng.")
+    // Chức năng: xử lý xóa lịch phân công.
+    public void deleteRoomSchedule(@PathVariable("scheduleId") Long scheduleId) {
+        adminService.deleteRoomSchedule(scheduleId);
     }
 
     @GetMapping("/medicines")

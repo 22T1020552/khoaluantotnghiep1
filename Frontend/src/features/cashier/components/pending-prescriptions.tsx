@@ -5,6 +5,11 @@ import { ShoppingBag, Phone, User, Clock } from "lucide-react";
 import { Prescription } from "@/types/pharmacy.type";
 import styles from "../cashier.module.css";
 
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(
+    amount,
+  );
+
 interface PendingPrescriptionsProps {
   prescriptions: Prescription[];
   onOpenPayment: (prescription: Prescription) => void;
@@ -58,6 +63,14 @@ function PendingPrescriptions({ prescriptions, onOpenPayment }: PendingPrescript
                 <p className={`${styles.boxTitle} ${styles.treatmentTitle}`}>Điều trị:</p>
                 <p className={`${styles.boxText} ${styles.treatmentText}`}>{prescription.treatment}</p>
               </div>
+              {prescription.remainingAmount !== undefined && (
+                <div className={styles.treatmentBox}>
+                  <p className={`${styles.boxTitle} ${styles.treatmentTitle}`}>Còn lại cần thu:</p>
+                  <p className={`${styles.boxText} ${styles.treatmentText}`}>
+                    {formatCurrency(prescription.remainingAmount)}
+                  </p>
+                </div>
+              )}
             </div>
 
             <Button onClick={() => onOpenPayment(prescription)} className={styles.actionBtn}>

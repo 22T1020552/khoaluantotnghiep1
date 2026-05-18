@@ -35,19 +35,20 @@ export function PharmacyDashboard() {
   ): Prescription => {
     const totalMedicationCost = Number(detail.totalMedicineFee || 0);
     const serviceFee = Number(detail.totalServiceFee || 0);
-    const totalAmount = Number(detail.totalAmount || 0);
-    const rawInsuranceDiscount = Math.max(totalMedicationCost + serviceFee - totalAmount, 0);
-    const insuranceDiscount = Math.min(rawInsuranceDiscount, serviceFee);
-    const payableServiceAmount = Math.max(serviceFee - insuranceDiscount, 0);
+    const grandTotal = Number(detail.grandTotal || 0);
+    const remainingAmount = Number(detail.remainingAmount ?? grandTotal);
+    const advanceAmount = Number(detail.advanceAmount ?? Math.max(grandTotal - remainingAmount, 0));
+    const insuranceDiscount = 0;
+    const payableServiceAmount = status === "pending" ? remainingAmount : grandTotal;
 
     return {
       id: `RX-${detail.invoiceId}`,
       invoiceId: detail.invoiceId,
-      medicalRecordId: detail.medicalRecordId,
+      appointmentId: detail.appointmentId,
       patientName: detail.patientName,
       phone: detail.phoneNumber || "",
-      insuranceNumber: insuranceDiscount > 0 ? "Có áp dụng" : "",
-      doctor: `HS #${detail.medicalRecordId}`,
+      insuranceNumber: "",
+      doctor: `LH #${detail.appointmentId}`,
       diagnosis: "Theo bệnh án từ bác sĩ",
       treatment: "Thanh toán dịch vụ khám theo chỉ định",
       prescriptionItems: (detail.medicines || []).map((item) => ({
@@ -62,10 +63,13 @@ export function PharmacyDashboard() {
       totalMedicationCost,
       date: paidAt || detail.appointmentTime,
       status,
-      serviceFee,
+      serviceFee: serviceFee || grandTotal,
       serviceItems: detail.services || [],
       insuranceDiscount,
       totalAmount: payableServiceAmount,
+      grandTotal,
+      advanceAmount,
+      remainingAmount,
       paymentMethod,
     };
   };
@@ -124,7 +128,7 @@ export function PharmacyDashboard() {
     setPaymentMethod("TIEN_MAT");
     setTransferConfirmed(false);
     setPaymentData({
-      serviceFee: String(Math.floor(prescription.serviceFee || 0)),
+      serviceFee: String(Math.floor(prescription.remainingAmount ?? prescription.totalAmount ?? 0)),
       insuranceDiscount: String(Math.floor(prescription.insuranceDiscount || 0)),
     });
     setIsPaymentOpen(true);

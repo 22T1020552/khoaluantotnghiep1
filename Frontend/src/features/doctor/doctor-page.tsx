@@ -5,7 +5,13 @@ import { Users, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { getApiErrorMessage } from "@/services/api";
-import { doctorService, type DoctorMedicalService, type PrescriptionCatalogMedicine } from "@/services/doctorService";
+import { masterDataService, type DiagnosisTemplateResponse } from "@/services/masterDataService";
+import {
+  doctorService,
+  type DoctorMedicalService,
+  type PrescriptionCatalogMedicine,
+  type PrescriptionWorkspaceResponse,
+} from "@/services/doctorService";
 import type { Appointment, MedicalRecordInput, Medicine, PrescriptionItem, SelectedServiceItem } from "@/types/doctor.type";
 import styles from "@/styles/common.module.css";
 
@@ -31,6 +37,30 @@ const mapCatalogToMedicine = (item: PrescriptionCatalogMedicine): Medicine => ({
   selling_price: item.sellingPrice || 0,
 });
 
+const mapWorkspaceToPrescriptionState = (workspace: PrescriptionWorkspaceResponse) => {
+  const medicines = (workspace.medicineCatalog || []).map(mapCatalogToMedicine);
+  const byId = new Map<number, Medicine>(medicines.map((medicine) => [medicine.id, medicine]));
+
+  const prescriptions: PrescriptionItem[] = (workspace.prescribedMedicines || []).map((line) => ({
+    medicine_id: line.medicineId,
+    quantity: line.quantity,
+    usage_instructions: line.usageInstructions,
+    medicine:
+      byId.get(line.medicineId) ||
+      ({
+        id: line.medicineId,
+        medicine_name: line.medicineName,
+        dosage: "",
+        category: "Khác",
+        unit: line.unit || "đv",
+        stock_quantity: 0,
+        selling_price: line.sellingPrice,
+      } as Medicine),
+  }));
+
+  return { medicines, prescriptions };
+};
+
 const mapDoctorAppointmentToUi = (
   item: Awaited<ReturnType<typeof doctorService.getWaitingPatients>>[number],
   queueNumber: number,
@@ -53,6 +83,7 @@ const mapDoctorAppointmentToUi = (
       gender,
     },
     doctor_name: item.doctor?.username || "BS phụ trách",
+    category: item.category ? { id: item.category.id ?? null, name: item.category.name ?? null } : null,
     symptoms: item.symptoms || "",
     scheduled_time: formatTime(item.appointmentTime),
     appointment_time: item.appointmentTime,
@@ -77,6 +108,8 @@ export function DoctorQueue() {
   const [activeTab, setActiveTab] = useState<"waiting" | "completed">("waiting");
   const [isExamining, setIsExamining] = useState(false);
   const [medicalRecord, setMedicalRecord] = useState<MedicalRecordInput>({ diagnosis: "", doctor_advice: "" });
+  const [diagnosisOptions, setDiagnosisOptions] = useState<DiagnosisTemplateResponse[]>([]);
+  const [selectedDiagnosisId, setSelectedDiagnosisId] = useState<number | null>(null);
   const [prescriptions, setPrescriptions] = useState<PrescriptionItem[]>([]);
   const [availableMedicines, setAvailableMedicines] = useState<Medicine[]>([]);
   const [availableServices, setAvailableServices] = useState<DoctorMedicalService[]>([]);
@@ -90,6 +123,7 @@ export function DoctorQueue() {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [diagnosisLoading, setDiagnosisLoading] = useState(false);
 
   const waitingAppointments = appointments.filter(
     (a) => a.status === "confirmed" && !isPastAppointmentDay(a.appointment_time),
@@ -161,6 +195,8 @@ export function DoctorQueue() {
   const handleStartExam = async (appointment: Appointment) => {
     try {
       setSaving(true);
+      setDiagnosisOptions([]);
+      setSelectedDiagnosisId(null);
       setAppointments((prev) => prev.map((item) => (item.id === appointment.id ? { ...item, status: "pending" } : item)));
       setSelectedAppointment(appointment);
       setIsExamining(true);
@@ -170,8 +206,13 @@ export function DoctorQueue() {
       setPrescriptions(appointment.prescription_items ?? []);
       setSelectedServices(appointment.service_items ?? []);
       
-      const services = await doctorService.getAvailableServices();
+      const categoryId = appointment.category?.id ?? null;
+      const [services, diagnoses] = await Promise.all([
+        doctorService.getAvailableServices(),
+        categoryId ? masterDataService.getDiagnosesByCategory(categoryId) : Promise.resolve([]),
+      ]);
       setAvailableServices(services.filter((item) => item.isActive));
+      setDiagnosisOptions(diagnoses);
 
       setHistoryLoading(true);
       try {
@@ -187,15 +228,15 @@ export function DoctorQueue() {
       if (record) {
         setMedicalRecordId(record.id);
         setMedicalRecord({ diagnosis: record.diagnosis || "", doctor_advice: record.doctorAdvice || "" });
+        const matchedDiagnosis = diagnoses.find(
+          (item) => item.diagnosisName.trim().toLowerCase() === (record.diagnosis || "").trim().toLowerCase(),
+        );
+        setSelectedDiagnosisId(matchedDiagnosis?.id ?? null);
 
         const workspace = await doctorService.getPrescriptionWorkspace(record.id);
-        const mappedMeds = (workspace.medicineCatalog || []).map(mapCatalogToMedicine);
-        const byId = new Map<number, Medicine>(mappedMeds.map((m) => [m.id, m]));
-        setAvailableMedicines(mappedMeds);
-        setPrescriptions((workspace.prescribedMedicines || []).map((line) => ({
-          medicine_id: line.medicineId, quantity: line.quantity, usage_instructions: line.usageInstructions,
-          medicine: byId.get(line.medicineId) || ({ id: line.medicineId, medicine_name: line.medicineName, dosage: "", category: "Khác", unit: line.unit || "đv", stock_quantity: 0, selling_price: line.sellingPrice } as Medicine),
-        })));
+        const mappedWorkspace = mapWorkspaceToPrescriptionState(workspace);
+        setAvailableMedicines(mappedWorkspace.medicines);
+        setPrescriptions(mappedWorkspace.prescriptions);
 
         const recordDetail = await doctorService.getPatientHistoryDetail(appointment.id, record.id).catch(() => null);
         setSelectedServices((recordDetail?.services || []).map((service) => ({
@@ -214,6 +255,65 @@ export function DoctorQueue() {
       setIsExamining(false);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const clearCurrentPrescriptionDetails = async (recordId: number, items: PrescriptionItem[]) => {
+    await Promise.allSettled(items.map((item) => doctorService.removePrescriptionDetail(recordId, item.medicine_id)));
+  };
+
+  const handleDiagnosisSelect = async (diagnosisId: number) => {
+    if (!selectedAppointment) {
+      return;
+    }
+
+    const diagnosis = diagnosisOptions.find((item) => item.id === diagnosisId);
+    if (!diagnosis) {
+      return;
+    }
+
+    try {
+      setDiagnosisLoading(true);
+      const diagnosisName = diagnosis.diagnosisName.trim();
+      const defaultAdvice = (diagnosis.defaultAdvice || "").trim() || "Chưa có lời khuyên mặc định. Vui lòng chỉnh sửa.";
+
+      setSelectedDiagnosisId(diagnosis.id);
+      setMedicalRecord({ diagnosis: diagnosisName, doctor_advice: defaultAdvice });
+
+      let recordId = medicalRecordId;
+      if (!recordId) {
+        const created = await doctorService.createMedicalRecord({
+          appointmentId: selectedAppointment.id,
+          diagnosis: diagnosisName,
+          doctorAdvice: defaultAdvice,
+        });
+        recordId = created.id;
+        setMedicalRecordId(recordId);
+      } else {
+        await doctorService.updateMedicalRecord(recordId, {
+          diagnosis: diagnosisName,
+          doctorAdvice: defaultAdvice,
+        });
+      }
+
+      const currentPrescriptionItems = prescriptions;
+      if (recordId && currentPrescriptionItems.length > 0) {
+        await clearCurrentPrescriptionDetails(recordId, currentPrescriptionItems);
+      }
+      setPrescriptions([]);
+
+      if (!recordId) {
+        throw new Error("Không tạo được bệnh án");
+      }
+
+      const workspace = await doctorService.autoPopulatePrescriptionsFromDiagnosis(recordId, diagnosisId);
+      const mappedWorkspace = mapWorkspaceToPrescriptionState(workspace);
+      setAvailableMedicines(mappedWorkspace.medicines);
+      setPrescriptions(mappedWorkspace.prescriptions);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể tự động điền chẩn đoán hoặc thuốc gợi ý"));
+    } finally {
+      setDiagnosisLoading(false);
     }
   };
 
@@ -357,6 +457,9 @@ export function DoctorQueue() {
           <ExaminationModal 
             appointment={selectedAppointment}
             saving={saving}
+            diagnosisLoading={diagnosisLoading}
+            diagnosisOptions={diagnosisOptions}
+            selectedDiagnosisId={selectedDiagnosisId}
             medicalRecord={medicalRecord}
             prescriptions={prescriptions}
             availableMedicines={availableMedicines}
@@ -370,6 +473,7 @@ export function DoctorQueue() {
             onClose={handleCloseExam}
             onComplete={handleCompleteExam}
             onMedicalRecordChange={handleMedicalRecordChange}
+            onDiagnosisSelect={handleDiagnosisSelect}
             onAddMedicine={handleAddMedicine}
             onUpdatePrescription={handleUpdatePrescription}
             onRemoveMedicine={handleRemoveMedicine}

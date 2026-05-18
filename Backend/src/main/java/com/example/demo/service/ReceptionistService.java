@@ -3,10 +3,12 @@ package com.example.demo.service;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.http.HttpStatus;
@@ -14,12 +16,18 @@ import org.springframework.stereotype.Service;
 import com.example.demo.exception.AppException;
 
 import com.example.demo.dto.ReceptionistDoctorOptionResponse;
+import com.example.demo.dto.ReceptionistApproveResponse;
+import com.example.demo.dto.ReceptionistRoomSuggestionResponse;
+import com.example.demo.config.SpecialtyRoomMappingConfig;
 import com.example.demo.entity.Appointment;
 import com.example.demo.entity.Role;
 import com.example.demo.entity.Room;
+import com.example.demo.entity.RoomSchedule;
 import com.example.demo.entity.User;
+import com.example.demo.constants.PaymentStatus;
 import com.example.demo.repository.AppointmentRepository;
 import com.example.demo.repository.RoomRepository;
+import com.example.demo.repository.RoomScheduleRepository;
 import com.example.demo.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -31,6 +39,8 @@ public class ReceptionistService {
 
     public static final String STATUS_PENDING_CONFIRMATION = "PENDING";
     public static final String STATUS_WAITING = "WAITING";
+    public static final String STATUS_WAITING_CASHIER = "WAITING_CASHIER";
+    public static final String STATUS_IN_ROOM = "IN_ROOM";
     public static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
     public static final String STATUS_COMPLETED = "COMPLETED";
     public static final String STATUS_CANCELLED = "CANCELLED";
@@ -46,12 +56,16 @@ public class ReceptionistService {
     private static final Set<String> WAITING_STATUSES = Set.of(
             STATUS_PENDING_CONFIRMATION,
             STATUS_WAITING,
+            STATUS_WAITING_CASHIER,
+            STATUS_IN_ROOM,
             STATUS_IN_PROGRESS,
             STATUS_COMPLETED);
 
     private static final Set<String> RECEPTIONIST_QUERY_STATUSES = Set.of(
             STATUS_PENDING_CONFIRMATION,
             STATUS_WAITING,
+            STATUS_WAITING_CASHIER,
+            STATUS_IN_ROOM,
             STATUS_IN_PROGRESS,
             STATUS_COMPLETED,
             STATUS_CANCELLED,
@@ -60,7 +74,10 @@ public class ReceptionistService {
     private final AppointmentRepository appointmentRepository;
     private final UserRepository userRepository;
     private final RoomRepository roomRepository;
+    private final RoomScheduleRepository roomScheduleRepository;
+    private final InvoiceService invoiceService;
     private final NotificationService notificationService;
+    private final SpecialtyRoomMappingConfig specialtyRoomMappingConfig;
 
     // Chức năng: xử lý lấy danh sách cuộc hẹn hôm nay.
     public List<Appointment> getTodayAppointments() {
@@ -81,14 +98,13 @@ public class ReceptionistService {
 
         Map<Long, ReceptionistDoctorOptionResponse> result = new LinkedHashMap<>();
         List<Room> rooms = roomRepository.findAllByOrderByRoomNameAsc();
+        Long mappedRoomId = specialtyRoomMappingConfig.getRoomIdForSpecialty(normalizedSpecialty);
         for (Room room : rooms) {
             User doctor = room.getCurrentDoctor();
             if (doctor == null || doctor.getRole() != Role.DOCTOR) {
                 continue;
             }
-
-            String roomName = room.getRoomName();
-            if (normalizedSpecialty != null && !containsIgnoreCase(roomName, normalizedSpecialty)) {
+            if (mappedRoomId != null && !Objects.equals(room.getId(), mappedRoomId)) {
                 continue;
             }
 
@@ -97,31 +113,48 @@ public class ReceptionistService {
                     new ReceptionistDoctorOptionResponse(
                             doctor.getId(),
                             doctor.getUsername(),
-                            roomName,
-                            roomName));
+                            room.getId(),
+                            normalizedSpecialty,
+                            room.getRoomName()));
         }
 
         if (normalizedSpecialty == null) {
             userRepository.findByRole(Role.DOCTOR).forEach(doctor -> result.putIfAbsent(
                     doctor.getId(),
-                    new ReceptionistDoctorOptionResponse(doctor.getId(), doctor.getUsername(), null, null)));
+                    new ReceptionistDoctorOptionResponse(doctor.getId(), doctor.getUsername(), null, null, null)));
         }
 
         return result.values().stream().toList();
+    }
+
+    // Chức năng: gợi ý phòng khám theo lịch hẹn.
+    public ReceptionistRoomSuggestionResponse getSuggestedRoom(Long appointmentId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
+
+        Room room = resolveSuggestedRoom(appointment, null);
+        if (room == null) {
+            return new ReceptionistRoomSuggestionResponse(null, null, inferSpecialtyFromAppointment(appointment));
+        }
+
+        return new ReceptionistRoomSuggestionResponse(
+                room.getId(),
+                room.getRoomName(),
+                inferSpecialtyFromAppointment(appointment));
     }
 
     // Chức năng: xử lý lấy hàng đợi chờ.
     public List<Appointment> getWaitingQueue(String status) {
         if (status == null || status.isBlank()) {
             return appointmentRepository.findByStatusInOrderByAppointmentTimeAsc(
-                    List.of(STATUS_PENDING_CONFIRMATION, STATUS_WAITING, STATUS_IN_PROGRESS));
+                    List.of(STATUS_PENDING_CONFIRMATION, STATUS_WAITING_CASHIER, STATUS_IN_ROOM, STATUS_IN_PROGRESS));
         }
 
         String normalizedStatus = normalizeStatus(status);
         if (!RECEPTIONIST_QUERY_STATUSES.contains(normalizedStatus)) {
             throw AppException.of(
                     HttpStatus.BAD_REQUEST,
-                    "Trạng thái không hợp lệ. Cho phép: PENDING, WAITING, IN_PROGRESS, COMPLETED, CANCELLED");
+                    "Trạng thái không hợp lệ. Cho phép: PENDING, WAITING_CASHIER, IN_ROOM, IN_PROGRESS, COMPLETED, CANCELLED");
         }
 
         if (STATUS_CANCELLED.equals(normalizedStatus)) {
@@ -133,7 +166,8 @@ public class ReceptionistService {
     }
 
     // Chức năng: xử lý duyệt cuộc hẹn.
-    public Appointment approveAppointment(Long appointmentId, Long doctorId, String specialty) {
+    public ReceptionistApproveResponse approveAppointment(Long appointmentId, Long doctorId, Long assignedRoomId,
+            String specialty) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
 
@@ -142,22 +176,38 @@ public class ReceptionistService {
             throw AppException.of(HttpStatus.CONFLICT, "Chỉ lịch hẹn ở trạng thái PENDING mới có thể được duyệt");
         }
 
-        User doctor = resolveDoctorForAssignment(doctorId, specialty, appointment.getAppointmentTime(),
-                appointment.getId());
+        Room assignedRoom = resolveAssignedRoom(appointment, assignedRoomId, specialty);
+        if (assignedRoom == null) {
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Vui lòng chọn phòng khám phù hợp");
+        }
+        appointment.setAssignedRoom(assignedRoom);
 
-        ensureDoctorIsAvailable(doctor.getId(), appointment.getAppointmentTime(), appointment.getId());
+        User doctor = resolveDoctorForAssignment(doctorId, specialty, appointment, assignedRoom);
+        if (doctor != null) {
+            ensureDoctorIsAvailable(doctor.getId(), appointment.getAppointmentTime(), appointment.getId());
+            appointment.setDoctor(doctor);
+        }
 
-        appointment.setDoctor(doctor);
-        appointment.setStatus(STATUS_WAITING);
+        String paymentStatus = normalizeOptionalStatus(appointment.getPaymentStatus());
+        String approvalMessage;
+        if (PaymentStatus.FULLY_PAID.equals(paymentStatus)) {
+            appointment.setStatus(STATUS_IN_ROOM);
+            approvalMessage = "Bệnh nhân đã thanh toán đầy đủ, mời vào phòng khám.";
+        } else {
+            appointment.setStatus(STATUS_WAITING_CASHIER);
+            invoiceService.createInvoiceForAppointment(appointment);
+            approvalMessage = "Mời anh chị qua quầy thu ngân đóng tiền trước khi vào phòng khám.";
+        }
 
         Appointment saved = appointmentRepository.save(appointment);
         notificationService.notifyAppointmentApproved(saved);
-        return saved;
+        return new ReceptionistApproveResponse(saved, approvalMessage);
     }
 
     // Chức năng: xử lý chỉ định bác sĩ và chuyển đến phòng chờ.
-    public Appointment assignDoctorAndMoveToWaiting(Long appointmentId, Long doctorId, String specialty) {
-        return approveAppointment(appointmentId, doctorId, specialty);
+    public ReceptionistApproveResponse assignDoctorAndMoveToWaiting(Long appointmentId, Long doctorId,
+            String specialty) {
+        return approveAppointment(appointmentId, doctorId, null, specialty);
     }
 
     // Chức năng: xử lý cập nhật trạng thái chờ.
@@ -169,12 +219,14 @@ public class ReceptionistService {
         if (!WAITING_STATUSES.contains(normalizedStatus)) {
             throw AppException.of(
                     HttpStatus.BAD_REQUEST,
-                    "Trạng thái không hợp lệ. Cho phép: PENDING, WAITING, IN_PROGRESS, COMPLETED");
+                    "Trạng thái không hợp lệ. Cho phép: PENDING, WAITING_CASHIER, IN_ROOM, IN_PROGRESS, COMPLETED");
         }
 
         validateTransition(appointment.getStatus(), normalizedStatus);
 
-        if ((STATUS_WAITING.equals(normalizedStatus) || STATUS_IN_PROGRESS.equals(normalizedStatus))
+        if ((STATUS_WAITING.equals(normalizedStatus)
+                || STATUS_IN_ROOM.equals(normalizedStatus)
+                || STATUS_IN_PROGRESS.equals(normalizedStatus))
                 && appointment.getDoctor() == null) {
             throw AppException.of(HttpStatus.CONFLICT, "Lịch hẹn phải được phân công bác sĩ trước");
         }
@@ -224,26 +276,32 @@ public class ReceptionistService {
     }
 
     // Chức năng: xử lý chọn bác sĩ từ doctorId hoặc chuyên khoa.
-    private User resolveDoctorForAssignment(Long doctorId, String specialty, LocalDateTime appointmentTime,
-            Long appointmentId) {
+    private User resolveDoctorForAssignment(Long doctorId, String specialty, Appointment appointment,
+            Room assignedRoom) {
         if (doctorId != null) {
             return userRepository.findByIdAndRole(doctorId, Role.DOCTOR)
                     .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bác sĩ"));
         }
 
         String normalizedSpecialty = normalizeOptionalText(specialty);
+        if (assignedRoom != null && appointment.getAppointmentTime() != null) {
+            User scheduledDoctor = resolveDoctorFromSchedule(assignedRoom.getId(), appointment.getAppointmentTime());
+            if (scheduledDoctor != null) {
+                return scheduledDoctor;
+            }
+        }
+
         if (normalizedSpecialty == null) {
-            throw AppException.of(HttpStatus.BAD_REQUEST, "doctorId hoặc specialty là bắt buộc");
+            return null;
         }
 
         return getDoctorsBySpecialty(normalizedSpecialty).stream()
                 .map(option -> userRepository.findByIdAndRole(option.getDoctorId(), Role.DOCTOR).orElse(null))
-                .filter(doctor -> doctor != null)
-                .filter(doctor -> isDoctorAvailable(doctor.getId(), appointmentTime, appointmentId))
+                .filter(Objects::nonNull)
+                .filter(doctor -> isDoctorAvailable(doctor.getId(), appointment.getAppointmentTime(),
+                        appointment.getId()))
                 .findFirst()
-                .orElseThrow(() -> AppException.of(
-                        HttpStatus.NOT_FOUND,
-                        "No available doctor found for specialty: " + normalizedSpecialty));
+                .orElse(null);
     }
 
     // Chức năng: xử lý kiểm tra bác sĩ có rảnh ở khung giờ không.
@@ -263,8 +321,10 @@ public class ReceptionistService {
         }
 
         boolean valid = switch (normalizedCurrent) {
-            case STATUS_PENDING_CONFIRMATION -> STATUS_WAITING.equals(nextStatus);
-            case STATUS_WAITING -> STATUS_IN_PROGRESS.equals(nextStatus);
+            case STATUS_PENDING_CONFIRMATION -> STATUS_WAITING_CASHIER.equals(nextStatus)
+                    || STATUS_IN_ROOM.equals(nextStatus);
+            case STATUS_WAITING_CASHIER -> STATUS_IN_ROOM.equals(nextStatus);
+            case STATUS_IN_ROOM -> STATUS_IN_PROGRESS.equals(nextStatus);
             case STATUS_IN_PROGRESS -> STATUS_COMPLETED.equals(nextStatus);
             case STATUS_COMPLETED -> false;
             default -> false;
@@ -286,11 +346,117 @@ public class ReceptionistService {
         String value = normalizeComparableStatus(status);
         return switch (value) {
             case "CHO_XAC_NHAN", "PENDING", "PENDING_CONFIRMATION", "DRAFT" -> STATUS_PENDING_CONFIRMATION;
+            case "CHO_THU_NGAN", "WAITING_CASHIER" -> STATUS_WAITING_CASHIER;
+            case "VAO_PHONG", "IN_ROOM" -> STATUS_IN_ROOM;
             case "DANG_CHO", "WAITING" -> STATUS_WAITING;
             case "DANG_KHAM", "IN_PROGRESS" -> STATUS_IN_PROGRESS;
             case "DA_KHAM", "COMPLETED" -> STATUS_COMPLETED;
             default -> value;
         };
+    }
+
+    private Room resolveAssignedRoom(Appointment appointment, Long assignedRoomId, String specialty) {
+        if (assignedRoomId != null) {
+            return roomRepository.findById(assignedRoomId)
+                    .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy phòng"));
+        }
+
+        return resolveSuggestedRoom(appointment, specialty);
+    }
+
+    private Room resolveSuggestedRoom(Appointment appointment, String specialty) {
+        List<Room> rooms = roomRepository.findAllByOrderByRoomNameAsc();
+        if (rooms.isEmpty()) {
+            return null;
+        }
+
+        String hint = normalizeOptionalText(specialty);
+        if (hint == null) {
+            hint = inferSpecialtyFromAppointment(appointment);
+        }
+
+        if (hint != null) {
+            Long mapped = specialtyRoomMappingConfig.getRoomIdForSpecialty(hint);
+            if (mapped != null) {
+                return roomRepository.findById(mapped).orElse(null);
+            }
+        }
+
+        String normalizedCategory = appointment.getCategory() == null ? null
+                : normalizeOptionalText(appointment.getCategory().getName());
+        if (normalizedCategory != null) {
+            Long mapped = specialtyRoomMappingConfig.getRoomIdForSpecialty(normalizedCategory);
+            if (mapped != null) {
+                return roomRepository.findById(mapped).orElse(null);
+            }
+        }
+
+        return rooms.get(0);
+    }
+
+    private String inferSpecialtyFromAppointment(Appointment appointment) {
+        String categoryName = appointment.getCategory() == null ? null : appointment.getCategory().getName();
+        String normalizedCategory = normalizeOptionalText(categoryName);
+        if (normalizedCategory != null) {
+            return normalizedCategory;
+        }
+
+        String symptomText = normalizeOptionalText(appointment.getSymptomsText());
+        if (symptomText == null) {
+            symptomText = normalizeOptionalText(appointment.getSymptoms());
+        }
+        if (symptomText == null) {
+            return null;
+        }
+
+        String lower = symptomText.toLowerCase(Locale.ROOT);
+        if (containsAny(lower, List.of("đau bụng", "buồn nôn", "ói mửa", "tiêu chảy", "táo bón", "thượng vị"))) {
+            return "Tiêu hóa";
+        }
+        if (containsAny(lower, List.of("ho", "đau họng", "khó thở", "chảy mũi", "khàn tiếng"))) {
+            return "Hô hấp";
+        }
+        if (containsAny(lower, List.of("đau đầu", "chóng mặt", "mất ngủ", "tê tay", "tê chân"))) {
+            return "Thần kinh";
+        }
+        if (containsAny(lower, List.of("ngứa", "phát ban", "mẩn đỏ", "nóng rát"))) {
+            return "Da liễu";
+        }
+        if (containsAny(lower, List.of("sốt", "mỏi mệt", "sụt cân", "sưng"))) {
+            return "Toàn thân";
+        }
+
+        return null;
+    }
+
+    private boolean containsAny(String text, List<String> keywords) {
+        for (String keyword : keywords) {
+            if (text.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private User resolveDoctorFromSchedule(Long roomId, LocalDateTime appointmentTime) {
+        LocalDate date = appointmentTime.toLocalDate();
+        LocalTime time = appointmentTime.toLocalTime();
+        List<RoomSchedule> schedules = roomScheduleRepository.findByRoom_IdAndScheduleDate(roomId, date);
+        return schedules.stream()
+                .filter(schedule -> schedule.getStartTime() != null && schedule.getEndTime() != null)
+                .filter(schedule -> !time.isBefore(schedule.getStartTime()) && time.isBefore(schedule.getEndTime()))
+                .map(RoomSchedule::getDoctor)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String normalizeOptionalStatus(String status) {
+        if (status == null) {
+            return null;
+        }
+        String trimmed = status.trim().toUpperCase(Locale.ROOT);
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     // Chức năng: xử lý chuẩn hóa trạng thái có thể so sánh.
@@ -311,13 +477,5 @@ public class ReceptionistService {
             return null;
         }
         return trimmed;
-    }
-
-    // Chức năng: xử lý so khớp chuỗi không phân biệt hoa thường.
-    private boolean containsIgnoreCase(String left, String right) {
-        if (left == null || right == null) {
-            return false;
-        }
-        return left.toLowerCase(Locale.ROOT).contains(right.toLowerCase(Locale.ROOT));
     }
 }

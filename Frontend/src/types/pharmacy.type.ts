@@ -1,12 +1,14 @@
 export interface CashierQueueItem {
   invoiceId: number;
-  medicalRecordId: number;
+  appointmentId: number;
   patientId: number;
   patientName: string;
   phoneNumber: string;
   appointmentTime: string;
-  totalAmount: number;
-  paymentStatus: string;
+  grandTotal: number;
+  advanceAmount: number;
+  remainingAmount: number;
+  invoiceStatus: string;
 }
 
 export interface CashierServiceLine {
@@ -28,29 +30,31 @@ export interface CashierMedicineLine {
 
 export interface CashierPaymentDetail {
   invoiceId: number;
-  medicalRecordId: number;
+  appointmentId: number;
   patientId: number;
   patientName: string;
   phoneNumber: string;
   appointmentTime: string;
-  paymentStatus: string;
+  invoiceStatus: string;
   paymentMethod?: string | null;
   paidAt?: string | null;
   totalServiceFee: number;
   totalMedicineFee: number;
-  totalAmount: number;
+  grandTotal: number;
+  advanceAmount: number;
+  remainingAmount: number;
   services: CashierServiceLine[];
   medicines: CashierMedicineLine[];
 }
 
 export interface CashierPaidItem {
   invoiceId: number;
-  medicalRecordId: number;
+  appointmentId: number;
   patientId: number;
   patientName: string;
   paymentMethod: string;
   paidAt: string;
-  totalAmount: number;
+  grandTotal: number;
 }
 
 export interface PrescriptionItem {
@@ -80,6 +84,9 @@ export interface Prescription {
   insuranceDiscount?: number;
   totalAmount?: number;
   invoiceId?: number;
-  medicalRecordId?: number;
+  appointmentId?: number;
+  grandTotal?: number;
+  advanceAmount?: number;
+  remainingAmount?: number;
   paymentMethod?: string;
 }

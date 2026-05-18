@@ -1,5 +1,6 @@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { DiagnosisTemplateResponse } from "@/services/doctorService";
 import styles from "@/styles/common.module.css";
 import type { MedicalRecordInput } from "@/types/doctor.type";
 
@@ -11,10 +12,14 @@ const formatDate = (value?: string | null) => {
 
 interface MedicalRecordFormProps {
   medicalRecord: MedicalRecordInput;
+  diagnosisOptions: DiagnosisTemplateResponse[];
+  selectedDiagnosisId: number | null;
+  diagnosisLoading: boolean;
   historyRows: any[];
   historyDetail: any;
   historyLoading: boolean;
   historyDetailLoading: boolean;
+  onDiagnosisSelect: (diagnosisId: number) => void;
   onChange: (field: string, value: string) => void;
   onViewHistory: (historyId: number) => void;
 }
@@ -24,13 +29,30 @@ export function MedicalRecordForm(props: MedicalRecordFormProps) {
     <>
       <div className={styles.formGroup}>
         <Label className={styles.label}>Chẩn đoán *</Label>
-        <Textarea
+        <select
           className={styles.input}
-          rows={3}
-          value={props.medicalRecord.diagnosis}
-          onChange={(e) => props.onChange("diagnosis", e.target.value)}
-          placeholder="Nhập chẩn đoán..."
-        />
+          value={props.selectedDiagnosisId ?? ""}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (!value) {
+              return;
+            }
+            props.onDiagnosisSelect(Number(value));
+          }}
+          disabled={props.diagnosisLoading || props.diagnosisOptions.length === 0}
+        >
+          <option value="">{props.diagnosisLoading ? "Đang tải chẩn đoán..." : "-- Chọn chẩn đoán --"}</option>
+          {props.diagnosisOptions.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.diagnosisName}
+            </option>
+          ))}
+        </select>
+        {props.diagnosisOptions.length === 0 && !props.diagnosisLoading && (
+          <p className={styles.textSmall} style={{ marginTop: "0.5rem" }}>
+            Chuyên khoa này chưa có danh sách chẩn đoán mẫu.
+          </p>
+        )}
       </div>
 
       <div className={styles.formGroup}>
@@ -40,7 +62,7 @@ export function MedicalRecordForm(props: MedicalRecordFormProps) {
           rows={3}
           value={props.medicalRecord.doctor_advice}
           onChange={(e) => props.onChange("doctor_advice", e.target.value)}
-          placeholder="Nhập lời khuyên điều trị..."
+          placeholder="Lời khuyên sẽ tự điền từ chẩn đoán mẫu và có thể chỉnh sửa..."
         />
       </div>
 

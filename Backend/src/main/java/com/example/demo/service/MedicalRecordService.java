@@ -1,7 +1,9 @@
 package com.example.demo.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -80,6 +82,7 @@ public class MedicalRecordService {
     private final PrescriptionDetailRepository prescriptionDetailRepository;
     private final MedicalRecordServiceDetailRepository medicalRecordServiceDetailRepository;
     private final RoomRepository roomRepository;
+    private final com.example.demo.repository.DiagnosisMedicineRuleRepository diagnosisMedicineRuleRepository;
     private final PatientService patientService;
     private final InvoiceService invoiceService;
 
@@ -764,5 +767,59 @@ public class MedicalRecordService {
             throw AppException.of(HttpStatus.CONFLICT,
                     "Không thể chỉnh sửa đơn thuốc khi lịch hẹn đã hoàn tất");
         }
+    }
+
+    // Chức năng: tự động thêm các thuốc gợi ý dựa trên DiagnosisTemplate và khoảng
+    // tuổi
+    public PrescriptionWorkspaceResponse autoPopulatePrescriptionsFromDiagnosis(
+            String username,
+            Long medicalRecordId,
+            Long diagnosisTemplateId) {
+        MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+        ensurePrescriptionEditable(medicalRecord);
+
+        Appointment appointment = medicalRecord.getAppointment();
+        if (appointment == null || appointment.getPatient() == null) {
+            throw AppException.of(HttpStatus.CONFLICT, "Bệnh án không gắn với bệnh nhân");
+        }
+
+        Integer age = 0;
+        if (appointment.getPatient().getDateOfBirth() != null) {
+            age = Period.between(appointment.getPatient().getDateOfBirth(), LocalDate.now()).getYears();
+        }
+
+        List<com.example.demo.entity.DiagnosisMedicineRule> rules = diagnosisMedicineRuleRepository
+                .findByDiagnosisTemplate_IdAndMinAgeLessThanEqualAndMaxAgeGreaterThanEqualOrderByMedicine_MedicineNameAsc(
+                        diagnosisTemplateId,
+                        age,
+                        age);
+
+        for (com.example.demo.entity.DiagnosisMedicineRule rule : rules) {
+            if (rule.getMedicine() == null)
+                continue;
+
+            Long medicineId = rule.getMedicine().getId();
+            PrescriptionDetailId id = new PrescriptionDetailId();
+            id.setMedicalRecordId(medicalRecordId);
+            id.setMedicineId(medicineId);
+
+            PrescriptionDetail detail = prescriptionDetailRepository.findById(id).orElseGet(PrescriptionDetail::new);
+            detail.setMedicalRecord(medicalRecord);
+            detail.setMedicine(rule.getMedicine());
+
+            Integer existingQty = java.util.Objects.requireNonNullElse(detail.getQuantity(), 0);
+            int qtyToSet = java.util.Objects.requireNonNullElse(rule.getDefaultQuantity(), 1);
+            if (existingQty == 0) {
+                detail.setQuantity(qtyToSet);
+            }
+
+            String usage = rule.getDefaultUsage();
+            detail.setUsageInstructions(usage == null || usage.isBlank() ? DEFAULT_USAGE_PLACEHOLDER : usage.trim());
+
+            prescriptionDetailRepository.save(detail);
+        }
+
+        invoiceService.aggregateInvoiceAmount(medicalRecordId);
+        return getPrescriptionWorkspace(username, medicalRecordId);
     }
 }

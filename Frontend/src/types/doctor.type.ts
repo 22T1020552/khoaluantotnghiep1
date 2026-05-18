@@ -25,6 +25,7 @@ export interface Appointment {
   patient: Patient;
   doctor_name: string;
   symptoms: string;
+  category?: { id?: number | null; name?: string | null } | null;
   scheduled_date?: string;
   scheduled_time: string;
   queue_number: number;

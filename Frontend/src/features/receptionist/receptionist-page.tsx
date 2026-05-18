@@ -20,6 +20,7 @@ export function ReceptionistDashboard() {
   const [selectedAppointment, setSelectedAppointment] = useState<ReceptionistAppointment | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ReceptionistAppointment | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [approvalMessage, setApprovalMessage] = useState<string | null>(null);
 
   const {
     pendingAppointments,
@@ -125,7 +126,13 @@ export function ReceptionistDashboard() {
 
   // Xử lý khi Lễ tân bấm nút "Xác nhận" trên thẻ lịch hẹn
   const handleOpenConfirmModal = (appointment: ReceptionistAppointment) => {
+    setApprovalMessage(null);
     setSelectedAppointment(appointment);
+  };
+
+  const handleCloseConfirmModal = () => {
+    setApprovalMessage(null);
+    setSelectedAppointment(null);
   };
 
   // Xử lý khi Lễ tân submit form trong Modal
@@ -147,20 +154,26 @@ export function ReceptionistDashboard() {
   // Bước 1: Kiểm tra đã có lịch hẹn đang chọn.
   // Bước 2: Gọi API approve để gán bác sĩ + giờ khám.
   // Bước 3: Đóng modal, reload dữ liệu và hiển thị thông báo.
-  const handleConfirmAppointment = async (doctorId: number, appointmentTime: string) => {
+  const handleConfirmAppointment = async (
+    doctorId: number,
+    appointmentTime: string,
+    assignedRoomId?: number | null,
+    specialty?: string | null,
+  ) => {
     if (!selectedAppointment) {
       return;
     }
 
     try {
       setIsSubmitting(true);
-      await receptionistService.approveAppointment(
+      const result = await receptionistService.approveAppointment(
         selectedAppointment.id,
         doctorId,
         toApiDateTime(appointmentTime),
+        assignedRoomId,
+        specialty,
       );
-      toast.success("Xác nhận lịch hẹn thành công");
-      setSelectedAppointment(null);
+      setApprovalMessage(result.message || "Xác nhận lịch hẹn thành công");
       await loadDashboardData();
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Không thể xác nhận lịch hẹn"));
@@ -276,8 +289,9 @@ export function ReceptionistDashboard() {
         <ConfirmModal
           appointment={selectedAppointment}
           doctors={doctorOptions}
-          onClose={() => setSelectedAppointment(null)}
+          onClose={handleCloseConfirmModal}
           onConfirm={handleConfirmAppointment}
+          approvalMessage={approvalMessage}
           submitting={isSubmitting}
         />
       )}

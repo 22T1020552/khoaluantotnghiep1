@@ -11,11 +11,13 @@ import lombok.Data;
 public class CashierWaitingPaymentItemResponse {
 
     private Long invoiceId;
-    private Long medicalRecordId;
+    private Long appointmentId;
     private Long patientId;
     private String patientName;
     private String phoneNumber;
     private LocalDateTime appointmentTime;
-    private BigDecimal totalAmount;
-    private String paymentStatus;
+    private BigDecimal grandTotal;
+    private BigDecimal advanceAmount;
+    private BigDecimal remainingAmount;
+    private String invoiceStatus;
 }

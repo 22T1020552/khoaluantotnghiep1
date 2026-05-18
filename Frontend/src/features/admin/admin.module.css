@@ -473,6 +473,104 @@
   font-size: 0.9rem;
 }
 
+.scheduleSection {
+  margin-top: 1.5rem;
+}
+
+.scheduleToolbar {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.scheduleGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.scheduleWeekHeader {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.scheduleCell {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  min-height: 140px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.scheduleCellEmpty {
+  background: #f8fafc;
+  border-style: dashed;
+}
+
+.scheduleCellHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.scheduleDayNumber {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.scheduleDayLabel {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.scheduleEmpty {
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.scheduleItem {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.scheduleItemTime {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #1d4ed8;
+}
+
+.scheduleItemMeta {
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.scheduleItemActions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
 .valueText {
   font-size: 1.3rem;
   color: #1d4ed8;
@@ -540,6 +638,10 @@
     gap: 1rem;
   }
 
+  .scheduleGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .table th,
   .table td {
     padding: 0.8rem 0.65rem;
@@ -565,6 +667,10 @@
   }
 
   .cardsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduleGrid {
     grid-template-columns: 1fr;
   }
 

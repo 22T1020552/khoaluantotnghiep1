@@ -20,6 +20,18 @@ export interface AdminRoom {
   currentDoctorUsername: string | null;
 }
 
+export interface AdminRoomSchedule {
+  id: number;
+  roomId: number;
+  roomName: string;
+  doctorId: number;
+  doctorUsername: string;
+  scheduleDate: string;
+  startTime: string;
+  endTime: string;
+  timeSlot: string;
+}
+
 export interface AdminMedicine {
   id: number;
   medicineName: string;
@@ -56,13 +68,13 @@ export interface AdminRevenueChartPoint {
 
 export interface AdminRevenueReportItem {
   invoiceId: number;
-  medicalRecordId: number | null;
+  appointmentId: number | null;
   patientName: string | null;
   paymentMethod: string | null;
   paidAt: string | null;
   totalServiceFee: number;
   totalMedicineFee: number;
-  totalAmount: number;
+  grandTotal: number;
   services: string[];
   medicines: string[];
 }
@@ -164,6 +176,38 @@ export const adminService = {
   async assignDoctorToRoom(roomId: number, doctorId: number) {
     const response = await api.put<AdminRoom>(`/api/admin/rooms/${roomId}/assign-doctor`, { doctorId });
     return response.data;
+  },
+
+  async getRoomSchedules(params: { month: string }) {
+    const response = await api.get<AdminRoomSchedule[]>("/api/admin/room-schedules", { params });
+    return response.data;
+  },
+
+  async createRoomSchedule(payload: {
+    roomId: number;
+    doctorId: number;
+    scheduleDate: string;
+    timeSlot: string;
+  }) {
+    const response = await api.post<AdminRoomSchedule>("/api/admin/room-schedules", payload);
+    return response.data;
+  },
+
+  async updateRoomSchedule(
+    scheduleId: number,
+    payload: {
+      roomId: number;
+      doctorId: number;
+      scheduleDate: string;
+      timeSlot: string;
+    },
+  ) {
+    const response = await api.put<AdminRoomSchedule>(`/api/admin/room-schedules/${scheduleId}`, payload);
+    return response.data;
+  },
+
+  async deleteRoomSchedule(scheduleId: number) {
+    await api.delete(`/api/admin/room-schedules/${scheduleId}`);
   },
 
   async getMedicines() {

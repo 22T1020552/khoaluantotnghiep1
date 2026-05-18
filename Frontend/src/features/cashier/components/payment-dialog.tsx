@@ -68,11 +68,10 @@ function PaymentDialog({
       : totalServiceFee;
   const additionalServiceFee = additionalServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
   const insuranceDiscount = parseFloat(paymentData.insuranceDiscount || "0");
-
-  const payableAmount = Math.max(
-    0,
-    totalServiceFee - insuranceDiscount,
-  );
+  const remainingAmount = prescription.remainingAmount ?? null;
+  const payableAmount = remainingAmount !== null
+    ? remainingAmount
+    : Math.max(0, totalServiceFee - insuranceDiscount);
 
   const bankBin = process.env.NEXT_PUBLIC_CLINIC_BANK_BIN?.trim();
   const bankAccount = process.env.NEXT_PUBLIC_CLINIC_BANK_ACCOUNT?.trim();
@@ -207,6 +206,12 @@ function PaymentDialog({
                   </>
                 ) : (
                   <div className={styles.summaryRow}><span className={styles.summaryMuted}>Phí khám:</span><span className={styles.amountValue}>{formatCurrency(totalServiceFee)}</span></div>
+                )}
+                {prescription.advanceAmount && prescription.advanceAmount > 0 && (
+                  <div className={styles.summaryRow}>
+                    <span className={styles.summaryMuted}>Đã tạm ứng:</span>
+                    <span className={styles.amountValue}>-{formatCurrency(prescription.advanceAmount)}</span>
+                  </div>
                 )}
                 {insuranceDiscount > 0 && (
                   <div className={`${styles.summaryRow} ${styles.summaryDiscount}`}>

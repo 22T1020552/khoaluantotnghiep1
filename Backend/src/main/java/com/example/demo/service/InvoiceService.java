@@ -33,6 +33,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.demo.exception.AppException;
 
+import com.example.demo.constants.AppointmentStatus;
+import com.example.demo.constants.InvoiceStatus;
+import com.example.demo.constants.PaymentStatus;
 import com.example.demo.dto.CashierMedicineLineItemResponse;
 import com.example.demo.dto.CashierPaymentRecordDetailResponse;
 import com.example.demo.dto.CashierPrintReceiptResponse;
@@ -52,6 +55,7 @@ import com.example.demo.entity.MedicalService;
 import com.example.demo.entity.Medicine;
 import com.example.demo.entity.Patient;
 import com.example.demo.entity.PrescriptionDetail;
+import com.example.demo.repository.AppointmentRepository;
 import com.example.demo.repository.InvoiceRepository;
 import com.example.demo.repository.MedicalRecordRepository;
 import com.example.demo.repository.MedicalRecordServiceDetailRepository;
@@ -67,8 +71,8 @@ import lombok.RequiredArgsConstructor;
 @SuppressWarnings("null")
 public class InvoiceService {
 
-    private static final String STATUS_WAITING_PAYMENT = "CHO_THANH_TOAN";
-    private static final String STATUS_PAID = "DA_THANH_TOAN";
+    private static final String STATUS_WAITING_PAYMENT = InvoiceStatus.UNPAID;
+    private static final String STATUS_PAID = InvoiceStatus.PAID;
     private static final String TRANSACTION_SUCCESS = "THANH_TOAN_THANH_CONG";
     private static final String CLINIC_NAME = "Phong Kham Tong Hop";
     private static final String CLINIC_LOGO_TEXT = "[LOGO PHONG KHAM]";
@@ -79,6 +83,7 @@ public class InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
     private final MedicalRecordRepository medicalRecordRepository;
+    private final AppointmentRepository appointmentRepository;
     private final MedicalRecordServiceDetailRepository medicalRecordServiceDetailRepository;
     private final PrescriptionDetailRepository prescriptionDetailRepository;
     private final MedicineRepository medicineRepository;
@@ -87,14 +92,16 @@ public class InvoiceService {
 
     // Chức năng: xử lý lấy thông tin theo mã số hồ sơ y tế.
     public Invoice getByMedicalRecordId(Long medicalRecordId) {
-        return invoiceRepository.findByMedicalRecord_Id(medicalRecordId)
+        MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
+        return invoiceRepository.findByMedicalRecord_Id(medicalRecord.getId())
                 .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND,
                         "Không tìm thấy hóa đơn cho bệnh án này"));
     }
 
     // Chức năng: xử lý lấy hàng đợi chờ thanh toán.
     public List<CashierWaitingPaymentItemResponse> getWaitingPaymentQueue(String keyword) {
-        List<Invoice> unpaidInvoices = invoiceRepository.findByIsPaidFalseOrderByIdDesc();
+        List<Invoice> unpaidInvoices = invoiceRepository.findByIsPaidOrderByIdDesc(Boolean.FALSE);
 
         if (keyword == null || keyword.isBlank()) {
             return unpaidInvoices.stream()
@@ -169,10 +176,13 @@ public class InvoiceService {
         String normalizedFilter = normalizePaymentMethodFilter(paymentMethod);
         List<Invoice> paidInvoices;
         if (normalizedFilter == null) {
-            paidInvoices = invoiceRepository.findByIsPaidTrueAndPaidAtBetweenOrderByPaidAtDesc(resolvedStartTime,
+            paidInvoices = invoiceRepository.findByIsPaidAndPaidAtBetweenOrderByPaidAtDesc(
+                    Boolean.TRUE,
+                    resolvedStartTime,
                     resolvedEndTime);
         } else {
-            paidInvoices = invoiceRepository.findByIsPaidTrueAndPaymentMethodAndPaidAtBetweenOrderByPaidAtDesc(
+            paidInvoices = invoiceRepository.findByIsPaidAndPaymentMethodAndPaidAtBetweenOrderByPaidAtDesc(
+                    Boolean.TRUE,
                     normalizedFilter,
                     resolvedStartTime,
                     resolvedEndTime);
@@ -183,7 +193,7 @@ public class InvoiceService {
                 .toList();
 
         BigDecimal totalAmount = paidInvoices.stream()
-                .map(Invoice::getTotalAmount)
+                .map(Invoice::getGrandTotal)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -208,7 +218,13 @@ public class InvoiceService {
         MedicalRecord medicalRecord = medicalRecordRepository.findById(medicalRecordId)
                 .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bệnh án"));
 
-        Invoice invoice = invoiceRepository.findByMedicalRecord_Id(medicalRecordId).orElseGet(Invoice::new);
+        Appointment appointment = medicalRecord.getAppointment();
+        if (appointment == null) {
+            throw AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn");
+        }
+
+        Invoice invoice = invoiceRepository.findByMedicalRecord_Id(medicalRecordId)
+                .orElseGet(Invoice::new);
         if (Boolean.TRUE.equals(invoice.getIsPaid())) {
             throw AppException.of(HttpStatus.CONFLICT, "Hóa đơn đã thanh toán và không thể tính lại");
         }
@@ -227,13 +243,57 @@ public class InvoiceService {
         invoice.setMedicalRecord(medicalRecord);
         invoice.setTotalServiceFee(totalServiceFee);
         invoice.setTotalMedicineFee(totalMedicineFee);
-        invoice.setTotalAmount(totalAmount);
-        if (invoice.getIsPaid() == null) {
-            invoice.setIsPaid(false);
+        invoice.setGrandTotal(totalAmount);
+        BigDecimal advanceAmount = defaultAmount(appointment.getAdvancePayment());
+        invoice.setAdvanceAmount(advanceAmount);
+        invoice.setRemainingAmount(defaultAmount(invoice.getGrandTotal()).subtract(advanceAmount));
+        invoice.setIsPaid(Boolean.FALSE);
+        invoice.setPaidAt(null);
+
+        return invoiceRepository.save(invoice);
+    }
+
+    // Chức năng: tạo hóa đơn cho lịch hẹn khi chuyển qua thu ngân.
+    public Invoice createInvoiceForAppointment(Appointment appointment) {
+        if (appointment == null || appointment.getId() == null) {
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Lịch hẹn là bắt buộc");
         }
-        if (!Boolean.TRUE.equals(invoice.getIsPaid())) {
-            invoice.setPaidAt(null);
+
+        List<MedicalRecord> records = medicalRecordRepository
+                .findAllByAppointment_IdOrderByCreatedAtDescIdDesc(appointment.getId());
+        MedicalRecord medicalRecord;
+        if (records.isEmpty()) {
+            // Create a placeholder medical record so invoicing can proceed before the
+            // doctor creates one.
+            medicalRecord = new MedicalRecord();
+            medicalRecord.setAppointment(appointment);
+            medicalRecord.setCreatedAt(LocalDateTime.now());
+            medicalRecord = medicalRecordRepository.save(medicalRecord);
+        } else {
+            medicalRecord = records.get(0);
         }
+
+        Invoice invoice = invoiceRepository.findByMedicalRecord_Id(medicalRecord.getId()).orElse(new Invoice());
+        if (Boolean.TRUE.equals(invoice.getIsPaid())) {
+            return invoice;
+        }
+
+        BigDecimal grandTotal = defaultAmount(appointment.getEstimatedTotalFee());
+        BigDecimal advanceAmount = defaultAmount(appointment.getAdvancePayment());
+        BigDecimal remainingAmount = grandTotal.subtract(advanceAmount);
+        if (remainingAmount.signum() < 0) {
+            remainingAmount = BigDecimal.ZERO;
+        }
+
+        invoice.setMedicalRecord(medicalRecord);
+        invoice.setIsPaid(Boolean.FALSE);
+        invoice.setPaymentMethod(appointment.getPaymentMethod());
+        invoice.setTotalServiceFee(grandTotal);
+        invoice.setTotalMedicineFee(BigDecimal.ZERO);
+        invoice.setGrandTotal(grandTotal);
+        invoice.setAdvanceAmount(advanceAmount);
+        invoice.setRemainingAmount(remainingAmount);
+        invoice.setPaidAt(null);
 
         return invoiceRepository.save(invoice);
     }
@@ -362,14 +422,14 @@ public class InvoiceService {
             return invoice;
         }
 
-        MedicalRecord medicalRecord = invoice.getMedicalRecord();
+        MedicalRecord medicalRecord = resolveMedicalRecord(invoice);
         if (medicalRecord == null || medicalRecord.getId() == null) {
             throw AppException.of(HttpStatus.BAD_REQUEST, "Bệnh án là bắt buộc để thanh toán");
         }
 
         Invoice recalculatedInvoice = aggregateInvoiceAmount(medicalRecord.getId());
         deductMedicineStockOnPayment(medicalRecord.getId());
-        return markInvoiceAsPaidAndCloseSession(recalculatedInvoice);
+        return markInvoiceAsPaidAndCloseSession(recalculatedInvoice, "TIEN_MAT");
     }
 
     @Transactional
@@ -395,16 +455,16 @@ public class InvoiceService {
             throw AppException.of(HttpStatus.CONFLICT, "Hồ sơ đã thanh toán");
         }
 
-        MedicalRecord medicalRecord = existingInvoice.getMedicalRecord();
-        if (medicalRecord == null || medicalRecord.getId() == null) {
-            throw AppException.of(HttpStatus.BAD_REQUEST, "Bệnh án là bắt buộc để thanh toán");
+        MedicalRecord medicalRecord = resolveMedicalRecord(existingInvoice);
+
+        Invoice invoice = existingInvoice;
+        if (medicalRecord != null && medicalRecord.getId() != null) {
+            invoice = aggregateInvoiceAmount(medicalRecord.getId());
         }
 
-        // Auto-refresh tong chi phi truoc khi thu tien.
-        Invoice invoice = aggregateInvoiceAmount(medicalRecord.getId());
-        BigDecimal grossTotalAmount = defaultAmount(invoice.getTotalAmount());
+        BigDecimal grossTotalAmount = defaultAmount(invoice.getGrandTotal());
 
-        Patient patient = medicalRecord.getAppointment() == null ? null : medicalRecord.getAppointment().getPatient();
+        Patient patient = invoice.getPatient();
         boolean applyHealthInsurance = Boolean.TRUE.equals(request.getApplyHealthInsurance());
         boolean eligibleHealthInsurance = hasHealthInsurance(patient);
         if (applyHealthInsurance && !eligibleHealthInsurance) {
@@ -417,22 +477,27 @@ public class InvoiceService {
                 ? calculateHealthInsuranceDiscount(grossTotalAmount)
                 : BigDecimal.ZERO;
         BigDecimal payableTotalAmount = grossTotalAmount.subtract(insuranceDiscountAmount);
-        invoice.setTotalAmount(payableTotalAmount);
+        invoice.setGrandTotal(payableTotalAmount);
+        invoice.setAdvanceAmount(payableTotalAmount);
+        invoice.setRemainingAmount(BigDecimal.ZERO);
 
-        deductMedicineStockOnPayment(medicalRecord.getId());
+        if (medicalRecord != null && medicalRecord.getId() != null) {
+            deductMedicineStockOnPayment(medicalRecord.getId());
+        }
+
         Invoice savedInvoice = markInvoiceAsPaidAndCloseSession(invoice, paymentMethod);
         LocalDateTime paidAt = savedInvoice.getPaidAt();
         boolean exportInvoice = Boolean.TRUE.equals(request.getExportInvoice());
 
         return new CashierProcessPaymentResponse(
                 savedInvoice.getId(),
-                medicalRecord.getId(),
+                savedInvoice.getAppointment() == null ? null : savedInvoice.getAppointment().getId(),
                 paymentMethod,
                 savedInvoice.getTotalServiceFee(),
                 savedInvoice.getTotalMedicineFee(),
                 grossTotalAmount,
                 insuranceDiscountAmount,
-                savedInvoice.getTotalAmount(),
+                savedInvoice.getRemainingAmount(),
                 applyHealthInsurance,
                 paidAt,
                 TRANSACTION_SUCCESS,
@@ -451,7 +516,7 @@ public class InvoiceService {
                 CLINIC_NAME,
                 CLINIC_LOGO_TEXT,
                 invoice.getId(),
-                detail.getMedicalRecordId(),
+                detail.getAppointmentId(),
                 detail.getPatientName(),
                 detail.getPhoneNumber(),
                 invoice.getPaidAt(),
@@ -459,7 +524,7 @@ public class InvoiceService {
                 detail.getMedicines(),
                 detail.getTotalServiceFee(),
                 detail.getTotalMedicineFee(),
-                detail.getTotalAmount(),
+                detail.getGrandTotal(),
                 formattedText);
     }
 
@@ -532,6 +597,7 @@ public class InvoiceService {
     }
 
     // Chức năng: xử lý tổng số thuốc.
+    @SuppressWarnings("unused")
     private BigDecimal medicineLineTotal(PrescriptionDetail detail) {
         BigDecimal price = BigDecimal.ZERO;
         if (detail.getMedicine() != null && detail.getMedicine().getSellingPrice() != null) {
@@ -546,27 +612,44 @@ public class InvoiceService {
 
     // Chức năng: xử lý ánh xạ tới phản hồi mục thanh toán đang chờ xử lý.
     private CashierWaitingPaymentItemResponse toWaitingPaymentItemResponse(Invoice invoice) {
-        MedicalRecord medicalRecord = invoice.getMedicalRecord();
-        Appointment appointment = medicalRecord == null ? null : medicalRecord.getAppointment();
+        Appointment appointment = invoice.getAppointment();
         Patient patient = appointment == null ? null : appointment.getPatient();
+        String invoiceStatus = Boolean.TRUE.equals(invoice.getIsPaid()) ? STATUS_PAID : STATUS_WAITING_PAYMENT;
+        BigDecimal advanceAmount = appointment == null
+                ? BigDecimal.ZERO
+                : defaultAmount(appointment.getAdvancePayment());
+        BigDecimal remainingAmount = defaultAmount(invoice.getGrandTotal()).subtract(advanceAmount);
+        if (remainingAmount.signum() < 0) {
+            remainingAmount = BigDecimal.ZERO;
+        }
 
         return new CashierWaitingPaymentItemResponse(
                 invoice.getId(),
-                medicalRecord == null ? null : medicalRecord.getId(),
+                appointment == null ? null : appointment.getId(),
                 patient == null ? null : patient.getId(),
                 patient == null ? null : patient.getFullName(),
                 patient == null ? null : patient.getPhoneNumber(),
                 appointment == null ? null : appointment.getAppointmentTime(),
-                invoice.getTotalAmount(),
-                Boolean.TRUE.equals(invoice.getIsPaid()) ? STATUS_PAID : STATUS_WAITING_PAYMENT);
+                invoice.getGrandTotal(),
+                advanceAmount,
+                remainingAmount,
+                invoiceStatus);
     }
 
     // Chức năng: xử lý ánh xạ tới phản hồi chi tiết hồ sơ thanh toán.
     private CashierPaymentRecordDetailResponse toPaymentRecordDetailResponse(Invoice invoice) {
-        MedicalRecord medicalRecord = invoice.getMedicalRecord();
-        Appointment appointment = medicalRecord == null ? null : medicalRecord.getAppointment();
+        Appointment appointment = invoice.getAppointment();
         Patient patient = appointment == null ? null : appointment.getPatient();
+        MedicalRecord medicalRecord = resolveMedicalRecord(invoice);
         Long medicalRecordId = medicalRecord == null ? null : medicalRecord.getId();
+        String invoiceStatus = Boolean.TRUE.equals(invoice.getIsPaid()) ? STATUS_PAID : STATUS_WAITING_PAYMENT;
+        BigDecimal advanceAmount = appointment == null
+                ? BigDecimal.ZERO
+                : defaultAmount(appointment.getAdvancePayment());
+        BigDecimal remainingAmount = defaultAmount(invoice.getGrandTotal()).subtract(advanceAmount);
+        if (remainingAmount.signum() < 0) {
+            remainingAmount = BigDecimal.ZERO;
+        }
 
         List<CashierServiceLineItemResponse> services = medicalRecordId == null
                 ? List.of()
@@ -598,35 +681,36 @@ public class InvoiceService {
 
         return new CashierPaymentRecordDetailResponse(
                 invoice.getId(),
-                medicalRecordId,
+                appointment == null ? null : appointment.getId(),
                 patient == null ? null : patient.getId(),
                 patient == null ? null : patient.getFullName(),
                 patient == null ? null : patient.getPhoneNumber(),
                 appointment == null ? null : appointment.getAppointmentTime(),
-                Boolean.TRUE.equals(invoice.getIsPaid()) ? STATUS_PAID : STATUS_WAITING_PAYMENT,
+                invoiceStatus,
                 invoice.getPaymentMethod(),
                 invoice.getPaidAt(),
                 invoice.getTotalServiceFee(),
                 invoice.getTotalMedicineFee(),
-                invoice.getTotalAmount(),
+                invoice.getGrandTotal(),
+                advanceAmount,
+                remainingAmount,
                 services,
                 medicines);
     }
 
     // Chức năng: xử lý Ánh xạ hóa đơn với mục lịch sử giao dịch.
     private CashierTransactionHistoryItemResponse toTransactionHistoryItem(Invoice invoice) {
-        MedicalRecord medicalRecord = invoice.getMedicalRecord();
-        Appointment appointment = medicalRecord == null ? null : medicalRecord.getAppointment();
+        Appointment appointment = invoice.getAppointment();
         Patient patient = appointment == null ? null : appointment.getPatient();
 
         return new CashierTransactionHistoryItemResponse(
                 invoice.getId(),
-                medicalRecord == null ? null : medicalRecord.getId(),
+                appointment == null ? null : appointment.getId(),
                 patient == null ? null : patient.getId(),
                 patient == null ? null : patient.getFullName(),
                 invoice.getPaymentMethod(),
                 invoice.getPaidAt(),
-                invoice.getTotalAmount());
+                invoice.getGrandTotal());
     }
 
     // Chức năng: xử lý chuẩn hóa keyword.
@@ -636,16 +720,19 @@ public class InvoiceService {
 
     // Chức năng: xử lý so sánh từ khóa cho mã số hóa đơn/bệnh nhân.
     private boolean matchesKeyword(Invoice invoice, String keyword) {
-        MedicalRecord medicalRecord = invoice.getMedicalRecord();
-        Appointment appointment = medicalRecord == null ? null : medicalRecord.getAppointment();
+        Appointment appointment = invoice.getAppointment();
         Patient patient = appointment == null ? null : appointment.getPatient();
 
         return containsNumber(invoice.getId(), keyword)
-                || containsNumber(medicalRecord == null ? null : medicalRecord.getId(), keyword)
+                || containsNumber(appointment == null ? null : appointment.getId(), keyword)
                 || containsNumber(patient == null ? null : patient.getId(), keyword)
                 || containsText(patient == null ? null : patient.getPhoneNumber(), keyword)
                 || containsText(patient == null ? null : patient.getNationalId(), keyword)
                 || containsText(patient == null ? null : patient.getHealthInsuranceNumber(), keyword);
+    }
+
+    private MedicalRecord resolveMedicalRecord(Invoice invoice) {
+        return invoice.getMedicalRecord();
     }
 
     // Chức năng: xử lý nội dung chứa giá trị số.
@@ -723,6 +810,7 @@ public class InvoiceService {
 
     // Chức năng: xử lý Đánh dấu hóa đơn đã thanh toán bằng tiền mặt và kết thúc
     // phiên thanh toán của bệnh nhân.
+    @SuppressWarnings("unused")
     private Invoice markInvoiceAsPaidAndCloseSession(Invoice invoice) {
         return markInvoiceAsPaidAndCloseSession(invoice, "TIEN_MAT");
     }
@@ -731,16 +819,17 @@ public class InvoiceService {
     // của bệnh nhân.
     private Invoice markInvoiceAsPaidAndCloseSession(Invoice invoice, String paymentMethod) {
         LocalDateTime paidAt = LocalDateTime.now();
-        invoice.setIsPaid(true);
         invoice.setPaidAt(paidAt);
         invoice.setPaymentMethod(paymentMethod);
+        invoice.setIsPaid(Boolean.TRUE);
+        invoice.setRemainingAmount(BigDecimal.ZERO);
 
-        MedicalRecord medicalRecord = invoice.getMedicalRecord();
-        if (medicalRecord != null) {
-            Appointment appointment = medicalRecord.getAppointment();
-            if (appointment != null && !"COMPLETED".equalsIgnoreCase(appointment.getStatus())) {
-                appointment.setStatus("COMPLETED");
-            }
+        Appointment appointment = invoice.getAppointment();
+        if (appointment != null) {
+            appointment.setPaymentStatus(PaymentStatus.FULLY_PAID);
+            appointment.setAdvancePayment(invoice.getGrandTotal());
+            appointment.setStatus(AppointmentStatus.IN_ROOM);
+            appointmentRepository.save(appointment);
         }
 
         return invoiceRepository.save(invoice);
@@ -767,7 +856,7 @@ public class InvoiceService {
     private BigDecimal sumAmountByPaymentMethod(List<Invoice> invoices, String paymentMethod) {
         return invoices.stream()
                 .filter(invoice -> paymentMethod.equalsIgnoreCase(nullSafe(invoice.getPaymentMethod())))
-                .map(Invoice::getTotalAmount)
+                .map(Invoice::getGrandTotal)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
@@ -799,7 +888,7 @@ public class InvoiceService {
         List<String> lines = new ArrayList<>();
         lines.add("================ BIÊN LAI THU TIỀN ================");
         lines.add("Mã hóa đơn: " + invoice.getId());
-        lines.add("Mã hồ sơ: " + detail.getMedicalRecordId());
+        lines.add("Mã lịch hẹn: " + detail.getAppointmentId());
         lines.add("Bệnh nhân: " + nullSafe(detail.getPatientName()));
         lines.add("Số điện thoại: " + nullSafe(detail.getPhoneNumber()));
         lines.add("Ngày giờ thanh toán: " + formatDateTime(invoice.getPaidAt()));
@@ -832,7 +921,7 @@ public class InvoiceService {
         lines.add("----------------------------------------------------");
         lines.add("Tổng tiền dịch vụ: " + formatAmount(detail.getTotalServiceFee()));
         lines.add("Tổng tiền thuốc: " + formatAmount(detail.getTotalMedicineFee()));
-        lines.add("TỔNG THANH TOÁN: " + formatAmount(detail.getTotalAmount()));
+        lines.add("TỔNG THANH TOÁN: " + formatAmount(detail.getGrandTotal()));
         lines.add("====================================================");
         lines.add("Cảm ơn quý khách đã sử dụng dịch vụ!");
         return lines;

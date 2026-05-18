@@ -474,9 +474,11 @@ public class GeminiChatbotService {
             context.append("  + Hóa đơn gần đây:\n");
             for (Invoice invoice : invoices) {
                 context.append("    * Hóa đơn #").append(invoice.getId())
-                        .append(" - Tổng tiền: ").append(formatMoney(invoice.getTotalAmount()))
+                        .append(" - Tổng tiền: ").append(formatMoney(invoice.getGrandTotal()))
                         .append(" - Trạng thái: ")
-                        .append(Boolean.TRUE.equals(invoice.getIsPaid()) ? "Đã thanh toán" : "Chưa thanh toán");
+                        .append(Boolean.TRUE.equals(invoice.getIsPaid())
+                                ? "Đã thanh toán"
+                                : "Chưa thanh toán");
                 if (invoice.getPaidAt() != null) {
                     context.append(" - Thanh toán lúc: ").append(formatDateTime(invoice.getPaidAt()));
                 }

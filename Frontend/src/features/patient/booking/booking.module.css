@@ -193,3 +193,278 @@
   font-size: 0.875rem;
   color: #6b7280;
 }
+
+.paymentSection {
+  margin-top: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.875rem;
+  background: #f8fafc;
+  padding: 1rem;
+}
+
+.paymentSummary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.paymentSummaryLabel {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.paymentSummaryValue {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.paymentRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.paymentField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.paymentNote {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.paymentQrBox {
+  margin-top: 0.25rem;
+  padding: 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px dashed #93c5fd;
+  background: #eff6ff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.paymentQrTitle {
+  margin: 0;
+  color: #1e3a8a;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.paymentQrImage {
+  width: min(240px, 100%);
+  border-radius: 0.75rem;
+  border: 1px solid #bfdbfe;
+  background: #ffffff;
+}
+
+.paymentQrAmount {
+  margin: 0;
+  color: #0f766e;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.paymentQrMeta {
+  margin: 0;
+  color: #334155;
+  font-size: 0.85rem;
+}
+
+.paymentQrError {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.servicePreview {
+  padding: 0.85rem 0.9rem;
+  border-radius: 0.75rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.servicePreviewTitle {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.55rem;
+}
+
+.serviceList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.serviceItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.serviceName {
+  color: #334155;
+  font-weight: 500;
+}
+
+.servicePrice {
+  color: #0f766e;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.serviceEmpty {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+  padding: 0.25rem 0;
+}
+
+/* Symptom chips */
+.symptomCard {
+  border: 1px solid #dbeafe;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.06);
+}
+
+.symptomHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.symptomTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.symptomTitle {
+  font-weight: 600;
+  color: #111827;
+  font-size: 0.95rem;
+}
+
+.symptomHint {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.symptomMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.symptomBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.65rem;
+  border-radius: 9999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.symptomClearBtn {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.symptomClearBtn:hover {
+  text-decoration: underline;
+}
+
+.symptomRow {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.symptomCategory {
+  min-width: 170px;
+  max-width: 220px;
+}
+
+.symptomList {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.15rem;
+}
+
+.symptomChip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  padding: 0.45rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease, background-color 120ms ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.symptomChip input {
+  display: none;
+}
+
+.symptomChipSpan {
+  display: inline-block;
+  line-height: 1.2;
+}
+
+.symptomChip:hover {
+  transform: translateY(-1px);
+  border-color: #93c5fd;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.12);
+}
+
+.symptomChip input:checked + .symptomChipSpan {
+  color: #ffffff;
+}
+
+.symptomChipActive {
+  background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%);
+  border-color: transparent;
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.22);
+}
+
+.symptomChipActive .symptomChipSpan {
+  color: #ffffff;
+}
+
+.symptomChip:focus-within {
+  outline: 3px solid rgba(37, 99, 235, 0.18);
+  outline-offset: 2px;
+}

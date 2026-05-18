@@ -12,7 +12,21 @@ export interface PatientProfileResponse {
 
 export interface PatientAppointmentRequestPayload {
   appointmentTime: string;
+  categoryId: number;
+  symptomIds: number[];
+  paymentMethod: string;
   symptoms: string;
+}
+
+export interface AppointmentFeeEstimateResponse {
+  estimatedTotalFee: number;
+  services: {
+    serviceId: number;
+    serviceName: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+  }[];
 }
 
 export interface PatientAppointmentResponse {
@@ -91,6 +105,13 @@ export const patientService = {
 
   async createAppointment(payload: PatientAppointmentRequestPayload) {
     const response = await api.post<PatientAppointmentResponse>("/api/patient/appointments", payload);
+    return response.data;
+  },
+
+  async estimateAppointmentFee(symptomIds: number[]) {
+    const response = await api.get<AppointmentFeeEstimateResponse>("/api/patient/appointments/estimate-fee", {
+      params: { symptomIds },
+    });
     return response.data;
   },
 

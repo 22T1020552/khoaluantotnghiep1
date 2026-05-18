@@ -19,6 +19,7 @@ export interface ReceptionistAppointment {
   symptoms?: string | null;
   status: string;
   cancellationReason?: string | null;
+  category?: { id?: number; name?: string } | null;
   patient: ReceptionistPatient;
   doctor?: ReceptionistDoctor | null;
 }
@@ -26,8 +27,20 @@ export interface ReceptionistAppointment {
 export interface ReceptionistDoctorOption {
   doctorId: number;
   doctorUsername: string;
+  roomId?: number | null;
   specialty?: string | null;
   roomName?: string | null;
+}
+
+export interface ReceptionistRoomSuggestionResponse {
+  roomId: number | null;
+  roomName: string | null;
+  specialty: string | null;
+}
+
+export interface ReceptionistApproveResponse {
+  appointment: ReceptionistAppointment;
+  message: string;
 }
 
 export const receptionistService = {
@@ -70,10 +83,23 @@ export const receptionistService = {
     });
   },
 
-  async approveAppointment(appointmentId: number, doctorId: number, appointmentTime: string) {
-    const response = await api.put<ReceptionistAppointment>(`/api/receptionist/appointments/${appointmentId}/approve`, {
+  async getSuggestedRoom(appointmentId: number) {
+    const response = await api.get<ReceptionistRoomSuggestionResponse>(`/api/receptionist/appointments/${appointmentId}/suggested-room`);
+    return response.data;
+  },
+
+  async approveAppointment(
+    appointmentId: number,
+    doctorId: number,
+    appointmentTime: string,
+    assignedRoomId?: number | null,
+    specialty?: string | null,
+  ) {
+    const response = await api.put<ReceptionistApproveResponse>(`/api/receptionist/appointments/${appointmentId}/approve`, {
       doctorId,
+      assignedRoomId: assignedRoomId ?? null,
       appointmentTime,
+      specialty: specialty ?? null,
     });
     return response.data;
   },

@@ -22,6 +22,8 @@ public class DataSeeder implements ApplicationRunner {
     private final PatientSeeder patientSeeder;
     private final MedicineSeeder medicineSeeder;
     private final MedicalServiceSeeder medicalServiceSeeder;
+    private final com.example.demo.config.SymptomDataSeeder symptomDataSeeder;
+    private final SymptomServiceMappingSeeder symptomServiceMappingSeeder;
     private final RoomSeeder roomSeeder;
     private final SystemSettingSeeder systemSettingSeeder;
 
@@ -36,6 +38,8 @@ public class DataSeeder implements ApplicationRunner {
         patientSeeder.seed();
         medicineSeeder.seed();
         medicalServiceSeeder.seed();
+        symptomDataSeeder.seed();
+        symptomServiceMappingSeeder.seed();
         roomSeeder.seed();
         systemSettingSeeder.seed();
     }

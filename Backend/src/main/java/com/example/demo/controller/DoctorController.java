@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,6 +20,7 @@ import com.example.demo.dto.DoctorMedicineResponse;
 import com.example.demo.dto.DoctorPatientHistoryDetailResponse;
 import com.example.demo.dto.DoctorPatientHistoryResponse;
 import com.example.demo.dto.DoctorResponse;
+import com.example.demo.dto.PrescriptionWorkspaceResponse;
 import com.example.demo.entity.Appointment;
 import com.example.demo.service.AdminService;
 import com.example.demo.service.DoctorService;
@@ -99,5 +101,15 @@ public class DoctorController {
                 authentication.getName(),
                 appointmentId,
                 medicalRecordId);
+    }
+
+    @PostMapping("/medical-records/{medicalRecordId}/prescriptions/autopopulate")
+    @Operation(summary = "Auto-populate prescriptions", description = "Gợi ý đơn thuốc dựa trên DiagnosisTemplate và tuổi bệnh nhân.")
+    public PrescriptionWorkspaceResponse autoPopulatePrescriptions(
+            Authentication authentication,
+            @PathVariable Long medicalRecordId,
+            @RequestParam(name = "diagnosisId") Long diagnosisId) {
+        return medicalRecordService.autoPopulatePrescriptionsFromDiagnosis(authentication.getName(), medicalRecordId,
+                diagnosisId);
     }
 }

@@ -118,7 +118,7 @@ function DispensedPrescriptions({ prescriptions }: DispensedPrescriptionsProps) 
                     <div className={`${styles.amountRow} ${styles.totalRow}`}>
                       <span className={styles.totalLabel}>Tổng cộng:</span>
                       <span className={styles.totalValue}>
-                        {formatCurrency(prescription.totalAmount ?? totalServiceFee)}
+                        {formatCurrency(prescription.grandTotal ?? prescription.totalAmount ?? totalServiceFee)}
                       </span>
                     </div>
                   </div>

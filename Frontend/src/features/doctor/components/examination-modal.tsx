@@ -1,7 +1,7 @@
 import { PatientInfo } from "./patient-info";
 import { MedicalRecordForm } from "./medical-record-form";
 import { PrescriptionSection } from "./prescription-section";
-import { DoctorMedicalService } from "@/services/doctorService";
+import { DoctorMedicalService, type DiagnosisTemplateResponse } from "@/services/doctorService";
 import type { Appointment, MedicalRecordInput, Medicine, PrescriptionItem, SelectedServiceItem } from "@/types/doctor.type";
 import styles from "@/styles/common.module.css";
 
@@ -14,6 +14,9 @@ const formatDate = (value?: string | null) => {
 interface ExaminationModalProps {
   appointment: Appointment;
   saving: boolean;
+  diagnosisLoading: boolean;
+  diagnosisOptions: DiagnosisTemplateResponse[];
+  selectedDiagnosisId: number | null;
   medicalRecord: MedicalRecordInput;
   prescriptions: PrescriptionItem[];
   availableMedicines: Medicine[];
@@ -27,6 +30,7 @@ interface ExaminationModalProps {
   onClose: () => void;
   onComplete: () => void;
   onMedicalRecordChange: (field: string, value: string) => void;
+  onDiagnosisSelect: (diagnosisId: number) => void;
   onAddMedicine: (medicine: Medicine) => void;
   onUpdatePrescription: (id: number, field: "quantity" | "usage_instructions", value: any) => void;
   onRemoveMedicine: (id: number) => void;
@@ -52,15 +56,20 @@ export function ExaminationModal(props: ExaminationModalProps) {
           <PatientInfo 
             patient={appointment.patient} 
             symptoms={appointment.symptoms} 
+            categoryName={appointment.category?.name ?? null}
           />
 
           {/* 2. COMPONENT ĐIỀN BỆNH ÁN CỦA BẠN */}
           <MedicalRecordForm 
             medicalRecord={props.medicalRecord}
+            diagnosisLoading={props.diagnosisLoading}
+            diagnosisOptions={props.diagnosisOptions}
+            selectedDiagnosisId={props.selectedDiagnosisId}
             historyRows={props.historyRows}
             historyDetail={props.historyDetail}
             historyLoading={props.historyLoading}
             historyDetailLoading={props.historyDetailLoading}
+            onDiagnosisSelect={props.onDiagnosisSelect}
             onChange={props.onMedicalRecordChange}
             onViewHistory={props.onViewHistoryDetail}
           />

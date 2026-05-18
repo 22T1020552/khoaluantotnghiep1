@@ -10,17 +10,20 @@ import com.example.demo.entity.Invoice;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
-    Optional<Invoice> findByMedicalRecord_Id(Long medicalRecordId);
+        Optional<Invoice> findByMedicalRecord_Id(Long medicalRecordId);
 
-    List<Invoice> findByIsPaidFalseOrderByIdDesc();
+        List<Invoice> findByIsPaidOrderByIdDesc(Boolean isPaid);
 
-    List<Invoice> findAllByOrderByIdDesc();
+        List<Invoice> findAllByOrderByIdDesc();
 
-    List<Invoice> findByIsPaidTrueAndPaidAtBetweenOrderByPaidAtDesc(LocalDateTime startTime, LocalDateTime endTime);
+        List<Invoice> findByIsPaidAndPaidAtBetweenOrderByPaidAtDesc(
+                        Boolean isPaid,
+                        LocalDateTime startTime,
+                        LocalDateTime endTime);
 
-    List<Invoice> findByIsPaidTrueAndPaymentMethodAndPaidAtBetweenOrderByPaidAtDesc(
-            String paymentMethod,
-            LocalDateTime startTime,
-            LocalDateTime endTime
-    );
+        List<Invoice> findByIsPaidAndPaymentMethodAndPaidAtBetweenOrderByPaidAtDesc(
+                        Boolean isPaid,
+                        String paymentMethod,
+                        LocalDateTime startTime,
+                        LocalDateTime endTime);
 }
