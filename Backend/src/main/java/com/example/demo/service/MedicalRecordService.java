@@ -4,16 +4,21 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.example.demo.exception.AppException;
 
 import com.example.demo.dto.AddPrescriptionDetailRequest;
@@ -42,6 +47,7 @@ import com.example.demo.entity.PrescriptionDetailId;
 import com.example.demo.entity.Role;
 import com.example.demo.entity.User;
 import com.example.demo.repository.AppointmentRepository;
+import com.example.demo.repository.DiagnosisTemplateRepository;
 import com.example.demo.repository.MedicalRecordRepository;
 import com.example.demo.repository.MedicalRecordServiceDetailRepository;
 import com.example.demo.repository.MedicalServiceRepository;
@@ -51,11 +57,15 @@ import com.example.demo.repository.RoomRepository;
 import com.example.demo.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @RequiredArgsConstructor
 @SuppressWarnings("null")
 public class MedicalRecordService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MedicalRecordService.class);
 
     private static final String STATUS_WAITING = "WAITING";
     private static final String STATUS_COMPLETED = "COMPLETED";
@@ -83,6 +93,7 @@ public class MedicalRecordService {
     private final MedicalRecordServiceDetailRepository medicalRecordServiceDetailRepository;
     private final RoomRepository roomRepository;
     private final com.example.demo.repository.DiagnosisMedicineRuleRepository diagnosisMedicineRuleRepository;
+    private final DiagnosisTemplateRepository diagnosisTemplateRepository;
     private final PatientService patientService;
     private final InvoiceService invoiceService;
 
@@ -241,7 +252,10 @@ public class MedicalRecordService {
         }
 
         detail.setQuantity(updatedQuantity);
-        detail.setUsageInstructions(request.getUsageInstructions().trim());
+        String usageInstructions = request.getUsageInstructions();
+        detail.setUsageInstructions(usageInstructions == null || usageInstructions.isBlank()
+                ? null
+                : usageInstructions.trim());
 
         return prescriptionDetailRepository.save(detail);
     }
@@ -382,7 +396,10 @@ public class MedicalRecordService {
         }
 
         detail.setQuantity(newQuantity);
-        detail.setUsageInstructions(request.getUsageInstructions().trim());
+        String usageInstructions = request.getUsageInstructions();
+        detail.setUsageInstructions(usageInstructions == null || usageInstructions.isBlank()
+                ? null
+                : usageInstructions.trim());
 
         return prescriptionDetailRepository.save(detail);
     }
@@ -445,14 +462,31 @@ public class MedicalRecordService {
             throw AppException.of(HttpStatus.CONFLICT, "Đơn thuốc đang trống");
         }
 
-        invoiceService.aggregateInvoiceAmount(medicalRecordId);
+        try {
+            invoiceService.aggregateInvoiceAmount(medicalRecordId);
+        } catch (AppException ex) {
+            if (ex.getStatus() != HttpStatus.CONFLICT) {
+                throw ex;
+            }
+            LOGGER.warn("[SavePrescription] invoice already paid - skipping aggregate: {}", ex.getMessage());
+        }
         return getPrescriptionWorkspace(username, medicalRecordId);
     }
 
     // Chức năng: xử lý hoàn thành bệnh án.
     public MedicalRecord completeMedicalRecord(String username, Long medicalRecordId) {
         MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
+
+        // Tính hóa đơn
         invoiceService.aggregateInvoiceAmount(medicalRecordId);
+        // Lấy lịch hẹn
+        Appointment appointment = medicalRecord.getAppointment();
+
+        if (appointment != null) {
+            appointment.setStatus(STATUS_COMPLETED);
+            appointmentRepository.save(appointment);
+        }
+
         return medicalRecord;
     }
 
@@ -771,6 +805,7 @@ public class MedicalRecordService {
 
     // Chức năng: tự động thêm các thuốc gợi ý dựa trên DiagnosisTemplate và khoảng
     // tuổi
+    @Transactional
     public PrescriptionWorkspaceResponse autoPopulatePrescriptionsFromDiagnosis(
             String username,
             Long medicalRecordId,
@@ -788,17 +823,66 @@ public class MedicalRecordService {
             age = Period.between(appointment.getPatient().getDateOfBirth(), LocalDate.now()).getYears();
         }
 
+        LOGGER.debug("[AutoPopulate] appointmentId={}, patientId={}, age={}, diagnosisTemplateId={}",
+                appointment.getId(), appointment.getPatient().getId(), age, diagnosisTemplateId);
+        LOGGER.info("[AutoPopulate] start medicalRecordId={}, diagnosisTemplateId={}, age={}",
+                medicalRecordId, diagnosisTemplateId, age);
+
         List<com.example.demo.entity.DiagnosisMedicineRule> rules = diagnosisMedicineRuleRepository
                 .findByDiagnosisTemplate_IdAndMinAgeLessThanEqualAndMaxAgeGreaterThanEqualOrderByMedicine_MedicineNameAsc(
                         diagnosisTemplateId,
                         age,
                         age);
 
+        LOGGER.debug("[AutoPopulate] found {} rules for diagnosisId={}", rules.size(), diagnosisTemplateId);
+        LOGGER.info("[AutoPopulate] rulesFound={} for diagnosisTemplateId={}", rules.size(), diagnosisTemplateId);
+
+        if (rules.isEmpty()) {
+            List<Medicine> fallbackMedicines = medicineRepository.findByIsActiveTrueOrderByMedicineNameAsc();
+            if (fallbackMedicines.isEmpty()) {
+                fallbackMedicines = medicineRepository.findAll();
+            }
+            List<Medicine> candidateList = resolveMedicinesForDiagnosis(diagnosisTemplateId, fallbackMedicines);
+            if (candidateList.isEmpty()) {
+                LOGGER.debug("[AutoPopulate] no fallback medicines found for medicalRecordId={}", medicalRecordId);
+                LOGGER.info("[AutoPopulate] no fallback medicines for medicalRecordId={}", medicalRecordId);
+                return getPrescriptionWorkspace(username, medicalRecordId);
+            }
+            prescriptionDetailRepository.deleteByMedicalRecord_Id(medicalRecordId);
+            int count = Math.min(3, candidateList.size());
+            int created = 0;
+            for (int i = 0; i < count; i++) {
+                Medicine med = candidateList.get(i);
+                PrescriptionDetailId id = new PrescriptionDetailId();
+                id.setMedicalRecordId(medicalRecordId);
+                id.setMedicineId(med.getId());
+
+                PrescriptionDetail detail = new PrescriptionDetail();
+                detail.setId(id);
+                detail.setMedicalRecord(medicalRecord);
+                detail.setMedicine(med);
+                detail.setQuantity(1);
+                detail.setUsageInstructions(null);
+                prescriptionDetailRepository.save(detail);
+                created++;
+            }
+
+            LOGGER.info("[AutoPopulate] skip invoice aggregate for fallback suggestions");
+            LOGGER.info("[AutoPopulate] fallback prescriptions created={} for medicalRecordId={}", created,
+                    medicalRecordId);
+            return getPrescriptionWorkspace(username, medicalRecordId);
+        }
+
+        prescriptionDetailRepository.deleteByMedicalRecord_Id(medicalRecordId);
+        int created = 0;
+
         for (com.example.demo.entity.DiagnosisMedicineRule rule : rules) {
             if (rule.getMedicine() == null)
                 continue;
 
             Long medicineId = rule.getMedicine().getId();
+            LOGGER.debug("[AutoPopulate] processing rule for medicineId={}, defaultQty={}", medicineId,
+                    rule.getDefaultQuantity());
             PrescriptionDetailId id = new PrescriptionDetailId();
             id.setMedicalRecordId(medicalRecordId);
             id.setMedicineId(medicineId);
@@ -814,12 +898,214 @@ public class MedicalRecordService {
             }
 
             String usage = rule.getDefaultUsage();
-            detail.setUsageInstructions(usage == null || usage.isBlank() ? DEFAULT_USAGE_PLACEHOLDER : usage.trim());
+            detail.setUsageInstructions(usage == null || usage.isBlank() ? null : usage.trim());
 
             prescriptionDetailRepository.save(detail);
+            LOGGER.debug("[AutoPopulate] saved prescription detail for medicalRecordId={}, medicineId={}, qty={}",
+                    medicalRecordId, medicineId, detail.getQuantity());
+            created++;
         }
 
-        invoiceService.aggregateInvoiceAmount(medicalRecordId);
+        LOGGER.info("[AutoPopulate] skip invoice aggregate for rule suggestions");
+        LOGGER.info("[AutoPopulate] rules prescriptions created={} for medicalRecordId={}", created, medicalRecordId);
+        LOGGER.debug("[AutoPopulate] returning workspace for medicalRecordId={}", medicalRecordId);
         return getPrescriptionWorkspace(username, medicalRecordId);
+    }
+
+    private List<String> resolvePreferredGroups(Long diagnosisTemplateId) {
+        String categoryName = diagnosisTemplateRepository.findById(diagnosisTemplateId)
+                .map(template -> template.getCategory() == null ? null : template.getCategory().getName())
+                .orElse(null);
+
+        String normalized = normalizeCategory(categoryName);
+        List<String> groups = new ArrayList<>();
+
+        if (normalized.contains("ho") || normalized.contains("ho hap") || normalized.contains("phoi")) {
+            groups.add(GROUP_ANTIBIOTIC);
+            groups.add(GROUP_PAIN_FEVER);
+            groups.add(GROUP_COUGH);
+        } else if (normalized.contains("tieu") || normalized.contains("da day")) {
+            groups.add(GROUP_DIGESTIVE);
+            groups.add(GROUP_PAIN_FEVER);
+        } else if (normalized.contains("da") || normalized.contains("da lieu")) {
+            groups.add(GROUP_ALLERGY);
+            groups.add(GROUP_OTHER);
+        } else if (normalized.contains("than kinh")) {
+            groups.add(GROUP_PAIN_FEVER);
+            groups.add(GROUP_OTHER);
+        } else {
+            groups.add(GROUP_OTHER);
+        }
+
+        return groups;
+    }
+
+    private String normalizeCategory(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim().toLowerCase(Locale.ROOT);
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        String withoutAccents = Normalizer.normalize(trimmed, Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
+        return withoutAccents.replace('-', ' ');
+    }
+
+    private List<Medicine> resolveMedicinesForDiagnosis(Long diagnosisTemplateId, List<Medicine> fallbackMedicines) {
+        String diagnosisName = diagnosisTemplateRepository.findById(diagnosisTemplateId)
+                .map(template -> template.getDiagnosisName())
+                .orElse(null);
+
+        Map<String, List<String>> diagnosisMedicineMap = buildDiagnosisMedicineMap();
+        List<String> preferredByDiagnosis = diagnosisMedicineMap.get(normalizeCategory(diagnosisName));
+        LinkedHashSet<Medicine> candidates = new LinkedHashSet<>();
+
+        if (preferredByDiagnosis != null) {
+            for (String medName : preferredByDiagnosis) {
+                String key = normalizeCategory(medName);
+                for (Medicine med : fallbackMedicines) {
+                    if (normalizeCategory(med.getMedicineName()).equals(key)) {
+                        candidates.add(med);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            List<String> preferredGroups = resolvePreferredGroups(diagnosisTemplateId);
+            for (String group : preferredGroups) {
+                for (Medicine med : fallbackMedicines) {
+                    if (group.equalsIgnoreCase(classifyPharmacologyGroup(med.getMedicineName()))) {
+                        candidates.add(med);
+                    }
+                }
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            candidates.addAll(fallbackMedicines);
+        }
+
+        return new ArrayList<>(candidates);
+    }
+
+    private Map<String, List<String>> buildDiagnosisMedicineMap() {
+        Map<String, List<String>> map = new LinkedHashMap<>();
+
+        map.put(normalizeCategory("Viêm họng cấp"), List.of(
+                "Amoxicillin 500mg",
+                "Dextromethorphan 15mg",
+                "Paracetamol 500mg"));
+        map.put(normalizeCategory("Viêm mũi dị ứng"), List.of(
+                "Cetirizine 10mg",
+                "Loratadine 10mg",
+                "Paracetamol 500mg"));
+        map.put(normalizeCategory("Viêm phế quản"), List.of(
+                "Azithromycin 500mg",
+                "Ambroxol 30mg",
+                "Paracetamol 500mg"));
+        map.put(normalizeCategory("Hen phế quản"), List.of(
+                "Ambroxol 30mg",
+                "Dextromethorphan 15mg",
+                "Paracetamol 500mg"));
+        map.put(normalizeCategory("Viêm phổi nhẹ"), List.of(
+                "Cefuroxime 500mg",
+                "Acetylcysteine 200mg",
+                "Paracetamol 500mg"));
+
+        map.put(normalizeCategory("Viêm dạ dày"), List.of(
+                "Omeprazole 20mg",
+                "Pantoprazole 40mg",
+                "Men tieu hoa"));
+        map.put(normalizeCategory("Trào ngược dạ dày thực quản"), List.of(
+                "Pantoprazole 40mg",
+                "Omeprazole 20mg",
+                "Men tieu hoa"));
+        map.put(normalizeCategory("Viêm đại tràng"), List.of(
+                "Smecta 3g",
+                "Men tieu hoa",
+                "Paracetamol 500mg"));
+        map.put(normalizeCategory("Rối loạn tiêu hóa"), List.of(
+                "Men tieu hoa",
+                "Smecta 3g",
+                "Paracetamol 500mg"));
+        map.put(normalizeCategory("Nhiễm khuẩn đường ruột"), List.of(
+                "Amoxicillin 500mg",
+                "Smecta 3g",
+                "Men tieu hoa"));
+
+        map.put(normalizeCategory("Đau đầu căng thẳng"), List.of(
+                "Paracetamol 500mg",
+                "Ibuprofen 400mg",
+                "Vitamin B Complex"));
+        map.put(normalizeCategory("Migraine"), List.of(
+                "Ibuprofen 400mg",
+                "Diclofenac 50mg",
+                "Vitamin B Complex"));
+        map.put(normalizeCategory("Rối loạn giấc ngủ"), List.of(
+                "Vitamin B Complex",
+                "Vitamin C 500mg"));
+        map.put(normalizeCategory("Chóng mặt tiền đình"), List.of(
+                "Vitamin B Complex",
+                "Paracetamol 500mg"));
+        map.put(normalizeCategory("Đau dây thần kinh tọa"), List.of(
+                "Diclofenac 50mg",
+                "Ibuprofen 400mg",
+                "Vitamin B Complex"));
+
+        map.put(normalizeCategory("Sốt siêu vi"), List.of(
+                "Paracetamol 500mg",
+                "Ibuprofen 400mg",
+                "Vitamin C 500mg"));
+        map.put(normalizeCategory("Suy nhược cơ thể"), List.of(
+                "Vitamin C 500mg",
+                "Vitamin B Complex",
+                "Paracetamol 500mg"));
+        map.put(normalizeCategory("Mệt mỏi do stress"), List.of(
+                "Vitamin B Complex",
+                "Vitamin C 500mg"));
+        map.put(normalizeCategory("Thiếu máu nhẹ"), List.of(
+                "Vitamin B Complex",
+                "Vitamin C 500mg"));
+        map.put(normalizeCategory("Nhiễm trùng chưa rõ ổ"), List.of(
+                "Amoxicillin 500mg",
+                "Paracetamol 500mg",
+                "Vitamin C 500mg"));
+
+        map.put(normalizeCategory("Viêm da dị ứng"), List.of(
+                "Loratadine 10mg",
+                "Cetirizine 10mg",
+                "Hydrocortisone 1%"));
+        map.put(normalizeCategory("Mề đay"), List.of(
+                "Cetirizine 10mg",
+                "Loratadine 10mg",
+                "Fexofenadine 180mg"));
+        map.put(normalizeCategory("Nấm da"), List.of(
+                "Clotrimazole 1%",
+                "Hydrocortisone 1%",
+                "Vitamin C 500mg"));
+        map.put(normalizeCategory("Viêm nang lông"), List.of(
+                "Amoxicillin 500mg",
+                "Hydrocortisone 1%",
+                "Paracetamol 500mg"));
+        map.put(normalizeCategory("Chàm"), List.of(
+                "Hydrocortisone 1%",
+                "Cetirizine 10mg",
+                "Vitamin C 500mg"));
+
+        map.put(normalizeCategory("Chẩn đoán chưa xác định"), List.of(
+                "Paracetamol 500mg",
+                "Ibuprofen 400mg",
+                "Vitamin C 500mg"));
+        map.put(normalizeCategory("Rối loạn chức năng"), List.of(
+                "Vitamin B Complex",
+                "Vitamin C 500mg"));
+        map.put(normalizeCategory("Khám tổng quát"), List.of(
+                "Vitamin C 500mg",
+                "Vitamin B Complex"));
+
+        return map;
     }
 }

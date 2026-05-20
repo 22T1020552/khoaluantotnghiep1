@@ -103,51 +103,19 @@ export function ExaminationModal(props: ExaminationModalProps) {
           <div className={styles.panelBorder}>
             <div className={`${styles.flexBetween} ${styles.mb2}`}>
               <h4 className={styles.titleSmall}>Dịch vụ bổ sung trong phòng khám</h4>
-              <span className={styles.textSmall}>Tổng dịch vụ: {props.totalServiceCost.toLocaleString("vi-VN")}đ</span>
             </div>
 
-            {props.selectedServices.length > 0 && (
-              <div className={`${styles.rowStack} ${styles.mb2}`}>
+            {props.selectedServices.length > 0 ? (
+              <div className={styles.rowStack}>
                 {props.selectedServices.map((item) => (
                   <div key={item.service_id} className={styles.itemCard}>
-                    <div className={`${styles.flexBetween} ${styles.mb1}`}>
-                      <span className={styles.titleSmall}>{item.service_name}</span>
-                      <span>{(item.actual_price * item.quantity).toLocaleString("vi-VN")}đ</span>
-                    </div>
-
-                    <div className={`${styles.grid2} ${styles.mb1}`}>
-                      <div>
-                        <label className={`${styles.textSmall} ${styles.textMuted}`}>Số lượng</label>
-                        <input type="number" className={`${styles.input} ${styles.compactInput}`} min="1" value={item.quantity} onChange={(e) => props.onUpdateService(item.service_id, "quantity", parseInt(e.target.value, 10) || 1)} />
-                      </div>
-                      <div>
-                        <label className={`${styles.textSmall} ${styles.textMuted}`}>Đơn giá thực tế (VNĐ)</label>
-                        <input type="number" className={`${styles.input} ${styles.compactInput}`} min="1" value={item.actual_price} onChange={(e) => props.onUpdateService(item.service_id, "actual_price", parseInt(e.target.value, 10) || 0)} />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className={`${styles.textSmall} ${styles.textMuted}`}>Ghi chú dịch vụ</label>
-                      <input className={`${styles.input} ${styles.compactInput}`} placeholder="VD: Chuyển phòng X-quang" value={item.result_note || ""} onChange={(e) => props.onUpdateService(item.service_id, "result_note", e.target.value)} />
-                    </div>
-
-                    <button className={`${styles.button} ${styles.outline} ${styles.fullButton} ${styles.textDanger}`} onClick={() => props.onRemoveService(item.service_id)}>
-                      Xóa dịch vụ
-                    </button>
+                    <p className={styles.textSmall}>{item.service_name}</p>
                   </div>
                 ))}
               </div>
+            ) : (
+              <p className={styles.textSmall}>Bệnh nhân chưa chọn dịch vụ bổ sung khi đặt lịch.</p>
             )}
-
-            <div className={styles.serviceGrid}>
-              {props.availableServices.map((service) => (
-                <button key={service.id} type="button" className={styles.serviceItem} onClick={() => props.onAddService(service)}>
-                  <p className={`${styles.textMedium} ${styles.textSmall}`}>{service.serviceName}</p>
-                  <p className={`${styles.textSmall} ${styles.textMuted}`}>{Number(service.currentPrice || 0).toLocaleString("vi-VN")}đ</p>
-                </button>
-              ))}
-            </div>
-            {props.availableServices.length === 0 && <p className={styles.textSmall}>Chưa có dịch vụ active trong hệ thống.</p>}
           </div>
 
           {/* 3. COMPONENT ĐƠN THUỐC CỦA BẠN */}
@@ -161,7 +129,7 @@ export function ExaminationModal(props: ExaminationModalProps) {
 
           {/* TỔNG CHI PHÍ */}
           <div className={styles.summaryCard}>
-            <p className={styles.textSmall}>Tiền dịch vụ: {props.totalServiceCost.toLocaleString("vi-VN")}đ</p>
+            <p className={styles.textSmall}>Dịch vụ đã được thu ngân thanh toán trước.</p>
           </div>
         </div>
 

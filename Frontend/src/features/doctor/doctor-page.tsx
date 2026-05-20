@@ -195,6 +195,7 @@ export function DoctorQueue() {
   const handleStartExam = async (appointment: Appointment) => {
     try {
       setSaving(true);
+      try { console.debug("[Debug] handleStartExam - appointmentId:", appointment.id); } catch {};
       setDiagnosisOptions([]);
       setSelectedDiagnosisId(null);
       setAppointments((prev) => prev.map((item) => (item.id === appointment.id ? { ...item, status: "pending" } : item)));
@@ -207,11 +208,14 @@ export function DoctorQueue() {
       setSelectedServices(appointment.service_items ?? []);
       
       const categoryId = appointment.category?.id ?? null;
+      try { console.debug("[Debug] handleStartExam - categoryId:", categoryId); } catch {};
       const [services, diagnoses] = await Promise.all([
         doctorService.getAvailableServices(),
         categoryId ? masterDataService.getDiagnosesByCategory(categoryId) : Promise.resolve([]),
       ]);
+      try { console.debug("[Debug] handleStartExam - diagnoses (fetched):", diagnoses); } catch {};
       setAvailableServices(services.filter((item) => item.isActive));
+
       setDiagnosisOptions(diagnoses);
 
       setHistoryLoading(true);
@@ -280,6 +284,12 @@ export function DoctorQueue() {
       setSelectedDiagnosisId(diagnosis.id);
       setMedicalRecord({ diagnosis: diagnosisName, doctor_advice: defaultAdvice });
 
+      // Diagnostic logging to trace diagnosis selection
+      try {
+        console.debug("[Debug] handleDiagnosisSelect - selectedDiagnosisId:", diagnosis.id);
+        console.debug("[Debug] handleDiagnosisSelect - diagnosisName, defaultAdvice:", diagnosisName, defaultAdvice);
+      } catch (err) {}
+
       let recordId = medicalRecordId;
       if (!recordId) {
         const created = await doctorService.createMedicalRecord({
@@ -306,12 +316,23 @@ export function DoctorQueue() {
         throw new Error("Không tạo được bệnh án");
       }
 
-      const workspace = await doctorService.autoPopulatePrescriptionsFromDiagnosis(recordId, diagnosisId);
+      await doctorService.autoPopulatePrescriptionsFromDiagnosis(recordId, diagnosisId);
+      const workspace = await doctorService.getPrescriptionWorkspace(recordId);
+      try { console.debug("[Debug] autoPopulate workspace:", workspace); } catch {}
       const mappedWorkspace = mapWorkspaceToPrescriptionState(workspace);
       setAvailableMedicines(mappedWorkspace.medicines);
       setPrescriptions(mappedWorkspace.prescriptions);
+      if ((mappedWorkspace.prescriptions || []).length === 0) {
+        try { console.debug("[Debug] No suggested prescriptions returned for diagnosisId:", diagnosisId); } catch {}
+        toast.info("Không có thuốc gợi ý cho chẩn đoán này");
+      }
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Không thể tự động điền chẩn đoán hoặc thuốc gợi ý"));
+      const apiMessage = getApiErrorMessage(error, "Không thể tự động điền chẩn đoán hoặc thuốc gợi ý");
+      if (apiMessage && apiMessage.includes("Hóa đơn đã thanh toán")) {
+        try { console.debug("[Debug] suppressed invoice-paid notification:", apiMessage); } catch {}
+      } else {
+        toast.error(apiMessage);
+      }
     } finally {
       setDiagnosisLoading(false);
     }
@@ -354,7 +375,6 @@ export function DoctorQueue() {
   const handleCompleteExam = async () => {
     if (!selectedAppointment) return;
     if (!medicalRecord.diagnosis || !medicalRecord.doctor_advice) return toast.error("Vui lòng điền đầy đủ chẩn đoán và hướng dẫn điều trị");
-    if (prescriptions.length > 0 && prescriptions.some((p) => !p.usage_instructions.trim())) return toast.error("Vui lòng nhập hướng dẫn sử dụng cho tất cả thuốc");
     if (selectedServices.some((item) => item.quantity < 1 || item.actual_price <= 0)) return toast.error("Số lượng dịch vụ phải >= 1 và đơn giá phải > 0");
 
     try {

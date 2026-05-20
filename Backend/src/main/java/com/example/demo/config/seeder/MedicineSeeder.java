@@ -20,12 +20,33 @@ public class MedicineSeeder {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MedicineSeeder.class);
 
-        private static final List<MedicineSeedItem> DEFAULT_MEDICINES = List.of(
+    private static final List<MedicineSeedItem> DEFAULT_MEDICINES = List.of(
             new MedicineSeedItem("Paracetamol 500mg", "Giảm đau - Hạ sốt", "Viên", new BigDecimal("2000"), 500),
+            new MedicineSeedItem("Ibuprofen 400mg", "Giảm đau - Hạ sốt", "Viên", new BigDecimal("2500"), 300),
+            new MedicineSeedItem("Diclofenac 50mg", "Giảm đau - Hạ sốt", "Viên", new BigDecimal("2800"), 250),
+
             new MedicineSeedItem("Amoxicillin 500mg", "Kháng sinh", "Viên", new BigDecimal("3500"), 300),
+            new MedicineSeedItem("Cefuroxime 500mg", "Kháng sinh", "Viên", new BigDecimal("4500"), 200),
+            new MedicineSeedItem("Azithromycin 500mg", "Kháng sinh", "Viên", new BigDecimal("6000"), 180),
+
+            new MedicineSeedItem("Dextromethorphan 15mg", "Thuốc ho", "Viên", new BigDecimal("2200"), 250),
+            new MedicineSeedItem("Ambroxol 30mg", "Thuốc ho", "Viên", new BigDecimal("2300"), 240),
+            new MedicineSeedItem("Acetylcysteine 200mg", "Thuốc ho", "Gói", new BigDecimal("3000"), 200),
+
+            new MedicineSeedItem("Loratadine 10mg", "Dị ứng", "Viên", new BigDecimal("2000"), 300),
+            new MedicineSeedItem("Cetirizine 10mg", "Dị ứng", "Viên", new BigDecimal("1800"), 350),
+            new MedicineSeedItem("Fexofenadine 180mg", "Dị ứng", "Viên", new BigDecimal("4000"), 220),
+
+            new MedicineSeedItem("Omeprazole 20mg", "Tiêu hóa", "Viên", new BigDecimal("2500"), 250),
+            new MedicineSeedItem("Pantoprazole 40mg", "Tiêu hóa", "Viên", new BigDecimal("3200"), 200),
+            new MedicineSeedItem("Smecta 3g", "Tiêu hóa", "Gói", new BigDecimal("3500"), 200),
+            new MedicineSeedItem("Men tieu hoa", "Tiêu hóa", "Gói", new BigDecimal("3000"), 220),
+
             new MedicineSeedItem("Vitamin C 500mg", "Vitamin", "Viên", new BigDecimal("1500"), 400),
-            new MedicineSeedItem("Omeprazole 20mg", "Khác", "Viên", new BigDecimal("2500"), 250),
-            new MedicineSeedItem("Cetirizine 10mg", "Dị ứng", "Viên", new BigDecimal("1800"), 350));
+            new MedicineSeedItem("Vitamin B Complex", "Vitamin", "Viên", new BigDecimal("2500"), 300),
+
+            new MedicineSeedItem("Hydrocortisone 1%", "Khác", "Tuýp", new BigDecimal("8000"), 120),
+            new MedicineSeedItem("Clotrimazole 1%", "Khác", "Tuýp", new BigDecimal("9000"), 120));
 
     @Value("${app.seed.medicines.enabled:true}")
     private boolean defaultMedicinesEnabled;

@@ -16,6 +16,7 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
   // Quản lý state riêng cho Modal
   const [doctorId, setDoctorId] = useState<number | "">("");
   const [suggestedRoomName, setSuggestedRoomName] = useState<string>("Đang gợi ý phòng khám...");
+  const [suggestedSpecialty, setSuggestedSpecialty] = useState<string | null>(null);
   const [appointmentTime, setAppointmentTime] = useState(() => {
     const date = new Date(appointment.appointmentTime);
     if (Number.isNaN(date.getTime())) {
@@ -41,12 +42,14 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
         }
 
         setSuggestedRoomName(suggestion.roomName || "Chưa xác định được phòng khám");
+        setSuggestedSpecialty(suggestion.specialty || null);
       } catch {
         if (!mounted) {
           return;
         }
 
         setSuggestedRoomName("Chưa xác định được phòng khám");
+        setSuggestedSpecialty(null);
       }
     };
 
@@ -78,7 +81,7 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
       return;
     }
 
-    onConfirm(Number(doctorId), appointmentTime, selectedDoctor.roomId ?? null, appointment.category?.name ?? null);
+    onConfirm(Number(doctorId), appointmentTime, selectedDoctor.roomId ?? null, suggestedSpecialty ?? appointment.category?.name ?? null);
   };
 
   const selectedDoctor = doctors.find((doctor) => doctor.doctorId === Number(doctorId));
@@ -163,6 +166,11 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
               readOnly
               disabled
             />
+            <p style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "#6b7280" }}>
+              {suggestedSpecialty
+                ? `Phòng khám gợi ý theo triệu chứng: ${suggestedRoomName} (${suggestedSpecialty})`
+                : `Phòng khám gợi ý theo lịch hẹn: ${suggestedRoomName}`}
+            </p>
           </div>
         </div>
 

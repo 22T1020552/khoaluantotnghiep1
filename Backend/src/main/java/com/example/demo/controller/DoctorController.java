@@ -87,7 +87,7 @@ public class DoctorController {
     @Operation(summary = "Lịch sử bệnh án tổng quan", description = "Lấy tổng quan lịch sử bệnh án của bệnh nhân theo cuộc hẹn.")
     public DoctorPatientHistoryResponse getPatientHistorySummary(
             Authentication authentication,
-            @PathVariable Long appointmentId) {
+            @PathVariable(name = "appointmentId") Long appointmentId) {
         return medicalRecordService.getPatientHistorySummaryForDoctor(authentication.getName(), appointmentId);
     }
 
@@ -95,8 +95,8 @@ public class DoctorController {
     @Operation(summary = "Lịch sử bệnh án chi tiết", description = "Lấy chi tiết một bệnh án cụ thể để bác sĩ đối chiếu khi khám.")
     public DoctorPatientHistoryDetailResponse getPatientHistoryDetail(
             Authentication authentication,
-            @PathVariable Long appointmentId,
-            @PathVariable Long medicalRecordId) {
+            @PathVariable(name = "appointmentId") Long appointmentId,
+            @PathVariable(name = "medicalRecordId") Long medicalRecordId) {
         return medicalRecordService.getPatientHistoryDetailForDoctor(
                 authentication.getName(),
                 appointmentId,
@@ -107,7 +107,7 @@ public class DoctorController {
     @Operation(summary = "Auto-populate prescriptions", description = "Gợi ý đơn thuốc dựa trên DiagnosisTemplate và tuổi bệnh nhân.")
     public PrescriptionWorkspaceResponse autoPopulatePrescriptions(
             Authentication authentication,
-            @PathVariable Long medicalRecordId,
+            @PathVariable(name = "medicalRecordId") Long medicalRecordId,
             @RequestParam(name = "diagnosisId") Long diagnosisId) {
         return medicalRecordService.autoPopulatePrescriptionsFromDiagnosis(authentication.getName(), medicalRecordId,
                 diagnosisId);

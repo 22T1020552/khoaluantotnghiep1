@@ -9,11 +9,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.print.Doc;
 import javax.print.DocFlavor;
@@ -69,6 +71,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 @SuppressWarnings("null")
+@Slf4j
 public class InvoiceService {
 
     private static final String STATUS_WAITING_PAYMENT = InvoiceStatus.UNPAID;
@@ -101,7 +104,30 @@ public class InvoiceService {
 
     // Chức năng: xử lý lấy hàng đợi chờ thanh toán.
     public List<CashierWaitingPaymentItemResponse> getWaitingPaymentQueue(String keyword) {
-        List<Invoice> unpaidInvoices = invoiceRepository.findByIsPaidOrderByIdDesc(Boolean.FALSE);
+        // Một số cuộc hẹn có thể sử dụng giá trị trạng thái được bản địa hóa
+        // (CHO_THU_NGAN)
+        // tùy thuộc vào cách chúng được tạo hoặc chuyển đổi. Truy vấn cả hai biến thể
+        // để nhân viên thu ngân thấy tất cả các bản ghi đang chờ thanh toán.
+        // Truy xuất các cuộc hẹn cho cả giá trị trạng thái chuẩn và được bản địa hóa và
+        // hợp nhất để đảm bảo không bỏ sót bản ghi nào đang chờ do các giá trị biến
+        // thể.
+        List<com.example.demo.entity.Appointment> apptsCanonical = appointmentRepository
+                .findByStatusOrderByAppointmentTimeAsc(AppointmentStatus.WAITING_CASHIER);
+        List<com.example.demo.entity.Appointment> apptsLocalized = appointmentRepository
+                .findByStatusOrderByAppointmentTimeAsc("CHO_THU_NGAN");
+
+        List<com.example.demo.entity.Appointment> combined = new ArrayList<>();
+        combined.addAll(apptsCanonical);
+        for (com.example.demo.entity.Appointment a : apptsLocalized) {
+            if (a != null && a.getId() != null && combined.stream().noneMatch(x -> x.getId().equals(a.getId()))) {
+                combined.add(a);
+            }
+        }
+
+        List<Invoice> unpaidInvoices = combined.stream()
+                .map(this::resolveUnpaidInvoiceForAppointment)
+                .filter(Objects::nonNull)
+                .toList();
 
         if (keyword == null || keyword.isBlank()) {
             return unpaidInvoices.stream()
@@ -120,6 +146,28 @@ public class InvoiceService {
         }
 
         return matched;
+    }
+
+    private Invoice resolveUnpaidInvoiceForAppointment(Appointment appointment) {
+        if (appointment == null || appointment.getId() == null) {
+            return null;
+        }
+
+        List<MedicalRecord> records = medicalRecordRepository
+                .findAllByAppointment_IdOrderByCreatedAtDescIdDesc(appointment.getId());
+        MedicalRecord medicalRecord = records.isEmpty() ? null : records.get(0);
+
+        Invoice invoice = medicalRecord == null ? null
+                : invoiceRepository.findByMedicalRecord_Id(medicalRecord.getId()).orElse(null);
+        if (invoice == null) {
+            invoice = createInvoiceForAppointment(appointment);
+        }
+
+        if (invoice == null || Boolean.TRUE.equals(invoice.getIsPaid())) {
+            return null;
+        }
+
+        return invoice;
     }
 
     // Chức năng: xử lý tìm kiếm hồ sơ thanh toán.
@@ -225,13 +273,21 @@ public class InvoiceService {
 
         Invoice invoice = invoiceRepository.findByMedicalRecord_Id(medicalRecordId)
                 .orElseGet(Invoice::new);
+
+        // Nếu hóa đơn đã thanh toán thì không tính lại nữa
         if (Boolean.TRUE.equals(invoice.getIsPaid())) {
-            throw AppException.of(HttpStatus.CONFLICT, "Hóa đơn đã thanh toán và không thể tính lại");
+            log.warn("Invoice already paid - skipping aggregate");
+            return invoice;
         }
 
         List<MedicalRecordServiceDetail> serviceDetails = medicalRecordServiceDetailRepository
                 .findByMedicalRecord_Id(medicalRecordId);
-        serviceDetails = ensureConsultationService(medicalRecordId, medicalRecord, serviceDetails);
+
+        serviceDetails = ensureConsultationService(
+                medicalRecordId,
+                medicalRecord,
+                serviceDetails);
+
         BigDecimal totalServiceFee = serviceDetails.stream()
                 .map(this::serviceLineTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -244,9 +300,13 @@ public class InvoiceService {
         invoice.setTotalServiceFee(totalServiceFee);
         invoice.setTotalMedicineFee(totalMedicineFee);
         invoice.setGrandTotal(totalAmount);
+
         BigDecimal advanceAmount = defaultAmount(appointment.getAdvancePayment());
+
         invoice.setAdvanceAmount(advanceAmount);
-        invoice.setRemainingAmount(defaultAmount(invoice.getGrandTotal()).subtract(advanceAmount));
+        invoice.setRemainingAmount(
+                defaultAmount(invoice.getGrandTotal()).subtract(advanceAmount));
+
         invoice.setIsPaid(Boolean.FALSE);
         invoice.setPaidAt(null);
 
@@ -278,7 +338,18 @@ public class InvoiceService {
             return invoice;
         }
 
-        BigDecimal grandTotal = defaultAmount(appointment.getEstimatedTotalFee());
+        // Calculate totals from persisted medical record service details to ensure
+        // consistency
+        List<MedicalRecordServiceDetail> serviceDetails = medicalRecordServiceDetailRepository
+                .findByMedicalRecord_Id(medicalRecord.getId());
+        serviceDetails = ensureConsultationService(medicalRecord.getId(), medicalRecord, serviceDetails);
+        BigDecimal totalServiceFee = serviceDetails.stream()
+                .map(this::serviceLineTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalMedicineFee = BigDecimal.ZERO;
+
+        BigDecimal grandTotal = totalServiceFee.add(totalMedicineFee);
         BigDecimal advanceAmount = defaultAmount(appointment.getAdvancePayment());
         BigDecimal remainingAmount = grandTotal.subtract(advanceAmount);
         if (remainingAmount.signum() < 0) {
@@ -288,8 +359,8 @@ public class InvoiceService {
         invoice.setMedicalRecord(medicalRecord);
         invoice.setIsPaid(Boolean.FALSE);
         invoice.setPaymentMethod(appointment.getPaymentMethod());
-        invoice.setTotalServiceFee(grandTotal);
-        invoice.setTotalMedicineFee(BigDecimal.ZERO);
+        invoice.setTotalServiceFee(totalServiceFee);
+        invoice.setTotalMedicineFee(totalMedicineFee);
         invoice.setGrandTotal(grandTotal);
         invoice.setAdvanceAmount(advanceAmount);
         invoice.setRemainingAmount(remainingAmount);
@@ -307,10 +378,11 @@ public class InvoiceService {
             return serviceDetails;
         }
 
-        boolean alreadyAdded = serviceDetails.stream()
-                .anyMatch(detail -> detail.getService() != null
-                        && consultationService.getId().equals(detail.getService().getId()));
-        if (alreadyAdded) {
+        // Nếu đã có các dòng dịch vụ được lưu trữ cho hồ sơ y tế này,
+        // thì không cần thêm bất kỳ khoản phí tư vấn nào nữa — nhân viên thu ngân sẽ
+        // thấy
+        // chính xác những gì đã được đề xuất khi đặt lịch hẹn.
+        if (serviceDetails != null && !serviceDetails.isEmpty()) {
             return serviceDetails;
         }
 
@@ -339,12 +411,19 @@ public class InvoiceService {
         }
 
         List<MedicalService> activeServices = medicalServiceRepository.findByIsActiveTrueOrderByServiceNameAsc();
-        for (MedicalService service : activeServices) {
-            if (isConsultationService(service)) {
-                return service;
-            }
+        List<MedicalService> candidates = activeServices.stream()
+                .filter(this::isConsultationService)
+                .toList();
+        if (candidates.isEmpty()) {
+            return null;
         }
-        return null;
+
+        // Prefer a short/generic consultation service name (e.g. "Khám") over
+        // specialty-specific services (e.g. "Khám da liễu"). Choose the candidate
+        // with the shortest normalized name as a heuristic for the generic service.
+        return candidates.stream()
+                .min(Comparator.comparingInt(s -> normalizeText(s.getServiceName()).length()))
+                .orElse(null);
     }
 
     private MedicalService resolveConsultationServiceFromRoom(MedicalRecord medicalRecord) {
@@ -494,7 +573,6 @@ public class InvoiceService {
                 savedInvoice.getAppointment() == null ? null : savedInvoice.getAppointment().getId(),
                 paymentMethod,
                 savedInvoice.getTotalServiceFee(),
-                savedInvoice.getTotalMedicineFee(),
                 grossTotalAmount,
                 insuranceDiscountAmount,
                 savedInvoice.getRemainingAmount(),
@@ -523,7 +601,6 @@ public class InvoiceService {
                 detail.getServices(),
                 detail.getMedicines(),
                 detail.getTotalServiceFee(),
-                detail.getTotalMedicineFee(),
                 detail.getGrandTotal(),
                 formattedText);
     }
@@ -690,7 +767,6 @@ public class InvoiceService {
                 invoice.getPaymentMethod(),
                 invoice.getPaidAt(),
                 invoice.getTotalServiceFee(),
-                invoice.getTotalMedicineFee(),
                 invoice.getGrandTotal(),
                 advanceAmount,
                 remainingAmount,
@@ -920,7 +996,6 @@ public class InvoiceService {
 
         lines.add("----------------------------------------------------");
         lines.add("Tổng tiền dịch vụ: " + formatAmount(detail.getTotalServiceFee()));
-        lines.add("Tổng tiền thuốc: " + formatAmount(detail.getTotalMedicineFee()));
         lines.add("TỔNG THANH TOÁN: " + formatAmount(detail.getGrandTotal()));
         lines.add("====================================================");
         lines.add("Cảm ơn quý khách đã sử dụng dịch vụ!");

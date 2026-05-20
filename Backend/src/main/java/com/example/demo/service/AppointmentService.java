@@ -20,6 +20,10 @@ import com.example.demo.exception.AppException;
 import com.example.demo.dto.AppointmentRequest;
 import com.example.demo.dto.AppointmentFeeEstimateResponse;
 import com.example.demo.dto.CashierServiceLineItemResponse;
+import com.example.demo.entity.MedicalRecord;
+import com.example.demo.repository.MedicalRecordRepository;
+import com.example.demo.repository.MedicalRecordServiceDetailRepository;
+import com.example.demo.repository.MedicalServiceRepository;
 import com.example.demo.dto.PatientAppointmentRequest;
 import com.example.demo.dto.PatientPrefillResponse;
 import com.example.demo.entity.Appointment;
@@ -62,6 +66,9 @@ public class AppointmentService {
     private final SymptomServiceMappingRepository symptomServiceMappingRepository;
     private final PatientService patientService;
     private final NotificationService notificationService;
+    private final MedicalRecordRepository medicalRecordRepository;
+    private final MedicalRecordServiceDetailRepository medicalRecordServiceDetailRepository;
+    private final MedicalServiceRepository medicalServiceRepository;
 
     // Chức năng: xử lý lấy danh sách tất cả lịch hẹn.
     public List<Appointment> getAllAppointments() {
@@ -136,6 +143,32 @@ public class AppointmentService {
         appointment.setPaymentStatus(paymentStatus);
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
+        // Create a medical record and persist suggested service lines based on symptoms
+        MedicalRecord medicalRecord = new MedicalRecord();
+        medicalRecord.setAppointment(savedAppointment);
+        medicalRecord.setCreatedAt(java.time.LocalDateTime.now());
+        medicalRecord = medicalRecordRepository.save(medicalRecord);
+
+        List<com.example.demo.dto.CashierServiceLineItemResponse> suggestedServices = collectServicesFromSymptoms(
+                symptomIds);
+        for (com.example.demo.dto.CashierServiceLineItemResponse svc : suggestedServices) {
+            if (svc.getServiceId() == null)
+                continue;
+            com.example.demo.entity.MedicalRecordServiceDetail detail = new com.example.demo.entity.MedicalRecordServiceDetail();
+            com.example.demo.entity.MedicalRecordServiceId id = new com.example.demo.entity.MedicalRecordServiceId();
+            id.setMedicalRecordId(medicalRecord.getId());
+            id.setServiceId(svc.getServiceId());
+            detail.setId(id);
+            detail.setMedicalRecord(medicalRecord);
+            com.example.demo.entity.MedicalService serviceEntity = medicalServiceRepository.findById(svc.getServiceId())
+                    .orElse(null);
+            detail.setService(serviceEntity);
+            detail.setQuantity(svc.getQuantity());
+            detail.setActualPrice(svc.getUnitPrice());
+            detail.setResultNote("Dịch vụ gợi ý khi đăng ký");
+            medicalRecordServiceDetailRepository.save(detail);
+        }
+
         notificationService.notifyReceptionistNewPatientBooking(savedAppointment);
         return savedAppointment;
     }

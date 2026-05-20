@@ -78,14 +78,15 @@ public class DoctorService {
         if (date != null) {
             LocalDateTime from = date.atStartOfDay();
             LocalDateTime to = from.plusDays(1);
-            return appointmentRepository.findByDoctor_IdAndStatusAndAppointmentTimeBetweenOrderByAppointmentTimeAsc(
-                    doctor.getId(),
-                    STATUS_IN_ROOM,
-                    from,
-                    to);
+            return appointmentRepository
+                    .findVisibleForDoctorAndStatusAndAppointmentTimeBetweenOrderByAppointmentTimeAsc(
+                            doctor.getId(),
+                            STATUS_IN_ROOM,
+                            from,
+                            to);
         }
 
-        return appointmentRepository.findByDoctor_IdAndStatusOrderByAppointmentTimeAsc(
+        return appointmentRepository.findVisibleForDoctorAndStatusOrderByAppointmentTimeAsc(
                 doctor.getId(),
                 STATUS_IN_ROOM);
     }
@@ -99,14 +100,15 @@ public class DoctorService {
         if (date != null) {
             LocalDateTime from = date.atStartOfDay();
             LocalDateTime to = from.plusDays(1);
-            return appointmentRepository.findByDoctor_IdAndStatusAndAppointmentTimeBetweenOrderByAppointmentTimeAsc(
-                    doctor.getId(),
-                    STATUS_COMPLETED,
-                    from,
-                    to);
+            return appointmentRepository
+                    .findVisibleForDoctorAndStatusAndAppointmentTimeBetweenOrderByAppointmentTimeAsc(
+                            doctor.getId(),
+                            STATUS_COMPLETED,
+                            from,
+                            to);
         }
 
-        return appointmentRepository.findByDoctor_IdAndStatusOrderByAppointmentTimeAsc(
+        return appointmentRepository.findVisibleForDoctorAndStatusOrderByAppointmentTimeAsc(
                 doctor.getId(),
                 STATUS_COMPLETED);
     }

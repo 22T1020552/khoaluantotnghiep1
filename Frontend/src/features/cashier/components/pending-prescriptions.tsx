@@ -55,22 +55,36 @@ function PendingPrescriptions({ prescriptions, onOpenPayment }: PendingPrescript
 
             <div className={styles.bodyStack}>
               <div className={styles.diagnosisBox}>
-                <p className={`${styles.boxTitle} ${styles.diagnosisTitle}`}>Chẩn đoán:</p>
-                <p className={`${styles.boxText} ${styles.diagnosisText}`}>{prescription.diagnosis}</p>
+                <p className={`${styles.boxTitle} ${styles.diagnosisTitle}`}>Dịch vụ:</p>
+                {prescription.serviceItems && prescription.serviceItems.length > 0 ? (
+                  <div className={styles.itemList}>
+                    {prescription.serviceItems.map((si) => (
+                      <div key={si.serviceId} className={styles.itemCard}>
+                        <div className={styles.itemTop}>
+                          <div className={styles.itemName}>{si.serviceName} x{si.quantity}</div>
+                          <div className={styles.itemAmount}>{formatCurrency(si.lineTotal)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={`${styles.boxText} ${styles.diagnosisText}`}>Không có dịch vụ chỉ định</p>
+                )}
               </div>
 
               <div className={styles.treatmentBox}>
-                <p className={`${styles.boxTitle} ${styles.treatmentTitle}`}>Điều trị:</p>
-                <p className={`${styles.boxText} ${styles.treatmentText}`}>{prescription.treatment}</p>
+                <p className={`${styles.boxTitle} ${styles.treatmentTitle}`}>Tổng tiền:</p>
+                <p className={`${styles.boxText} ${styles.treatmentText}`}>{formatCurrency(prescription.grandTotal ?? prescription.totalAmount ?? 0)}</p>
+
+                {prescription.advanceAmount !== undefined && prescription.advanceAmount > 0 && (prescription.grandTotal ?? prescription.totalAmount ?? 0) > prescription.advanceAmount && (
+                  <>
+                    <p className={`${styles.boxTitle}`}>Đã thu:</p>
+                    <p className={`${styles.boxText}`}>{formatCurrency(prescription.advanceAmount)}</p>
+                    <p className={`${styles.boxTitle} ${styles.treatmentTitle}`}>Còn lại cần thu:</p>
+                    <p className={`${styles.boxText} ${styles.treatmentText}`}>{formatCurrency(prescription.remainingAmount ?? ((prescription.grandTotal ?? prescription.totalAmount ?? 0) - prescription.advanceAmount))}</p>
+                  </>
+                )}
               </div>
-              {prescription.remainingAmount !== undefined && (
-                <div className={styles.treatmentBox}>
-                  <p className={`${styles.boxTitle} ${styles.treatmentTitle}`}>Còn lại cần thu:</p>
-                  <p className={`${styles.boxText} ${styles.treatmentText}`}>
-                    {formatCurrency(prescription.remainingAmount)}
-                  </p>
-                </div>
-              )}
             </div>
 
             <Button onClick={() => onOpenPayment(prescription)} className={styles.actionBtn}>

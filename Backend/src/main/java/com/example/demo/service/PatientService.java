@@ -91,11 +91,8 @@ public class PatientService {
                 BigDecimal totalServiceFee = invoice == null || invoice.getTotalServiceFee() == null
                                 ? BigDecimal.ZERO
                                 : invoice.getTotalServiceFee();
-                BigDecimal totalMedicineFee = invoice == null || invoice.getTotalMedicineFee() == null
-                                ? BigDecimal.ZERO
-                                : invoice.getTotalMedicineFee();
                 BigDecimal totalAmount = invoice == null || invoice.getGrandTotal() == null
-                                ? totalServiceFee.add(totalMedicineFee)
+                                ? totalServiceFee
                                 : invoice.getGrandTotal();
 
                 return new PatientMedicalRecordDetailResponse(
@@ -109,7 +106,6 @@ public class PatientService {
                                 medicalRecord.getCreatedAt(),
                                 invoice == null ? null : invoice.getId(),
                                 totalServiceFee,
-                                totalMedicineFee,
                                 totalAmount,
                                 invoice != null && Boolean.TRUE.equals(invoice.getIsPaid()),
                                 invoice == null ? null : invoice.getPaidAt(),
@@ -128,11 +124,8 @@ public class PatientService {
                 BigDecimal totalServiceFee = invoice == null || invoice.getTotalServiceFee() == null
                                 ? BigDecimal.ZERO
                                 : invoice.getTotalServiceFee();
-                BigDecimal totalMedicineFee = invoice == null || invoice.getTotalMedicineFee() == null
-                                ? BigDecimal.ZERO
-                                : invoice.getTotalMedicineFee();
                 BigDecimal totalAmount = invoice == null || invoice.getGrandTotal() == null
-                                ? totalServiceFee.add(totalMedicineFee)
+                                ? totalServiceFee
                                 : invoice.getGrandTotal();
 
                 return new PatientMedicalRecordHistoryItemResponse(
@@ -148,7 +141,6 @@ public class PatientService {
                                 prescriptionItemCount,
                                 invoice == null ? null : invoice.getId(),
                                 totalServiceFee,
-                                totalMedicineFee,
                                 totalAmount,
                                 invoice != null && Boolean.TRUE.equals(invoice.getIsPaid()),
                                 invoice == null ? null : invoice.getPaidAt(),

@@ -54,7 +54,6 @@ export interface PatientMedicalRecordHistoryItemResponse {
   prescriptionItemCount: number;
   invoiceId: number | null;
   totalServiceFee: number;
-  totalMedicineFee: number;
   totalAmount: number;
   paid: boolean;
   paidAt: string | null;
@@ -82,7 +81,6 @@ export interface PatientMedicalRecordDetailResponse {
   createdAt: string | null;
   invoiceId: number | null;
   totalServiceFee: number;
-  totalMedicineFee: number;
   totalAmount: number;
   paid: boolean;
   paidAt: string | null;

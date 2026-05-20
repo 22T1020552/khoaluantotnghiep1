@@ -33,7 +33,7 @@ export function PharmacyDashboard() {
     paidAt?: string,
     paymentMethod?: string,
   ): Prescription => {
-    const totalMedicationCost = Number(detail.totalMedicineFee || 0);
+    const totalMedicationCost = 0;
     const serviceFee = Number(detail.totalServiceFee || 0);
     const grandTotal = Number(detail.grandTotal || 0);
     const remainingAmount = Number(detail.remainingAmount ?? grandTotal);

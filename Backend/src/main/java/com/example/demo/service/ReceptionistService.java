@@ -13,6 +13,7 @@ import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.example.demo.exception.AppException;
 
 import com.example.demo.dto.ReceptionistDoctorOptionResponse;
@@ -99,12 +100,13 @@ public class ReceptionistService {
         Map<Long, ReceptionistDoctorOptionResponse> result = new LinkedHashMap<>();
         List<Room> rooms = roomRepository.findAllByOrderByRoomNameAsc();
         Long mappedRoomId = specialtyRoomMappingConfig.getRoomIdForSpecialty(normalizedSpecialty);
+        boolean hasMappedRoom = mappedRoomId != null && roomRepository.existsById(mappedRoomId);
         for (Room room : rooms) {
             User doctor = room.getCurrentDoctor();
             if (doctor == null || doctor.getRole() != Role.DOCTOR) {
                 continue;
             }
-            if (mappedRoomId != null && !Objects.equals(room.getId(), mappedRoomId)) {
+            if (hasMappedRoom && !Objects.equals(room.getId(), mappedRoomId)) {
                 continue;
             }
 
@@ -128,6 +130,7 @@ public class ReceptionistService {
     }
 
     // Chức năng: gợi ý phòng khám theo lịch hẹn.
+    @Transactional(readOnly = true)
     public ReceptionistRoomSuggestionResponse getSuggestedRoom(Long appointmentId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
@@ -378,7 +381,10 @@ public class ReceptionistService {
         if (hint != null) {
             Long mapped = specialtyRoomMappingConfig.getRoomIdForSpecialty(hint);
             if (mapped != null) {
-                return roomRepository.findById(mapped).orElse(null);
+                Room mappedRoom = roomRepository.findById(mapped).orElse(null);
+                if (mappedRoom != null) {
+                    return mappedRoom;
+                }
             }
         }
 
@@ -387,7 +393,28 @@ public class ReceptionistService {
         if (normalizedCategory != null) {
             Long mapped = specialtyRoomMappingConfig.getRoomIdForSpecialty(normalizedCategory);
             if (mapped != null) {
-                return roomRepository.findById(mapped).orElse(null);
+                Room mappedRoom = roomRepository.findById(mapped).orElse(null);
+                if (mappedRoom != null) {
+                    return mappedRoom;
+                }
+            }
+        }
+
+        // Để có phương pháp phán đoán tốt hơn, hãy thử so khớp văn bản tên phòng với
+        // chuyên khoa hoặc hạng mục (đã chuẩn hóa) được suy luận trước khi quay lại
+        // phòng đầu tiên.
+        String normalizedHint = hint == null ? null : normalizeTextForMatching(hint);
+        String normalizedCat = normalizedCategory == null ? null : normalizeTextForMatching(normalizedCategory);
+
+        for (Room r : rooms) {
+            String rn = normalizeTextForMatching(r.getRoomName());
+            if (rn == null)
+                continue;
+            if (normalizedHint != null && rn.contains(normalizedHint)) {
+                return r;
+            }
+            if (normalizedCat != null && rn.contains(normalizedCat)) {
+                return r;
             }
         }
 
@@ -396,33 +423,32 @@ public class ReceptionistService {
 
     private String inferSpecialtyFromAppointment(Appointment appointment) {
         String categoryName = appointment.getCategory() == null ? null : appointment.getCategory().getName();
-        String normalizedCategory = normalizeOptionalText(categoryName);
+        String normalizedCategory = normalizeTextForMatching(categoryName);
         if (normalizedCategory != null) {
             return normalizedCategory;
         }
 
-        String symptomText = normalizeOptionalText(appointment.getSymptomsText());
+        String symptomText = normalizeTextForMatching(appointment.getSymptomsText());
         if (symptomText == null) {
-            symptomText = normalizeOptionalText(appointment.getSymptoms());
+            symptomText = normalizeTextForMatching(appointment.getSymptoms());
         }
         if (symptomText == null) {
             return null;
         }
 
-        String lower = symptomText.toLowerCase(Locale.ROOT);
-        if (containsAny(lower, List.of("đau bụng", "buồn nôn", "ói mửa", "tiêu chảy", "táo bón", "thượng vị"))) {
+        if (containsAny(symptomText, List.of("đau bụng", "buồn nôn", "ói mửa", "tiêu chảy", "táo bón", "thượng vị"))) {
             return "Tiêu hóa";
         }
-        if (containsAny(lower, List.of("ho", "đau họng", "khó thở", "chảy mũi", "khàn tiếng"))) {
+        if (containsAny(symptomText, List.of("ho", "đau họng", "khó thở", "chảy mũi", "khàn tiếng", "viêm mũi"))) {
             return "Hô hấp";
         }
-        if (containsAny(lower, List.of("đau đầu", "chóng mặt", "mất ngủ", "tê tay", "tê chân"))) {
+        if (containsAny(symptomText, List.of("đau đầu", "chóng mặt", "mất ngủ", "tê tay", "tê chân", "co giật"))) {
             return "Thần kinh";
         }
-        if (containsAny(lower, List.of("ngứa", "phát ban", "mẩn đỏ", "nóng rát"))) {
+        if (containsAny(symptomText, List.of("ngứa", "phát ban", "mẩn đỏ", "nóng rát", "dị ứng", "mụn"))) {
             return "Da liễu";
         }
-        if (containsAny(lower, List.of("sốt", "mỏi mệt", "sụt cân", "sưng"))) {
+        if (containsAny(symptomText, List.of("sốt", "mỏi mệt", "sụt cân", "sưng", "uể oải", "đau nhức"))) {
             return "Toàn thân";
         }
 
@@ -431,7 +457,7 @@ public class ReceptionistService {
 
     private boolean containsAny(String text, List<String> keywords) {
         for (String keyword : keywords) {
-            if (text.contains(keyword)) {
+            if (text.contains(normalizeTextForMatching(keyword))) {
                 return true;
             }
         }
@@ -477,5 +503,20 @@ public class ReceptionistService {
             return null;
         }
         return trimmed;
+    }
+
+    private String normalizeTextForMatching(String value) {
+        String normalized = normalizeOptionalText(value);
+        if (normalized == null) {
+            return null;
+        }
+
+        String compact = Normalizer.normalize(normalized, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return compact.isEmpty() ? null : compact;
     }
 }

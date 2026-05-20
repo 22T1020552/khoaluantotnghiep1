@@ -41,7 +41,6 @@ export interface CashierPaymentRecordDetailResponse {
   paymentMethod?: string | null;
   paidAt?: string | null;
   totalServiceFee: number;
-  totalMedicineFee: number;
   grandTotal: number;
   advanceAmount: number;
   remainingAmount: number;
@@ -85,7 +84,6 @@ export interface CashierProcessPaymentResponse {
   appointmentId: number;
   paymentMethod: string;
   totalServiceFee: number;
-  totalMedicineFee: number;
   grandTotal: number;
   insuranceDiscountAmount: number;
   remainingAmount: number;

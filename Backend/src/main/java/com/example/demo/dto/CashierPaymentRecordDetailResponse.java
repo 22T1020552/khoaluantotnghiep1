@@ -21,7 +21,6 @@ public class CashierPaymentRecordDetailResponse {
     private String paymentMethod;
     private LocalDateTime paidAt;
     private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
     private BigDecimal grandTotal;
     private BigDecimal advanceAmount;
     private BigDecimal remainingAmount;

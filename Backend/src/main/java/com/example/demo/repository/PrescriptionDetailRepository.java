@@ -10,4 +10,6 @@ import com.example.demo.entity.PrescriptionDetailId;
 public interface PrescriptionDetailRepository extends JpaRepository<PrescriptionDetail, PrescriptionDetailId> {
 
     List<PrescriptionDetail> findByMedicalRecord_Id(Long medicalRecordId);
+
+    void deleteByMedicalRecord_Id(Long medicalRecordId);
 }
