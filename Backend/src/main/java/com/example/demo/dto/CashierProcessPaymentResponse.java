@@ -14,7 +14,6 @@ public class CashierProcessPaymentResponse {
     private Long appointmentId;
     private String paymentMethod;
     private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
     private BigDecimal grandTotal;
     private BigDecimal insuranceDiscountAmount;
     private BigDecimal remainingAmount;

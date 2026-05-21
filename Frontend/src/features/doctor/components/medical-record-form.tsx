@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { DiagnosisTemplateResponse } from "@/services/doctorService";
@@ -25,11 +26,16 @@ interface MedicalRecordFormProps {
 }
 
 export function MedicalRecordForm(props: MedicalRecordFormProps) {
+  const idBase = useId();
+  const selectId = `${idBase}-diagnosis`;
+  const textareaId = `${idBase}-doctor-advice`;
   return (
     <>
       <div className={styles.formGroup}>
-        <Label className={styles.label}>Chẩn đoán *</Label>
+        <Label className={styles.label} htmlFor={selectId}>Chẩn đoán *</Label>
         <select
+          id={selectId}
+          name="diagnosis"
           className={styles.input}
           value={props.selectedDiagnosisId ?? ""}
           onChange={(e) => {
@@ -37,6 +43,11 @@ export function MedicalRecordForm(props: MedicalRecordFormProps) {
             if (!value) {
               return;
             }
+            try {
+              console.debug("[Debug] MedicalRecordForm.onChange - value:", value);
+              console.debug("[Debug] MedicalRecordForm - diagnosisOptions:", props.diagnosisOptions);
+              console.debug("[Debug] MedicalRecordForm - selectedDiagnosisId (before):", props.selectedDiagnosisId);
+            } catch (err) {}
             props.onDiagnosisSelect(Number(value));
           }}
           disabled={props.diagnosisLoading || props.diagnosisOptions.length === 0}
@@ -56,8 +67,10 @@ export function MedicalRecordForm(props: MedicalRecordFormProps) {
       </div>
 
       <div className={styles.formGroup}>
-        <Label className={styles.label}>Phương pháp điều trị / Lời khuyên *</Label>
+        <Label className={styles.label} htmlFor={textareaId}>Phương pháp điều trị / Lời khuyên *</Label>
         <Textarea
+          id={textareaId}
+          name="doctor_advice"
           className={styles.input}
           rows={3}
           value={props.medicalRecord.doctor_advice}

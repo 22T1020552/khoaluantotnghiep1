@@ -50,10 +50,13 @@ export const receptionistService = {
   },
 
   async getConfirmedAppointments() {
-    const response = await api.get<ReceptionistAppointment[]>("/api/receptionist/appointments/waiting", {
-      params: { status: "WAITING" },
+    const response = await api.get<ReceptionistAppointment[]>("/api/receptionist/appointments/waiting");
+    const all = response.data || [];
+    return all.filter((a) => {
+      const s = (a.status ?? "").toString().trim().toUpperCase();
+      // exclude still-pending entries so confirmed list shows WAITING_CASHIER / IN_ROOM / IN_PROGRESS
+      return !s.includes("PENDING");
     });
-    return response.data;
   },
 
   async getCancelledAppointments() {

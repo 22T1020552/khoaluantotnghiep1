@@ -181,7 +181,6 @@ public class AdminService {
                     0,
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
-                    BigDecimal.ZERO,
                     List.of(),
                     List.of(),
                     "Không có du lieu trong khoang thoi gian nay");
@@ -197,11 +196,6 @@ public class AdminService {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal totalMedicineRevenue = items.stream()
-                .map(AdminRevenueReportItemResponse::getTotalMedicineFee)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         List<AdminRevenueChartPointResponse> chart = buildRevenueChart(items, normalizedGroupBy);
 
         return new AdminRevenueReportResponse(
@@ -213,7 +207,6 @@ public class AdminService {
                 items.size(),
                 totalRevenue,
                 totalServiceRevenue,
-                totalMedicineRevenue,
                 items,
                 chart,
                 "OK");
@@ -804,7 +797,6 @@ public class AdminService {
                 invoice.getPaymentMethod(),
                 invoice.getPaidAt(),
                 invoice.getTotalServiceFee(),
-                invoice.getTotalMedicineFee(),
                 invoice.getGrandTotal(),
                 services,
                 medicines);
@@ -913,7 +905,7 @@ public class AdminService {
     private byte[] exportRevenueReportCsv(AdminRevenueReportResponse report) {
         StringBuilder builder = new StringBuilder();
         builder.append(
-                "InvoiceId,AppointmentId,PatientName,PaymentMethod,PaidAt,ServiceRevenue,MedicineRevenue,TotalRevenue,Services,Medicines\n");
+                "InvoiceId,AppointmentId,PatientName,PaymentMethod,PaidAt,ServiceRevenue,TotalRevenue,Services,Medicines\n");
 
         for (AdminRevenueReportItemResponse item : report.getItems()) {
             builder.append(nullSafe(item.getInvoiceId())).append(',')
@@ -923,7 +915,6 @@ public class AdminService {
                     .append(csvEscape(item.getPaidAt() == null ? null : item.getPaidAt().format(DATETIME_FORMAT)))
                     .append(',')
                     .append(nullSafe(item.getTotalServiceFee())).append(',')
-                    .append(nullSafe(item.getTotalMedicineFee())).append(',')
                     .append(nullSafe(item.getGrandTotal())).append(',')
                     .append(csvEscape(String.join(" | ", item.getServices()))).append(',')
                     .append(csvEscape(String.join(" | ", item.getMedicines())))

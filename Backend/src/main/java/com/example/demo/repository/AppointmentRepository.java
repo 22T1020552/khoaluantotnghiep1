@@ -50,6 +50,33 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
                         LocalDateTime from,
                         LocalDateTime to);
 
+        @Query("""
+                        SELECT a
+                        FROM Appointment a
+                        LEFT JOIN a.assignedRoom r
+                        WHERE (a.doctor.id = :doctorId OR r.currentDoctor.id = :doctorId)
+                        AND a.status = :status
+                        ORDER BY a.appointmentTime ASC
+                        """)
+        List<Appointment> findVisibleForDoctorAndStatusOrderByAppointmentTimeAsc(
+                        @Param("doctorId") Long doctorId,
+                        @Param("status") String status);
+
+        @Query("""
+                        SELECT a
+                        FROM Appointment a
+                        LEFT JOIN a.assignedRoom r
+                        WHERE (a.doctor.id = :doctorId OR r.currentDoctor.id = :doctorId)
+                        AND a.status = :status
+                        AND a.appointmentTime BETWEEN :from AND :to
+                        ORDER BY a.appointmentTime ASC
+                        """)
+        List<Appointment> findVisibleForDoctorAndStatusAndAppointmentTimeBetweenOrderByAppointmentTimeAsc(
+                        @Param("doctorId") Long doctorId,
+                        @Param("status") String status,
+                        @Param("from") LocalDateTime from,
+                        @Param("to") LocalDateTime to);
+
         List<Appointment> findByPatientId(Long patientId);
 
         List<Appointment> findByPatient_IdOrderByAppointmentTimeDesc(Long patientId);

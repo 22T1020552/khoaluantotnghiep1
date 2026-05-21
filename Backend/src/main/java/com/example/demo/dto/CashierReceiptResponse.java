@@ -21,7 +21,6 @@ public class CashierReceiptResponse {
     private List<CashierServiceLineItemResponse> services;
     private List<CashierMedicineLineItemResponse> medicines;
     private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
     private BigDecimal grandTotal;
     private String formattedReceiptText;
 }

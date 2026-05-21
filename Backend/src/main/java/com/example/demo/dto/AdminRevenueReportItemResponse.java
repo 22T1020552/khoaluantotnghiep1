@@ -17,7 +17,6 @@ public class AdminRevenueReportItemResponse {
     private String paymentMethod;
     private LocalDateTime paidAt;
     private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
     private BigDecimal grandTotal;
     private List<String> services;
     private List<String> medicines;

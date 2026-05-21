@@ -21,7 +21,6 @@ public class PatientMedicalRecordDetailResponse {
     private LocalDateTime createdAt;
     private Long invoiceId;
     private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
     private BigDecimal totalAmount;
     private Boolean paid;
     private LocalDateTime paidAt;

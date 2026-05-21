@@ -115,7 +115,6 @@ export interface AdminRevenueReportItem {
   paymentMethod: string | null;
   paidAt: string | null;
   totalServiceFee: number;
-  totalMedicineFee: number;
   grandTotal: number;
   services: string[];
   medicines: string[];
@@ -130,7 +129,6 @@ export interface AdminRevenueReportResponse {
   totalInvoices: number;
   totalRevenue: number;
   totalServiceRevenue: number;
-  totalMedicineRevenue: number;
   items: AdminRevenueReportItem[];
   chart: AdminRevenueChartPoint[];
   message: string;

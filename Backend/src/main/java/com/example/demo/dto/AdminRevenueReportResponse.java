@@ -19,7 +19,6 @@ public class AdminRevenueReportResponse {
     private Integer totalInvoices;
     private BigDecimal totalRevenue;
     private BigDecimal totalServiceRevenue;
-    private BigDecimal totalMedicineRevenue;
     private List<AdminRevenueReportItemResponse> items;
     private List<AdminRevenueChartPointResponse> chart;
     private String message;
