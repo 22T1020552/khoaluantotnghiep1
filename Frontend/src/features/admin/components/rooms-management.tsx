@@ -1,17 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Edit, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Edit, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { getApiErrorMessage } from "@/services/api";
 import { adminService, type AdminRoom, type AdminRoomSchedule, type AdminUser } from "@/services/adminService";
 import styles from "../admin.module.css";
 
-type RoomModalMode = "create" | "edit" | "assign";
+type RoomModalMode = "create" | "edit";
 type ScheduleModalMode = "create" | "edit";
 
 const WEEKDAY_LABELS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+
+const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
+
+const toMonthValue = (date: Date) => date.toISOString().slice(0, 7);
+
+const getMonday = (date: Date) => {
+  const monday = new Date(date);
+  const offset = (monday.getDay() + 6) % 7;
+  monday.setDate(monday.getDate() - offset);
+  return monday;
+};
 
 export function RoomsManagement() {
   const [rooms, setRooms] = useState<AdminRoom[]>([]);
@@ -19,16 +30,24 @@ export function RoomsManagement() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [selectedWeekStart, setSelectedWeekStart] = useState(() => toIsoDate(getMonday(new Date())));
+  const [selectedMonth, setSelectedMonth] = useState(() => toMonthValue(new Date()));
   const [schedules, setSchedules] = useState<AdminRoomSchedule[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const today = toIsoDate(new Date());
+    const monday = toIsoDate(getMonday(new Date()));
+    return today >= monday && today <= toIsoDate(new Date(new Date(monday).setDate(new Date(monday).getDate() + 6)))
+      ? today
+      : monday;
+  });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<RoomModalMode>("create");
   const [selectedRoom, setSelectedRoom] = useState<AdminRoom | null>(null);
   const [roomName, setRoomName] = useState("");
-  const [doctorId, setDoctorId] = useState<number | "">("");
+  const [doctorFilterId, setDoctorFilterId] = useState<number | "">("");
 
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleModalMode, setScheduleModalMode] = useState<ScheduleModalMode>("create");
@@ -74,9 +93,15 @@ export function RoomsManagement() {
     }
   }, [selectedMonth]);
 
-  const busyRoomIds = useMemo(() => {
-    return new Set<number>(rooms.filter((room) => room.currentDoctorId != null).map((room) => room.id));
-  }, [rooms]);
+  useEffect(() => {
+    setSelectedMonth(selectedWeekStart.slice(0, 7));
+    const weekStart = new Date(selectedWeekStart);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    const today = new Date();
+    const nextSelected = today >= weekStart && today <= weekEnd ? toIsoDate(today) : toIsoDate(weekStart);
+    setSelectedDay(nextSelected);
+  }, [selectedWeekStart]);
 
   const monthRange = useMemo(() => {
     if (!selectedMonth) {
@@ -97,53 +122,67 @@ export function RoomsManagement() {
     };
   }, [selectedMonth]);
 
-  const scheduleByDate = useMemo(() => {
-    const map = new Map<string, AdminRoomSchedule[]>();
+  const scheduleByRoomDate = useMemo(() => {
+    const map = new Map<number, Map<string, AdminRoomSchedule[]>>();
     schedules.forEach((schedule) => {
-      if (!map.has(schedule.scheduleDate)) {
-        map.set(schedule.scheduleDate, []);
+      if (doctorFilterId && schedule.doctorId !== doctorFilterId) {
+        return;
       }
-      map.get(schedule.scheduleDate)?.push(schedule);
+
+      if (!map.has(schedule.roomId)) {
+        map.set(schedule.roomId, new Map());
+      }
+      const dateMap = map.get(schedule.roomId);
+      if (!dateMap?.has(schedule.scheduleDate)) {
+        dateMap?.set(schedule.scheduleDate, []);
+      }
+      dateMap?.get(schedule.scheduleDate)?.push(schedule);
     });
 
-    map.forEach((list) => {
-      list.sort((left, right) => left.startTime.localeCompare(right.startTime));
+    map.forEach((dateMap) => {
+      dateMap.forEach((list) => {
+        list.sort((left, right) => left.startTime.localeCompare(right.startTime));
+      });
     });
 
     return map;
-  }, [schedules]);
+  }, [schedules, doctorFilterId]);
 
-  const calendarCells = useMemo(() => {
-    if (!selectedMonth) {
-      return [] as Array<string | null>;
-    }
+  const busyRoomIds = useMemo(() => {
+    const ids = new Set<number>();
+    rooms.forEach((room) => {
+      const hasSchedule = scheduleByRoomDate.get(room.id)?.get(selectedDay)?.length;
+      if (hasSchedule) {
+        ids.add(room.id);
+      }
+    });
+    return ids;
+  }, [rooms, scheduleByRoomDate, selectedDay]);
 
-    const [yearValue, monthValue] = selectedMonth.split("-");
-    const year = Number(yearValue);
-    const monthIndex = Number(monthValue) - 1;
-    if (!year || monthIndex < 0) {
-      return [] as Array<string | null>;
-    }
+  const weekDates = useMemo(() => {
+    const start = new Date(selectedWeekStart);
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      return date;
+    });
+  }, [selectedWeekStart]);
 
-    const firstDay = new Date(year, monthIndex, 1);
-    const offset = (firstDay.getDay() + 6) % 7;
-    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-
-    const cells: Array<string | null> = [];
-    for (let i = 0; i < offset; i += 1) {
-      cells.push(null);
+  const weekLabel = useMemo(() => {
+    const first = weekDates[0];
+    const last = weekDates[6];
+    if (!first || !last) {
+      return "";
     }
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      cells.push(`${selectedMonth}-${String(day).padStart(2, "0")}`);
-    }
-    return cells;
-  }, [selectedMonth]);
+    const firstLabel = first.toLocaleDateString("vi-VN", { day: "2-digit", month: "short" });
+    const lastLabel = last.toLocaleDateString("vi-VN", { day: "2-digit", month: "short", year: "numeric" });
+    return `${firstLabel} - ${lastLabel}`;
+  }, [weekDates]);
 
   const openCreateModal = () => {
     setModalMode("create");
     setSelectedRoom(null);
     setRoomName("");
-    setDoctorId("");
     setIsModalOpen(true);
   };
 
@@ -151,19 +190,14 @@ export function RoomsManagement() {
     setModalMode("edit");
     setSelectedRoom(room);
     setRoomName(room.roomName);
-    setDoctorId("");
     setIsModalOpen(true);
   };
 
-  const openAssignModal = (room: AdminRoom) => {
-    setModalMode("assign");
-    setSelectedRoom(room);
-    setRoomName(room.roomName);
-    setDoctorId(room.currentDoctorId ?? "");
-    setIsModalOpen(true);
-  };
-
-  const openScheduleModal = (mode: ScheduleModalMode, schedule?: AdminRoomSchedule) => {
+  const openScheduleModal = (
+    mode: ScheduleModalMode,
+    schedule?: AdminRoomSchedule,
+    preset?: { roomId?: number; date?: string },
+  ) => {
     setScheduleModalMode(mode);
     setSelectedSchedule(schedule ?? null);
 
@@ -174,9 +208,9 @@ export function RoomsManagement() {
       setScheduleStartTime(schedule.startTime);
       setScheduleEndTime(schedule.endTime);
     } else {
-      setScheduleRoomId("");
+      setScheduleRoomId(preset?.roomId ?? "");
       setScheduleDoctorId("");
-      setScheduleDate(monthRange?.start ?? new Date().toISOString().slice(0, 10));
+      setScheduleDate(preset?.date ?? monthRange?.start ?? new Date().toISOString().slice(0, 10));
       setScheduleStartTime("08:00");
       setScheduleEndTime("09:00");
     }
@@ -197,29 +231,6 @@ export function RoomsManagement() {
   };
 
   const handleSubmit = async () => {
-    if (modalMode === "assign") {
-      if (!selectedRoom) {
-        return;
-      }
-      if (!doctorId) {
-        toast.error("Vui lòng chọn bác sĩ");
-        return;
-      }
-
-      try {
-        setSubmitting(true);
-        await adminService.assignDoctorToRoom(selectedRoom.id, Number(doctorId));
-        toast.success("Đã phân công bác sĩ vào phòng");
-        setIsModalOpen(false);
-        await loadData();
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, "Không thể phân công bác sĩ"));
-      } finally {
-        setSubmitting(false);
-      }
-      return;
-    }
-
     if (!roomName.trim()) {
       toast.error("Vui lòng nhập tên phòng");
       return;
@@ -316,130 +327,172 @@ export function RoomsManagement() {
           <p>Quản lý phòng khám và phân công bác sĩ theo lịch tháng.</p>
         </div>
 
-        <div className={styles.toolbar}>
+        <div className={styles.toolbarColumn}>
           <button type="button" className={styles.primaryButton} onClick={openCreateModal}>
             <Plus size={16} /> Thêm phòng khám
           </button>
+          <div className={styles.scheduleFilters}>
+            <div className={styles.scheduleControls}>
+              <button
+                type="button"
+                className={styles.iconButton}
+                onClick={() => {
+                  const start = new Date(selectedWeekStart);
+                  start.setDate(start.getDate() - 7);
+                  setSelectedWeekStart(toIsoDate(start));
+                }}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className={styles.weekLabel}>{weekLabel}</span>
+              <button
+                type="button"
+                className={styles.iconButton}
+                onClick={() => {
+                  const start = new Date(selectedWeekStart);
+                  start.setDate(start.getDate() + 7);
+                  setSelectedWeekStart(toIsoDate(start));
+                }}
+              >
+                <ChevronRight size={16} />
+              </button>
+              <input
+                type="month"
+                className={styles.selectInput}
+                value={selectedMonth}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedMonth(value);
+                  setSelectedWeekStart(toIsoDate(getMonday(new Date(`${value}-01`))));
+                }}
+              />
+              <select
+                className={styles.selectInput}
+                value={doctorFilterId}
+                onChange={(event) => setDoctorFilterId(event.target.value === "" ? "" : Number(event.target.value))}
+              >
+                <option value="">Tất cả bác sĩ</option>
+                {doctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.fullName || doctor.username}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
-        {loading ? (
-          <section className={styles.card}>
-            <div className={styles.emptyBox}>Đang tải dữ liệu...</div>
-          </section>
-        ) : (
-          <div className={styles.cardsGrid}>
-            {rooms.map((room) => {
-              const isBusy = busyRoomIds.has(room.id);
-              return (
-                <article className={styles.itemCard} key={room.id}>
-                  <div className={styles.itemHeader}>
-                    <h3 className={styles.itemTitle}>{room.roomName}</h3>
-                    <span className={`${styles.badge} ${isBusy ? styles.badgeRed : styles.badgeGreen}`}>
-                      {isBusy ? "Đang sử dụng" : "Còn trống"}
-                    </span>
-                  </div>
-
-                  <p className={styles.itemMeta}>
-                    Bác sĩ phụ trách: {room.currentDoctorUsername || "Chưa phân công"}
-                  </p>
-
-                  <div className={styles.modalActions}>
-                    <button type="button" className={styles.outlineButton} onClick={() => openAssignModal(room)}>
-                      Phân công bác sĩ
-                    </button>
-                    <button type="button" className={styles.iconButton} onClick={() => openEditModal(room)}>
-                      <Edit size={16} />
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-
-        <section className={styles.scheduleSection}>
-          <div className={styles.cardSection}>
-            <div className={styles.sectionHeader}>
-              <div>
-                <h2 className={styles.itemTitle}>Lịch phân công tháng</h2>
-                <p className={styles.itemMeta}>Theo dõi ngày, giờ và bác sĩ phụ trách theo từng phòng khám.</p>
-              </div>
-              <div className={styles.scheduleToolbar}>
-                <input
-                  type="month"
-                  className={styles.selectInput}
-                  value={selectedMonth}
-                  onChange={(event) => setSelectedMonth(event.target.value)}
-                />
-                <button type="button" className={styles.primaryButton} onClick={() => openScheduleModal("create")}>
-                  <Plus size={16} /> Thêm lịch
-                </button>
-              </div>
-            </div>
-
-            {scheduleLoading ? (
-              <div className={styles.emptyBox}>Đang tải lịch phân công...</div>
+        <div className={styles.roomScheduleLayout}>
+          <aside className={styles.roomSidebar}>
+            <div className={styles.sidebarHeader}>Phòng khám</div>
+            <div className={styles.roomHeaderSpacer} />
+            {loading ? (
+              <div className={styles.emptyBox}>Đang tải dữ liệu...</div>
             ) : (
-              <div className={styles.scheduleGrid}>
-                {WEEKDAY_LABELS.map((label) => (
-                  <div className={styles.scheduleWeekHeader} key={label}>
-                    {label}
-                  </div>
-                ))}
-
-                {calendarCells.map((dateValue, index) => {
-                  if (!dateValue) {
-                    return <div className={`${styles.scheduleCell} ${styles.scheduleCellEmpty}`} key={`empty-${index}`} />;
-                  }
-
-                  const items = scheduleByDate.get(dateValue) ?? [];
-                  const dayNumber = dateValue.split("-")[2];
-                  const weekdayIndex = (new Date(dateValue).getDay() + 6) % 7;
-
+              <div className={styles.roomList}>
+                {rooms.map((room) => {
+                  const isBusy = busyRoomIds.has(room.id);
                   return (
-                    <div className={styles.scheduleCell} key={dateValue}>
-                      <div className={styles.scheduleCellHeader}>
-                        <span className={styles.scheduleDayNumber}>{dayNumber}</span>
-                        <span className={styles.scheduleDayLabel}>{WEEKDAY_LABELS[weekdayIndex]}</span>
+                    <div key={room.id} className={styles.roomItem}>
+                      <div className={styles.roomItemHeader}>
+                        <span className={styles.roomName}>{room.roomName}</span>
+                        <span className={`${styles.badge} ${isBusy ? styles.badgeRed : styles.badgeGreen}`}>
+                          {isBusy ? "Đang sử dụng" : "Còn trống"}
+                        </span>
                       </div>
-
-                      {items.length === 0 ? (
-                        <div className={styles.scheduleEmpty}>Chưa phân công</div>
-                      ) : (
-                        items.map((item) => (
-                          <div className={styles.scheduleItem} key={item.id}>
-                            <div>
-                              <div className={styles.scheduleItemTime}>{item.timeSlot}</div>
-                              <div className={styles.scheduleItemMeta}>
-                                {item.doctorUsername} · {item.roomName}
-                              </div>
-                            </div>
-                            <div className={styles.scheduleItemActions}>
-                              <button
-                                type="button"
-                                className={styles.iconButton}
-                                onClick={() => openScheduleModal("edit", item)}
-                              >
-                                <Edit size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                className={styles.iconButton}
-                                onClick={() => void handleDeleteSchedule(item)}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                      <button type="button" className={styles.iconButton} onClick={() => openEditModal(room)}>
+                        <Edit size={16} />
+                      </button>
                     </div>
                   );
                 })}
               </div>
             )}
-          </div>
-        </section>
+          </aside>
+
+          <section className={styles.scheduleBoard}>
+            <div className={styles.scheduleTitleBlock}>
+              <h2 className={styles.itemTitle}>Lịch phân công bác sĩ</h2>
+              <p className={styles.itemMeta}>Nhấn dấu + để thêm lịch cho từng phòng.</p>
+            </div>
+
+            {scheduleLoading ? (
+              <div className={styles.emptyBox}>Đang tải lịch phân công...</div>
+            ) : (
+              <div className={styles.scheduleMatrix}>
+                <div className={styles.scheduleHeaderRow}>
+                  {weekDates.map((date, index) => (
+                    <button
+                      key={date.toISOString()}
+                      type="button"
+                      className={`${styles.scheduleColumnHeader} ${
+                        selectedDay === toIsoDate(date) ? styles.scheduleColumnHeaderActive : ""
+                      }`}
+                      onClick={() => setSelectedDay(toIsoDate(date))}
+                    >
+                      <div className={styles.scheduleDayName}>{WEEKDAY_LABELS[index]}</div>
+                      <div className={styles.scheduleDayNumber}>{String(date.getDate()).padStart(2, "0")}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {rooms.map((room) => (
+                  <div key={room.id} className={styles.scheduleRowGrid}>
+                    {weekDates.map((date) => {
+                      const dateValue = toIsoDate(date);
+                      const items = scheduleByRoomDate.get(room.id)?.get(dateValue) ?? [];
+                      return (
+                        <div key={`${room.id}-${dateValue}`} className={styles.scheduleMatrixCell}>
+                          {items.length === 0 ? (
+                            <button
+                              type="button"
+                              className={styles.scheduleAddButton}
+                              onClick={() =>
+                                openScheduleModal("create", undefined, {
+                                  roomId: room.id,
+                                  date: dateValue,
+                                })
+                              }
+                            >
+                              +
+                            </button>
+                          ) : (
+                            items.map((item) => (
+                              <div key={item.id} className={styles.scheduleSlot}>
+                                <div>
+                                  <div className={styles.scheduleItemTime}>{item.timeSlot}</div>
+                                  <div className={styles.scheduleItemMeta}>{item.doctorUsername}</div>
+                                </div>
+                                <div className={styles.scheduleItemActions}>
+                                  <button
+                                    type="button"
+                                    className={styles.iconButton}
+                                    onClick={() => openScheduleModal("edit", item)}
+                                  >
+                                    <Edit size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.iconButton}
+                                    onClick={() => void handleDeleteSchedule(item)}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          
+        </div>
       </div>
 
       {isModalOpen && (
@@ -449,44 +502,20 @@ export function RoomsManagement() {
             <h2 className={styles.modalTitle}>
               {modalMode === "create" && "Thêm phòng khám"}
               {modalMode === "edit" && "Chỉnh sửa phòng khám"}
-              {modalMode === "assign" && `Phân công bác sĩ - ${roomName}`}
             </h2>
 
-            {modalMode === "assign" ? (
-              <div>
-                <div>
-                  <label className={styles.fieldLabel}>Chọn bác sĩ</label>
-                  <select
-                    className={styles.selectInput}
-                    value={doctorId}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setDoctorId(value === "" ? "" : Number(value));
-                    }}
-                  >
-                    <option value="">-- Không phân công --</option>
-                    {doctors.map((doctor) => (
-                      <option key={doctor.id} value={doctor.id}>
-                        {doctor.username}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className={styles.fieldLabel}>Tên phòng khám</label>
-                <input
-                  className={styles.textInput}
-                  value={roomName}
-                  onChange={(event) => setRoomName(event.target.value)}
-                />
-              </div>
-            )}
+            <div>
+              <label className={styles.fieldLabel}>Tên phòng khám</label>
+              <input
+                className={styles.textInput}
+                value={roomName}
+                onChange={(event) => setRoomName(event.target.value)}
+              />
+            </div>
 
             <div className={styles.modalActions}>
               <button type="button" className={styles.primaryButton} onClick={() => void handleSubmit()} disabled={submitting}>
-                {modalMode === "create" ? "Thêm mới" : modalMode === "assign" ? "Phân công" : "Lưu thay đổi"}
+                {modalMode === "create" ? "Thêm mới" : "Lưu thay đổi"}
               </button>
               <button type="button" className={styles.outlineButton} onClick={closeModal} disabled={submitting}>
                 Hủy

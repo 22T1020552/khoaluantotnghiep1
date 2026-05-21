@@ -4,8 +4,9 @@
 
 .container {
   padding: 2rem;
-  max-width: 1400px;
-  margin: 0 auto;
+  max-width: none;
+  width: 100%;
+  margin: 0;
 }
 
 .header {
@@ -29,6 +30,20 @@
   gap: 0.75rem;
   flex-wrap: wrap;
   margin-bottom: 1rem;
+}
+
+.toolbarColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.scheduleFilters {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0.75rem;
 }
 
 .searchWrap {
@@ -477,6 +492,209 @@
   margin-top: 1.5rem;
 }
 
+.roomScheduleLayout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.roomSidebar,
+.doctorSidebar {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem;
+  height: fit-content;
+}
+
+.roomHeaderSpacer {
+  height: 74px;
+}
+
+.sidebarHeader {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.75rem;
+}
+
+.roomList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.roomItem {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.roomItemHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.roomName {
+  font-weight: 700;
+  color: #111827;
+}
+
+.roomMeta {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.doctorList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.doctorItem {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.6rem;
+}
+
+.doctorAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0284c7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.doctorName {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.doctorMeta {
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.scheduleBoard {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.scheduleTitleBlock {
+  margin-bottom: 0.75rem;
+}
+
+.scheduleBoardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.scheduleControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.weekLabel {
+  font-weight: 600;
+  color: #111827;
+}
+
+.scheduleMatrix {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.scheduleHeaderRow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.scheduleColumnHeader {
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.4rem;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.scheduleColumnHeaderActive {
+  border-color: #2563eb;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.scheduleDayName {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+
+.scheduleRowGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.scheduleMatrixCell {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  min-height: 90px;
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: #ffffff;
+}
+
+.scheduleAddButton {
+  width: 100%;
+  height: 100%;
+  border: 1px dashed #cbd5f5;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.scheduleSlot {
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 0.35rem;
+  background: #f0f9ff;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
 .scheduleToolbar {
   display: flex;
   gap: 0.75rem;
@@ -642,6 +860,23 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .roomScheduleLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduleMatrix {
+    overflow-x: auto;
+  }
+
+  .scheduleHeaderRow,
+  .scheduleRowGrid {
+    grid-template-columns: repeat(7, minmax(120px, 1fr));
+  }
+
+  .scheduleRowGrid {
+    grid-template-columns: repeat(7, minmax(120px, 1fr));
+  }
+
   .table th,
   .table td {
     padding: 0.8rem 0.65rem;
@@ -672,6 +907,15 @@
 
   .scheduleGrid {
     grid-template-columns: 1fr;
+  }
+
+  .scheduleMatrix {
+    overflow-x: auto;
+  }
+
+  .scheduleHeaderRow,
+  .scheduleRowGrid {
+    grid-template-columns: repeat(7, minmax(120px, 1fr));
   }
 
   .statCard {

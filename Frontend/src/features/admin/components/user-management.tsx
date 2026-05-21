@@ -20,22 +20,6 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const normalizeText = (value: unknown) => String(value ?? "").trim();
 
-const toUsernameFromEmail = (email: string) => {
-  const local = email.split("@")[0] ?? "";
-  const normalized = local
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]/g, "")
-    .replace(/^[._-]+|[._-]+$/g, "");
-
-  if (normalized.length >= 4) {
-    return normalized.slice(0, 50);
-  }
-
-  return `${normalized || "user"}${Date.now().toString().slice(-4)}`.slice(0, 50);
-};
-
 export function UsersManagement() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +29,8 @@ export function UsersManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [formData, setFormData] = useState({
+    username: "",
+    password: "",
     fullName: "",
     email: "",
     phoneNumber: "",
@@ -94,6 +80,8 @@ export function UsersManagement() {
     if (user) {
       setEditingUser(user);
       setFormData({
+        username: normalizeText(user.username),
+        password: "",
         fullName: normalizeText(user.fullName),
         email: normalizeText(user.email),
         phoneNumber: normalizeText(user.phoneNumber),
@@ -101,7 +89,7 @@ export function UsersManagement() {
       });
     } else {
       setEditingUser(null);
-      setFormData({ fullName: "", email: "", phoneNumber: "", role: "DOCTOR" });
+      setFormData({ username: "", password: "", fullName: "", email: "", phoneNumber: "", role: "DOCTOR" });
     }
     setIsModalOpen(true);
   };
@@ -128,10 +116,19 @@ export function UsersManagement() {
       return;
     }
 
+    if (!editingUser && !formData.username.trim()) {
+      toast.error("Vui lòng nhập tên đăng nhập");
+      return;
+    }
+
+    if (!editingUser && !formData.password.trim()) {
+      toast.error("Vui lòng nhập mật khẩu");
+      return;
+    }
+
     try {
       setSubmitting(true);
-      const username = editingUser?.username ?? toUsernameFromEmail(formData.email.trim());
-      const initialPassword = normalizedPhone;
+      const username = formData.username.trim();
 
       if (editingUser) {
         const payload: {
@@ -151,18 +148,13 @@ export function UsersManagement() {
         await adminService.updateUser(editingUser.id, payload);
         toast.success("Đã cập nhật tài khoản");
       } else {
-        if (initialPassword.length < 6) {
-          toast.error("Số điện thoại phải có ít nhất 6 chữ số để làm mật khẩu mặc định");
-          return;
-        }
-
         await adminService.createUser({
           username,
           fullName: formData.fullName.trim(),
           email: formData.email.trim(),
           phoneNumber: formData.phoneNumber.trim(),
           role: formData.role,
-          password: initialPassword,
+          password: formData.password.trim(),
           isActive: true,
         });
         toast.success("Đã thêm tài khoản");
@@ -302,6 +294,30 @@ export function UsersManagement() {
           <div className={styles.modal}>
             <h2 className={styles.modalTitle}>{editingUser ? "Chỉnh sửa người dùng" : "Thêm người dùng mới"}</h2>
             <div style={{ display: "grid", gap: "0.9rem" }}>
+              <div>
+                <label className={styles.fieldLabel} htmlFor="username">Tên đăng nhập *</label>
+                <input
+                  id="username"
+                  className={styles.textInput}
+                  placeholder="ten-dang-nhap"
+                  value={formData.username}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, username: event.target.value }))}
+                  disabled={Boolean(editingUser)}
+                />
+              </div>
+              {!editingUser && (
+                <div>
+                  <label className={styles.fieldLabel} htmlFor="password">Mật khẩu *</label>
+                  <input
+                    id="password"
+                    type="password"
+                    className={styles.textInput}
+                    placeholder="Nhập mật khẩu"
+                    value={formData.password}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, password: event.target.value }))}
+                  />
+                </div>
+              )}
               <div>
                 <label className={styles.fieldLabel} htmlFor="fullName">Họ và tên *</label>
                 <input

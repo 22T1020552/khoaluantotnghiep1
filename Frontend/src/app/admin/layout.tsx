@@ -26,6 +26,9 @@ const navItems = [
   { href: '/admin/rooms', label: 'Phòng khám', icon: Building2 },
   { href: '/admin/medicines', label: 'Danh mục thuốc', icon: Pill },
   { href: '/admin/services', label: 'Dịch vụ', icon: Activity },
+  { href: '/admin/symptoms', label: 'Triệu chứng', icon: Activity },
+  { href: '/admin/disease-categories', label: 'Loại bệnh', icon: Activity },
+  { href: '/admin/diagnoses', label: 'Chẩn đoán & Thuốc', icon: Activity },
   { href: '/admin/settings', label: 'Cấu hình', icon: Settings2 },
 ];
 
