@@ -12,6 +12,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
         Optional<Invoice> findByMedicalRecord_Id(Long medicalRecordId);
 
+        Optional<Invoice> findByPaymentReference(String paymentReference);
+
         List<Invoice> findByIsPaidOrderByIdDesc(Boolean isPaid);
 
         List<Invoice> findAllByOrderByIdDesc();

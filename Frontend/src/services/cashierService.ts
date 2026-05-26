@@ -95,6 +95,15 @@ export interface CashierProcessPaymentResponse {
   message: string;
 }
 
+export interface PaymentReferenceStatusResponse {
+  paymentReference: string;
+  invoiceId: number | null;
+  appointmentId: number | null;
+  paymentStatus: string;
+  transactionStatus: string | null;
+  message: string;
+}
+
 export const cashierService = {
   async getWaitingPaymentQueue(keyword?: string) {
     const response = await api.get<CashierWaitingPaymentItemResponse[]>("/api/cashier/payment-queue", {
@@ -124,6 +133,13 @@ export const cashierService = {
 
   async processPayment(invoiceId: number, payload: CashierProcessPaymentRequest) {
     const response = await api.post<CashierProcessPaymentResponse>(`/api/cashier/invoices/${invoiceId}/process-payment`, payload);
+    return response.data;
+  },
+
+  async getPaymentReferenceStatus(paymentReference: string) {
+    const response = await api.get<PaymentReferenceStatusResponse>(
+      `/api/payments/reference/${encodeURIComponent(paymentReference)}/status`,
+    );
     return response.data;
   },
 

@@ -25,8 +25,18 @@ public class PaymentTransaction {
     @Column(name = "external_transaction_id", nullable = false, unique = true, length = 100)
     private String externalTransactionId;
 
+    @Column(name = "payment_reference", length = 100)
+    private String paymentReference;
+
     @Column(name = "provider", length = 50)
     private String provider;
+
+    @Column(name = "payment_method", length = 30)
+    private String paymentMethod;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "appointment_id")
+    private Appointment appointment;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "invoice_id")

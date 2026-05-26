@@ -274,11 +274,10 @@ public class InvoiceService {
         Invoice invoice = invoiceRepository.findByMedicalRecord_Id(medicalRecordId)
                 .orElseGet(Invoice::new);
 
-        // Nếu hóa đơn đã thanh toán thì không tính lại nữa
-        if (Boolean.TRUE.equals(invoice.getIsPaid())) {
-            log.warn("Invoice already paid - skipping aggregate");
-            return invoice;
-        }
+        // Recompute totals even if invoice was previously marked paid. If new
+        // services have been added after a prior payment, we must update the
+        // remaining amount and unmark the invoice as paid when appropriate so
+        // reception/cashier sees the outstanding balance.
 
         List<MedicalRecordServiceDetail> serviceDetails = medicalRecordServiceDetailRepository
                 .findByMedicalRecord_Id(medicalRecordId);
@@ -366,6 +365,14 @@ public class InvoiceService {
         invoice.setRemainingAmount(remainingAmount);
         invoice.setPaidAt(null);
 
+        return invoiceRepository.save(invoice);
+    }
+
+    // Chức năng: lưu hóa đơn sau khi gán thêm thông tin như payment reference.
+    public Invoice saveInvoice(Invoice invoice) {
+        if (invoice == null) {
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Hóa đơn là bắt buộc");
+        }
         return invoiceRepository.save(invoice);
     }
 
@@ -904,7 +911,51 @@ public class InvoiceService {
         if (appointment != null) {
             appointment.setPaymentStatus(PaymentStatus.FULLY_PAID);
             appointment.setAdvancePayment(invoice.getGrandTotal());
-            appointment.setStatus(AppointmentStatus.IN_ROOM);
+            MedicalRecord medicalRecord = resolveMedicalRecord(invoice);
+            boolean hasCompletedExam = medicalRecord != null && medicalRecord.getCompletedAt() != null;
+
+            if (AppointmentStatus.WAITING_CASHIER.equals(appointment.getStatus())) {
+                appointment.setStatus(hasCompletedExam
+                        ? AppointmentStatus.COMPLETED
+                        : AppointmentStatus.IN_ROOM);
+            } else {
+                appointment.setStatus(AppointmentStatus.IN_ROOM);
+            }
+            appointmentRepository.save(appointment);
+        }
+
+        return invoiceRepository.save(invoice);
+    }
+
+    // Chức năng: đánh dấu hóa đơn chuyển khoản đã thanh toán nhưng chưa đổi trạng thái khám.
+    public Invoice markTransferInvoiceAsPaid(Long invoiceId, String paymentMethod) {
+        if (invoiceId == null) {
+            throw AppException.of(HttpStatus.BAD_REQUEST, "invoiceId là bắt buộc");
+        }
+
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy hóa đơn"));
+
+        if (Boolean.TRUE.equals(invoice.getIsPaid())) {
+            return invoice;
+        }
+
+        LocalDateTime paidAt = LocalDateTime.now();
+        invoice.setPaidAt(paidAt);
+        invoice.setPaymentMethod(paymentMethod);
+        invoice.setIsPaid(Boolean.TRUE);
+        invoice.setRemainingAmount(BigDecimal.ZERO);
+        invoice.setAdvanceAmount(defaultAmount(invoice.getGrandTotal()));
+
+        Appointment appointment = invoice.getAppointment();
+        if (appointment != null) {
+            appointment.setPaymentStatus(PaymentStatus.FULLY_PAID);
+            appointment.setAdvancePayment(defaultAmount(invoice.getGrandTotal()));
+            MedicalRecord medicalRecord = resolveMedicalRecord(invoice);
+            boolean hasCompletedExam = medicalRecord != null && medicalRecord.getCompletedAt() != null;
+            appointment.setStatus(AppointmentStatus.WAITING_CASHIER.equals(appointment.getStatus())
+                ? (hasCompletedExam ? AppointmentStatus.COMPLETED : AppointmentStatus.IN_ROOM)
+                : appointment.getStatus());
             appointmentRepository.save(appointment);
         }
 

@@ -3,7 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DollarSign } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Prescription } from "@/types/pharmacy.type";
+import { clinicConfigService } from "@/services/clinicConfigService";
+import { cashierService } from "@/services/cashierService";
+import PaymentRealtimeListener from "@/components/payment-realtime-listener";
 import styles from "../cashier.module.css";
 
 const normalizeServiceName = (value: string) =>
@@ -39,7 +44,7 @@ interface PaymentDialogProps {
   onPaymentMethodChange: (value: "TIEN_MAT" | "CHUYEN_KHOAN" | "POS") => void;
   transferConfirmed: boolean;
   onTransferConfirmedChange: (value: boolean) => void;
-  onConfirm: () => void;
+  onConfirm: (autoTriggered?: boolean) => void | Promise<void>;
   isProcessing?: boolean;
 }
 
@@ -56,16 +61,111 @@ function PaymentDialog({
   onConfirm,
   isProcessing = false,
 }: PaymentDialogProps) {
+  const PAYMENT_CHECK_INTERVAL_MS = 10_000;
+  const [bankConfig, setBankConfig] = useState<{
+    bankBin: string;
+    bankAccount: string;
+    accountName: string;
+    bankName: string;
+  } | null>(null);
+  const [bankConfigLoading, setBankConfigLoading] = useState(true);
+  const transferPollingStartedRef = useRef(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void clinicConfigService.getBankConfig()
+      .then((config) => {
+        if (mounted) {
+          setBankConfig(config);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setBankConfig(null);
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setBankConfigLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!prescription) {
+      return;
+    }
+
+    if (!isOpen || paymentMethod !== "CHUYEN_KHOAN") {
+      transferPollingStartedRef.current = false;
+      return;
+    }
+
+    const invoiceIdRef = prescription.invoiceId ?? Number(prescription.id);
+    const paymentReference = invoiceIdRef
+      ? `BK-INV-${invoiceIdRef}`
+      : `BK-INV-${Date.now()}`;
+
+    if (!paymentReference || transferPollingStartedRef.current) {
+      return;
+    }
+
+    transferPollingStartedRef.current = true;
+    let mounted = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const pollStatus = async () => {
+      try {
+        const status = await cashierService.getPaymentReferenceStatus(paymentReference);
+        if (!mounted) return;
+
+        const normalizedTransactionStatus = (status.transactionStatus || "").toUpperCase();
+        const normalizedPaymentStatus = (status.paymentStatus || "").toUpperCase();
+
+        if (normalizedTransactionStatus === "SUCCESS" || normalizedPaymentStatus === "FULLY_PAID") {
+          onTransferConfirmedChange(true);
+          toast.success("Đã nhận thanh toán chuyển khoản.");
+          void onConfirm(true);
+          return;
+        }
+
+        timer = setTimeout(() => {
+          void pollStatus();
+        }, PAYMENT_CHECK_INTERVAL_MS);
+      } catch {
+        if (!mounted) return;
+        timer = setTimeout(() => {
+          void pollStatus();
+        }, PAYMENT_CHECK_INTERVAL_MS);
+      }
+    };
+
+    void pollStatus();
+
+    return () => {
+      mounted = false;
+      transferPollingStartedRef.current = false;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [isOpen, onConfirm, onTransferConfirmedChange, paymentMethod, prescription]);
+
   if (!prescription) return null;
 
   const serviceItems = prescription.serviceItems ?? [];
-  const totalServiceFee = parseFloat(paymentData.serviceFee || "0");
+  const totalServiceFee = Number((prescription.grandTotal ?? paymentData.serviceFee) || 0);
   const consultationServices = serviceItems.filter((item) => isConsultationServiceName(item.serviceName));
   const additionalServices = serviceItems.filter((item) => !isConsultationServiceName(item.serviceName));
   const consultationFee =
     consultationServices.length > 0
       ? consultationServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0)
-      : totalServiceFee;
+      : Math.max(0, totalServiceFee - additionalServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0));
   const additionalServiceFee = additionalServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
   const insuranceDiscount = parseFloat(paymentData.insuranceDiscount || "0");
   const remainingAmount = prescription.remainingAmount ?? null;
@@ -73,16 +173,25 @@ function PaymentDialog({
     ? remainingAmount
     : Math.max(0, totalServiceFee - insuranceDiscount);
 
-  const bankBin = process.env.NEXT_PUBLIC_CLINIC_BANK_BIN?.trim();
-  const bankAccount = process.env.NEXT_PUBLIC_CLINIC_BANK_ACCOUNT?.trim();
-  const accountNameRaw = process.env.NEXT_PUBLIC_CLINIC_ACCOUNT_NAME?.trim();
-  const bankName = process.env.NEXT_PUBLIC_CLINIC_BANK_NAME?.trim() || "TRAN CAM UYEN";
+  const bankBin = bankConfig?.bankBin?.trim();
+  const bankAccount = bankConfig?.bankAccount?.trim();
+  const accountNameRaw = bankConfig?.accountName?.trim();
+  const bankName = bankConfig?.bankName?.trim() || "TRAN CAM UYEN";
   const qrReady = Boolean(bankBin && bankAccount && accountNameRaw);
   const accountName = encodeURIComponent(accountNameRaw || "");
-  const transferNote = encodeURIComponent(`THANH TOAN HD ${prescription.invoiceId || prescription.id}`);
+  const invoiceIdRef = prescription.invoiceId ?? Number(prescription.id);
+  const paymentReference = invoiceIdRef
+    ? `BK-INV-${invoiceIdRef}`
+    : `BK-INV-${Date.now()}`;
+  const transferNote = encodeURIComponent(`REF:${paymentReference} THANH TOAN HD ${prescription.invoiceId || prescription.id}`);
+  const paymentStageLabel =
+    (prescription.status === "pending" && Number(prescription.advanceAmount ?? 0) > 0)
+      ? "Thanh toán bổ sung để chốt hồ sơ"
+      : "Thanh toán ban đầu để vào phòng bác sĩ";
   const qrUrl = qrReady
     ? `https://img.vietqr.io/image/${bankBin}-${bankAccount}-compact2.png?amount=${Math.round(payableAmount)}&addInfo=${transferNote}&accountName=${accountName}`
     : "";
+  const normalizedPaymentCode = paymentReference.trim().replace(/\s+/g, "_");
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -92,6 +201,8 @@ function PaymentDialog({
         </DialogHeader>
 
         <div className={styles.dialogBody}>
+          <p className={styles.textSmall}>{paymentStageLabel}</p>
+
           <div className={styles.patientInfoBox}>
             <div className={styles.patientInfoGrid}>
               <div><span className={styles.infoLabel}>Bệnh nhân:</span><span className={styles.infoValue}>{prescription.patientName}</span></div>
@@ -105,7 +216,7 @@ function PaymentDialog({
 
           <div className={styles.formStack}>
             <div>
-              <Label>Phí khám</Label>
+              <Label>Tổng tiền dịch vụ</Label>
               <Input
                 type="text"
                 value={formatCurrency(totalServiceFee)}
@@ -136,17 +247,29 @@ function PaymentDialog({
                     <p className={styles.qrAmount}>Số tiền: {Math.round(payableAmount).toLocaleString("vi-VN")}đ</p>
                     <p className={styles.textSmall}>{bankName}</p>
                     <p className={styles.textSmall}>{bankAccount}</p>
+                    <PaymentRealtimeListener
+                      paymentCode={normalizedPaymentCode}
+                      enabled={Boolean(normalizedPaymentCode)}
+                      successMessage="Thanh toán đã được xác nhận tự động cho lễ tân."
+                      waitingMessage="Hệ thống đang chờ ngân hàng xác nhận..."
+                      onPaymentSuccess={() => {
+                        onTransferConfirmedChange(true);
+                        toast.success("Đã nhận thanh toán chuyển khoản.");
+                        void onConfirm(true);
+                      }}
+                    />
                   </>
+                ) : bankConfigLoading ? (
+                  <p className={styles.textDanger}>Đang tải cấu hình ngân hàng từ hệ thống...</p>
                 ) : (
                   <p className={styles.textDanger}>
-                    Thiếu cấu hình QR trong .env. Cần đủ: NEXT_PUBLIC_CLINIC_BANK_BIN,
-                    NEXT_PUBLIC_CLINIC_BANK_ACCOUNT, NEXT_PUBLIC_CLINIC_ACCOUNT_NAME
+                    Không lấy được cấu hình QR từ hệ thống. Vui lòng thử lại sau.
                   </p>
                 )}
               </div>
             )}
 
-            {(paymentMethod === "CHUYEN_KHOAN" || paymentMethod === "POS") && (
+            {paymentMethod === "POS" && (
               <div className={styles.checkboxRow}>
                 <input
                   id="transfer-confirmed"
@@ -155,9 +278,7 @@ function PaymentDialog({
                   onChange={(e) => onTransferConfirmedChange(e.target.checked)}
                 />
                 <Label htmlFor="transfer-confirmed">
-                  {paymentMethod === "CHUYEN_KHOAN"
-                    ? "Đã nhận chuyển khoản thành công"
-                    : "Đã quẹt thẻ POS thành công"}
+                  Đã quẹt thẻ POS thành công
                 </Label>
               </div>
             )}
@@ -177,6 +298,34 @@ function PaymentDialog({
 
             <div className={styles.summaryBox}>
               <div className={styles.summaryList}>
+                <div className={styles.summaryRow}>
+                  <span className={styles.summaryMuted}>Đã nộp trước:</span>
+                  <span className={styles.amountValue}>{formatCurrency(prescription.advanceAmount ?? 0)}</span>
+                </div>
+                <div className={styles.summaryRow}>
+                  <span className={styles.summaryMuted}>Còn nộp sau:</span>
+                  <span className={styles.amountValue}>{formatCurrency(remainingAmount ?? Math.max(0, totalServiceFee - Number(prescription.advanceAmount ?? 0)))}</span>
+                </div>
+
+                {additionalServices.length > 0 && (
+                  <div className={styles.dialogPrescriptionBox}>
+                    <p className={styles.dialogPrescriptionTitle}>Dịch vụ phát sinh chưa thanh toán</p>
+                    <div className={styles.dialogItems}>
+                      {additionalServices.map((item) => (
+                        <div key={`additional-${item.serviceId}`} className={styles.dialogItem}>
+                          <div className={styles.dialogItemTop}>
+                            <div>
+                              <div className={styles.dialogItemName}>{item.serviceName} x{item.quantity}</div>
+                              <div className={styles.dialogItemMeta}>Chưa nộp: {formatCurrency(Number(item.lineTotal || 0))}</div>
+                            </div>
+                            <div className={styles.dialogItemAmount}>{formatCurrency(Number(item.lineTotal || 0))}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {serviceItems.length > 0 && consultationFee > 0 ? (
                   <>
                     <div className={styles.summaryRow}>
@@ -195,23 +344,11 @@ function PaymentDialog({
                           <span className={styles.summaryMuted}>Dịch vụ chỉ định thêm:</span>
                           <span className={styles.amountValue}>{formatCurrency(additionalServiceFee)}</span>
                         </div>
-                        {additionalServices.map((item) => (
-                          <div key={`additional-${item.serviceId}`} className={styles.summaryRow}>
-                            <span className={styles.summaryMuted}>- {item.serviceName}</span>
-                            <span className={styles.amountValue}>{formatCurrency(item.lineTotal)}</span>
-                          </div>
-                        ))}
                       </>
                     )}
                   </>
                 ) : (
                   <div className={styles.summaryRow}><span className={styles.summaryMuted}>Phí khám:</span><span className={styles.amountValue}>{formatCurrency(totalServiceFee)}</span></div>
-                )}
-                {prescription.advanceAmount && prescription.advanceAmount > 0 && (
-                  <div className={styles.summaryRow}>
-                    <span className={styles.summaryMuted}>Đã tạm ứng:</span>
-                    <span className={styles.amountValue}>-{formatCurrency(prescription.advanceAmount)}</span>
-                  </div>
                 )}
                 {insuranceDiscount > 0 && (
                   <div className={`${styles.summaryRow} ${styles.summaryDiscount}`}>
@@ -229,9 +366,17 @@ function PaymentDialog({
           </div>
 
           <div className={styles.dialogActions}>
-            <Button onClick={onConfirm} className={styles.confirmBtn} disabled={isProcessing}>
+            <Button
+              onClick={() => void onConfirm()}
+              className={styles.confirmBtn}
+              disabled={isProcessing || paymentMethod === "CHUYEN_KHOAN"}
+            >
               <DollarSign size={18} />
-              {isProcessing ? "Đang xử lý..." : "Xác nhận thanh toán"}
+              {isProcessing
+                ? "Đang xử lý..."
+                : paymentMethod === "CHUYEN_KHOAN"
+                  ? "Đang chờ xác nhận chuyển khoản"
+                  : "Xác nhận thanh toán"}
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)} className={styles.cancelBtn} disabled={isProcessing}>
               Hủy
