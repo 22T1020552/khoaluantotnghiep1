@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
+import java.util.UUID;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,7 @@ import com.example.demo.entity.MedicalRecord;
 import com.example.demo.repository.MedicalRecordRepository;
 import com.example.demo.repository.MedicalRecordServiceDetailRepository;
 import com.example.demo.repository.MedicalServiceRepository;
+import com.example.demo.repository.PaymentTransactionRepository;
 import com.example.demo.dto.PatientAppointmentRequest;
 import com.example.demo.dto.PatientPrefillResponse;
 import com.example.demo.entity.Appointment;
@@ -41,6 +43,7 @@ import com.example.demo.repository.SymptomServiceMappingRepository;
 import com.example.demo.repository.SymptomTemplateRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.constants.PaymentStatus;
+import com.example.demo.service.InvoiceService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -69,6 +72,8 @@ public class AppointmentService {
     private final MedicalRecordRepository medicalRecordRepository;
     private final MedicalRecordServiceDetailRepository medicalRecordServiceDetailRepository;
     private final MedicalServiceRepository medicalServiceRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
+    private final InvoiceService invoiceService;
 
     // Chức năng: xử lý lấy danh sách tất cả lịch hẹn.
     public List<Appointment> getAllAppointments() {
@@ -90,6 +95,7 @@ public class AppointmentService {
         response.setFullName(patient.getFullName());
         response.setGender(patient.getGender());
         response.setDateOfBirth(patient.getDateOfBirth());
+        response.setHometown(patient.getHometown());
         response.setNationalId(patient.getNationalId());
         response.setPhoneNumber(patient.getPhoneNumber());
         response.setHealthInsuranceNumber(patient.getHealthInsuranceNumber());
@@ -130,6 +136,17 @@ public class AppointmentService {
 
         String paymentStatus = resolvePaymentStatus(advancePayment, estimatedTotalFee);
 
+        // If client provided a paymentReference, enforce idempotency: return
+        // existing appointment with the same reference instead of creating a
+        // duplicate. This prevents duplicate records when the client retries
+        // or both polling and websocket events trigger creation.
+        if (request.getPaymentReference() != null && !request.getPaymentReference().isBlank()) {
+            var existingOpt = appointmentRepository.findTopByPaymentReferenceOrderByIdDesc(request.getPaymentReference());
+            if (existingOpt != null && existingOpt.isPresent()) {
+                return existingOpt.get();
+            }
+        }
+
         Appointment appointment = new Appointment();
         appointment.setPatient(patient);
         appointment.setCategory(category);
@@ -167,6 +184,27 @@ public class AppointmentService {
             detail.setActualPrice(svc.getUnitPrice());
             detail.setResultNote("Dịch vụ gợi ý khi đăng ký");
             medicalRecordServiceDetailRepository.save(detail);
+        }
+
+        if ("CHUYEN_KHOAN".equalsIgnoreCase(request.getPaymentMethod())) {
+            String paymentReference = request.getPaymentReference();
+            if (paymentReference == null || paymentReference.isBlank()) {
+                paymentReference = buildPaymentReference(savedAppointment.getId());
+            }
+            savedAppointment.setPaymentReference(paymentReference);
+                boolean alreadyPaid = paymentTransactionRepository.findTopByPaymentReferenceOrderByIdDesc(paymentReference)
+                    .map(tx -> "SUCCESS".equalsIgnoreCase(tx.getStatus()))
+                    .orElse(false);
+            savedAppointment.setPaymentStatus(alreadyPaid ? PaymentStatus.FULLY_PAID : PaymentStatus.PENDING_TRANSFER);
+            savedAppointment = appointmentRepository.save(savedAppointment);
+
+            var invoice = invoiceService.createInvoiceForAppointment(savedAppointment);
+            invoice.setPaymentReference(paymentReference);
+            invoice = invoiceService.saveInvoice(invoice);
+
+            if (alreadyPaid) {
+                invoiceService.markTransferInvoiceAsPaid(invoice.getId(), "CHUYEN_KHOAN");
+            }
         }
 
         notificationService.notifyReceptionistNewPatientBooking(savedAppointment);
@@ -303,6 +341,10 @@ public class AppointmentService {
         return PaymentStatus.PARTIALLY_PAID;
     }
 
+    private String buildPaymentReference(Long appointmentId) {
+        return "APT-" + appointmentId + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
     // Chức năng: xử lý giải quyết thời gian hẹn bệnh nhân.
     private LocalDateTime resolvePatientAppointmentTime(PatientAppointmentRequest request) {
         if (request.getAppointmentTime() != null) {
@@ -415,6 +457,18 @@ public class AppointmentService {
         appointment.setStatus(STATUS_CANCELLED);
         appointment.setDoctor(null);
         appointment.setCancellationReason(null);
+        return appointmentRepository.save(appointment);
+    }
+
+    // Chức năng: hủy lịch hẹn bởi hệ thống khi thanh toán chuyển khoản thất bại.
+    public Appointment cancelAppointmentBySystem(Long appointmentId, String reason) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
+
+        appointment.setStatus(STATUS_CANCELLED);
+        appointment.setDoctor(null);
+        appointment.setCancellationReason(reason);
+        appointment.setPaymentStatus(PaymentStatus.UNPAID);
         return appointmentRepository.save(appointment);
     }
 

@@ -19,6 +19,7 @@ import com.example.demo.entity.MedicalRecordServiceDetail;
 import com.example.demo.entity.Patient;
 import com.example.demo.entity.PrescriptionDetail;
 import com.example.demo.entity.User;
+import com.example.demo.repository.AppointmentRepository;
 import com.example.demo.repository.InvoiceRepository;
 import com.example.demo.repository.MedicalRecordRepository;
 import com.example.demo.repository.MedicalRecordServiceDetailRepository;
@@ -39,6 +40,7 @@ public class PatientService {
         private final MedicalRecordServiceDetailRepository medicalRecordServiceDetailRepository;
         private final PrescriptionDetailRepository prescriptionDetailRepository;
         private final InvoiceRepository invoiceRepository;
+        private final AppointmentRepository appointmentRepository;
 
         // LẤY PATIENT TỪ USERNAME (CỰC QUAN TRỌNG)
         // Chức năng: xử lý get patient from username.
@@ -55,8 +57,13 @@ public class PatientService {
         public List<PatientMedicalRecordHistoryItemResponse> getMyMedicalRecordHistory(String username) {
                 Patient patient = getPatientFromUsername(username);
 
+                ensureMedicalRecordsForCompletedAppointments(patient.getId());
+
                 return medicalRecordRepository.findByAppointment_Patient_Id(patient.getId()).stream()
-                                .sorted(Comparator.comparing(MedicalRecord::getCreatedAt,
+                                .sorted(Comparator.comparing(
+                                                record -> record.getAppointment() == null
+                                                                ? null
+                                                                : record.getAppointment().getAppointmentTime(),
                                                 Comparator.nullsLast(Comparator.reverseOrder())))
                                 .map(this::toHistoryItemResponse)
                                 .toList();
@@ -103,7 +110,7 @@ public class PatientService {
                                 appointment.getDoctor() == null ? null : appointment.getDoctor().getUsername(),
                                 medicalRecord.getDiagnosis(),
                                 medicalRecord.getDoctorAdvice(),
-                                medicalRecord.getCreatedAt(),
+                                resolveCompletedAt(medicalRecord),
                                 invoice == null ? null : invoice.getId(),
                                 totalServiceFee,
                                 totalAmount,
@@ -137,7 +144,7 @@ public class PatientService {
                                                 : appointment.getDoctor().getUsername(),
                                 medicalRecord.getDiagnosis(),
                                 medicalRecord.getDoctorAdvice(),
-                                medicalRecord.getCreatedAt(),
+                                resolveCompletedAt(medicalRecord),
                                 prescriptionItemCount,
                                 invoice == null ? null : invoice.getId(),
                                 totalServiceFee,
@@ -145,6 +152,13 @@ public class PatientService {
                                 invoice != null && Boolean.TRUE.equals(invoice.getIsPaid()),
                                 invoice == null ? null : invoice.getPaidAt(),
                                 invoice == null ? null : invoice.getPaymentMethod());
+        }
+
+        private java.time.LocalDateTime resolveCompletedAt(MedicalRecord medicalRecord) {
+                if (medicalRecord == null) {
+                        return null;
+                }
+                return medicalRecord.getCompletedAt();
         }
 
         // Chức năng: xử lý ánh xạ chi tiết đơn thuốc sang DTO lịch sử.
@@ -173,5 +187,35 @@ public class PatientService {
                                 detail.getQuantity(),
                                 detail.getActualPrice(),
                                 detail.getResultNote());
+        }
+
+        private void ensureMedicalRecordsForCompletedAppointments(Long patientId) {
+                if (patientId == null) {
+                        return;
+                }
+
+                List<Appointment> completedAppointments = appointmentRepository
+                                .findByPatient_IdOrderByAppointmentTimeDesc(patientId)
+                                .stream()
+                                .filter(appointment -> "COMPLETED".equalsIgnoreCase(appointment.getStatus()))
+                                .toList();
+
+                for (Appointment appointment : completedAppointments) {
+                        if (appointment.getId() == null) {
+                                continue;
+                        }
+                        if (medicalRecordRepository.existsByAppointment_Id(appointment.getId())) {
+                                continue;
+                        }
+
+                        MedicalRecord record = new MedicalRecord();
+                        record.setAppointment(appointment);
+                        record.setDiagnosis(null);
+                        record.setDoctorAdvice(null);
+                        record.setCreatedAt(appointment.getAppointmentTime() == null
+                                        ? java.time.LocalDateTime.now()
+                                        : appointment.getAppointmentTime());
+                        medicalRecordRepository.save(record);
+                }
         }
 }

@@ -4,6 +4,8 @@ export interface PatientProfileResponse {
   patientId: number;
   fullName: string;
   gender: string;
+  dateOfBirth?: string | null;
+  hometown?: string | null;
   nationalId: string;
   phoneNumber: string;
   healthInsuranceNumber: string;
@@ -16,6 +18,27 @@ export interface PatientAppointmentRequestPayload {
   symptomIds: number[];
   paymentMethod: string;
   symptoms: string;
+  paymentReference?: string;
+}
+
+export interface AppointmentPaymentStatusResponse {
+  appointmentId: number;
+  invoiceId: number | null;
+  paymentMethod: string | null;
+  paymentStatus: string | null;
+  paymentReference: string | null;
+  transactionStatus: string | null;
+  appointmentStatus: string | null;
+  message: string;
+}
+
+export interface PaymentReferenceStatusResponse {
+  paymentReference: string;
+  invoiceId: number | null;
+  appointmentId: number | null;
+  paymentStatus: string;
+  transactionStatus: string | null;
+  message: string;
 }
 
 export interface AppointmentFeeEstimateResponse {
@@ -34,6 +57,9 @@ export interface PatientAppointmentResponse {
   appointmentTime: string;
   symptoms: string;
   status: string;
+  paymentStatus?: string | null;
+  paymentMethod?: string | null;
+  paymentReference?: string | null;
   cancellationReason?: string | null;
   doctor?: {
     id: number;
@@ -130,6 +156,16 @@ export const patientService = {
 
   async getMedicalRecordDetail(medicalRecordId: number) {
     const response = await api.get<PatientMedicalRecordDetailResponse>(`/api/patient/medical-records/${medicalRecordId}`);
+    return response.data;
+  },
+
+  async getAppointmentPaymentStatus(appointmentId: number) {
+    const response = await api.get<AppointmentPaymentStatusResponse>(`/api/payments/appointments/${appointmentId}/status`);
+    return response.data;
+  },
+
+  async getPaymentReferenceStatus(paymentReference: string) {
+    const response = await api.get<PaymentReferenceStatusResponse>(`/api/payments/reference/${encodeURIComponent(paymentReference)}/status`);
     return response.data;
   },
 };

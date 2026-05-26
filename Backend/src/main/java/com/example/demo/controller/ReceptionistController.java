@@ -15,6 +15,7 @@ import com.example.demo.dto.ReceptionistApproveResponse;
 import com.example.demo.dto.ReceptionistCancelAppointmentRequest;
 import com.example.demo.dto.ReceptionistDoctorOptionResponse;
 import com.example.demo.dto.ReceptionistRoomSuggestionResponse;
+import com.example.demo.dto.ReceptionistRoomScheduleOptionResponse;
 import com.example.demo.dto.ReceptionistWaitingStatusUpdateRequest;
 import com.example.demo.entity.Appointment;
 import com.example.demo.service.ReceptionistService;
@@ -49,6 +50,17 @@ public class ReceptionistController {
     public List<ReceptionistDoctorOptionResponse> getDoctorsBySpecialty(
             @RequestParam(name = "specialty", required = false) String specialty) {
         return receptionistService.getDoctorsBySpecialty(specialty);
+    }
+
+    @GetMapping("/rooms/schedules")
+    @Operation(summary = "Danh sách phòng theo lịch phân công")
+    public List<ReceptionistRoomScheduleOptionResponse> getRoomSchedules(
+            @RequestParam(name = "date", required = false) String date) {
+        java.time.LocalDate scheduleDate = null;
+        if (date != null && !date.isBlank()) {
+            scheduleDate = java.time.LocalDate.parse(date.trim());
+        }
+        return receptionistService.getRoomSchedules(scheduleDate);
     }
 
     @GetMapping("/appointments/{appointmentId}/suggested-room")

@@ -60,7 +60,7 @@ export function CancelledAppointments({ appointments, resolveRoomName }: Cancell
                     <div style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "0.5rem" }}>
                       <p>📅 Thời gian: {new Date(appointment.appointmentTime).toLocaleString("vi-VN")}</p>
                       <p>👨‍⚕️ Bác sĩ: {appointment.doctor?.username || "Chưa phân công"}</p>
-                      <p>🏥 Phòng khám: {resolveRoomName(appointment.doctor?.id)}</p>
+                      <p>🏥 Phòng khám: {appointment.assignedRoom?.roomName || resolveRoomName(appointment.doctor?.id)}</p>
                       <p>📞 SĐT: {appointment.patient.phoneNumber || "Chưa có"}</p>
                     </div>
                     <div className={styles.panelWarning}>{toCancelledReason(status, appointment.cancellationReason)}</div>

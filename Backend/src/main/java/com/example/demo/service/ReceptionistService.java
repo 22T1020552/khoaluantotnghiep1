@@ -19,6 +19,7 @@ import com.example.demo.exception.AppException;
 import com.example.demo.dto.ReceptionistDoctorOptionResponse;
 import com.example.demo.dto.ReceptionistApproveResponse;
 import com.example.demo.dto.ReceptionistRoomSuggestionResponse;
+import com.example.demo.dto.ReceptionistRoomScheduleOptionResponse;
 import com.example.demo.config.SpecialtyRoomMappingConfig;
 import com.example.demo.entity.Appointment;
 import com.example.demo.entity.Role;
@@ -127,6 +128,22 @@ public class ReceptionistService {
         }
 
         return result.values().stream().toList();
+    }
+
+    // Chức năng: lấy danh sách phòng + bác sĩ theo lịch phân công trong ngày.
+    @Transactional(readOnly = true)
+    public List<ReceptionistRoomScheduleOptionResponse> getRoomSchedules(LocalDate scheduleDate) {
+        LocalDate date = scheduleDate == null ? LocalDate.now() : scheduleDate;
+        return roomScheduleRepository.findByScheduleDateOrderByStartTimeAsc(date)
+                .stream()
+                .map(schedule -> new ReceptionistRoomScheduleOptionResponse(
+                        schedule.getRoom() == null ? null : schedule.getRoom().getId(),
+                        schedule.getRoom() == null ? null : schedule.getRoom().getRoomName(),
+                        schedule.getDoctor() == null ? null : schedule.getDoctor().getId(),
+                        schedule.getDoctor() == null ? null : schedule.getDoctor().getUsername(),
+                        schedule.getStartTime() == null ? null : schedule.getStartTime().toString(),
+                        schedule.getEndTime() == null ? null : schedule.getEndTime().toString()))
+                .toList();
     }
 
     // Chức năng: gợi ý phòng khám theo lịch hẹn.
@@ -368,7 +385,7 @@ public class ReceptionistService {
     }
 
     private Room resolveSuggestedRoom(Appointment appointment, String specialty) {
-        List<Room> rooms = roomRepository.findAllByOrderByRoomNameAsc();
+        List<Room> rooms = getRoomsAvailableAt(appointment.getAppointmentTime());
         if (rooms.isEmpty()) {
             return null;
         }
@@ -419,6 +436,26 @@ public class ReceptionistService {
         }
 
         return rooms.get(0);
+    }
+
+    private List<Room> getRoomsAvailableAt(LocalDateTime appointmentTime) {
+        List<Room> rooms = roomRepository.findAllByOrderByRoomNameAsc();
+        if (appointmentTime == null) {
+            return rooms;
+        }
+
+        LocalDate date = appointmentTime.toLocalDate();
+        LocalTime time = appointmentTime.toLocalTime();
+        List<Room> scheduled = roomScheduleRepository.findByScheduleDateOrderByStartTimeAsc(date)
+                .stream()
+                .filter(schedule -> schedule.getStartTime() != null && schedule.getEndTime() != null)
+                .filter(schedule -> !time.isBefore(schedule.getStartTime()) && time.isBefore(schedule.getEndTime()))
+                .map(RoomSchedule::getRoom)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        return scheduled.isEmpty() ? rooms : scheduled;
     }
 
     private String inferSpecialtyFromAppointment(Appointment appointment) {

@@ -37,6 +37,9 @@ public class Patient {
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
+    @Column(name = "hometown", length = 200)
+    private String hometown;
+
     // CCCD
     @Column(name = "national_id", unique = true, length = 20)
     private String nationalId;

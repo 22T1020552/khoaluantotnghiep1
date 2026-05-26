@@ -195,7 +195,7 @@ export function PatientHistory() {
                   <div className={styles.badgeGroup}>
                     <Badge variant="secondary" className={styles.customBadge}>
                       <Calendar size={12} style={{ marginRight: '4px' }} />
-                      {formatDateTime(record.createdAt)}
+                      {formatDateTime(record.appointmentTime)}
                     </Badge>
                     <Badge variant="secondary" className={styles.customBadge}>
                       <Stethoscope size={12} style={{ marginRight: '4px' }} />
@@ -249,13 +249,13 @@ export function PatientHistory() {
                 </div>
               )}
 
-              {record.appointmentTime && (
+              {record.createdAt && (
                 <div className={`${styles.block} ${styles.blockBlue}`} style={{ backgroundColor: '#f0f9ff' }}>
                   <div className={styles.blockTitleBlue} style={{ color: '#0369a1' }}>
-                    <Activity size={16} /> Thời gian khám:
+                    <Activity size={16} /> Thời gian hoàn thành khám:
                   </div>
                   <ul className={styles.medList} style={{ color: '#0ea5e9' }}>
-                    <li>{formatDateTime(record.appointmentTime)}</li>
+                    <li>{formatDateTime(record.createdAt)}</li>
                   </ul>
                 </div>
               )}

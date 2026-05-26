@@ -21,6 +21,20 @@ export function ConfirmedAppointments({ appointments, resolveRoomName }: Confirm
     return appointmentTimestamp < Date.now();
   };
 
+  const toPaymentLabel = (paymentStatus?: string | null) => {
+    const normalized = (paymentStatus ?? '').trim().toUpperCase();
+    if (normalized === 'FULLY_PAID') {
+      return 'Đã nộp tiền';
+    }
+    if (normalized === 'PENDING_TRANSFER') {
+      return 'Chưa nộp tiền';
+    }
+    if (normalized === 'PARTIALLY_PAID') {
+      return 'Thanh toán một phần';
+    }
+    return 'Chưa nộp tiền';
+  };
+
   return (
     <div className={styles.card}>
       <h2 className={styles.mb3}>Lịch hẹn đã xác nhận ({appointments.length})</h2>
@@ -48,7 +62,12 @@ export function ConfirmedAppointments({ appointments, resolveRoomName }: Confirm
                   <div style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "0.5rem" }}>
                     <p>📅 Thời gian: {new Date(appointment.appointmentTime).toLocaleString("vi-VN")}</p>
                     <p>👨‍⚕️ Bác sĩ: {appointment.doctor?.username || "Chưa phân công"}</p>
-                    <p>🏥 Phòng khám: {resolveRoomName(appointment.doctor?.id)}</p>
+                    <p>🏥 Phòng khám: {appointment.assignedRoom?.roomName || resolveRoomName(appointment.doctor?.id)}</p>
+                  </div>
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <span className={`${styles.badge} ${appointment.paymentStatus?.toUpperCase() === 'FULLY_PAID' ? styles.confirmed : styles.cancelled}`}>
+                      {toPaymentLabel(appointment.paymentStatus)}
+                    </span>
                   </div>
                   {noShowCancelled && (
                     <div className={styles.panelWarning}>

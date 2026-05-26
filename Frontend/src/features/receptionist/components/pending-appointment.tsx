@@ -20,6 +20,20 @@ export function PendingAppointments({ appointments, onConfirmClick, onCancelClic
     return "Khác";
   };
 
+  const toPaymentLabel = (paymentStatus?: string | null) => {
+    const normalized = (paymentStatus ?? '').trim().toUpperCase();
+    if (normalized === 'FULLY_PAID') {
+      return 'Đã nộp tiền';
+    }
+    if (normalized === 'PENDING_TRANSFER') {
+      return 'Chưa nộp tiền';
+    }
+    if (normalized === 'PARTIALLY_PAID') {
+      return 'Thanh toán một phần';
+    }
+    return 'Chưa nộp tiền';
+  };
+
   return (
     <div className={styles.card}>
       <h2 className={styles.mb3}>Lịch hẹn chờ xác nhận ({appointments.length})</h2>
@@ -46,6 +60,11 @@ export function PendingAppointments({ appointments, onConfirmClick, onCancelClic
                       Triệu chứng:
                     </p>
                     <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>{appointment.symptoms || "Chưa có"}</p>
+                  </div>
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <span className={`${styles.badge} ${appointment.paymentStatus?.toUpperCase() === 'FULLY_PAID' ? styles.confirmed : styles.cancelled}`}>
+                      {toPaymentLabel(appointment.paymentStatus)}
+                    </span>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem" }}>

@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { getApiErrorMessage } from "@/services/api";
+import { clinicConfigService } from "@/services/clinicConfigService";
 import { patientService } from "@/services/patientService";
 import { masterDataService, type SymptomTemplateResponse } from "@/services/masterDataService";
+import PaymentRealtimeListener from "@/components/payment-realtime-listener";
 import { Calendar, CreditCard, FileText, Loader2, User } from "lucide-react";
 import { toast } from "sonner";
 import styles from "../booking.module.css";
@@ -16,6 +18,8 @@ import styles from "../booking.module.css";
 interface BookingFormProps {
   onSuccess: (appointmentId: number) => void;
 }
+type BookingFlowState = "form" | "waiting-transfer" | "success" | "failed";
+
 //Hàm chuẩn hóa thời gian để backend hiểu được
 const toApiDateTime = (value: string) => {
   const normalized = value.trim();
@@ -32,8 +36,13 @@ const toApiDateTime = (value: string) => {
 };
 
 export function BookingForm({ onSuccess }: BookingFormProps) {
+  const PAYMENT_CHECK_INTERVAL_MS = 10_000;
   const [submitting, setSubmitting] = useState(false);
   const [estimatingFee, setEstimatingFee] = useState(false);
+  const [bookingFlow, setBookingFlow] = useState<BookingFlowState>("form");
+  const [transferRequested, setTransferRequested] = useState(false);
+  const [paymentReference, setPaymentReference] = useState<string>("");
+  const [paymentStatusMessage, setPaymentStatusMessage] = useState<string>("");
   const [formData, setFormData] = useState({
     fullName: "",
     gender: "",
@@ -60,6 +69,36 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
       lineTotal: number;
     }[]
   >([]);
+  const [bankConfig, setBankConfig] = useState<{
+    bankBin: string;
+    bankAccount: string;
+    accountName: string;
+    bankName: string;
+  } | null>(null);
+  const [bankConfigLoading, setBankConfigLoading] = useState(true);
+
+  const generatePaymentReference = useMemo(() => {
+    return () => {
+      const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+      return `BK-${Date.now().toString().slice(-8)}-${randomPart}`;
+    };
+  }, []);
+
+  const normalizeGenderValue = (value?: string | null) => {
+    if (!value) return "";
+    const normalized = value.trim().toLowerCase();
+    if (["male", "nam", "m"].includes(normalized)) return "male";
+    if (["female", "nữ", "nu", "f"].includes(normalized)) return "female";
+    return "other";
+  };
+
+  const normalizeDateInput = (value?: string | null) => {
+    if (!value) return "";
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    const datePart = trimmed.split("T")[0];
+    return datePart;
+  };
 
   const formatCurrency = (value: number | null) => {
     if (value == null) {
@@ -67,6 +106,102 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
     }
     return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(value);
   };
+
+  const transferTrackingStartedRef = useRef(false);
+  const transferFinalizeStartedRef = useRef(false);
+  const transferStartedAtRef = useRef<number | null>(null);
+
+  const isTransferBookingReady =
+    paymentMethod === 'CHUYEN_KHOAN' &&
+    !submitting &&
+    !estimatingFee &&
+    estimatedTotalFee !== null &&
+    Boolean(formData.fullName.trim()) &&
+    Boolean(formData.gender.trim()) &&
+    Boolean(formData.phone.trim()) &&
+    Boolean(formData.appointmentTime.trim()) &&
+    selectedCategoryId != null &&
+    selectedSymptomIds.length > 0;
+
+  const createAppointment = useCallback(async (source: 'manual' | 'after-payment') => {
+    const normalizedCustomReason = formData.reason.trim();
+
+    if (!formData.fullName || !formData.gender || !formData.phone || !formData.appointmentTime) {
+      toast.error("Vui lòng điền đầy đủ thông tin bắt buộc");
+      return;
+    }
+    if (selectedCategoryId == null) {
+      toast.error("Vui lòng chọn nhóm triệu chứng");
+      return;
+    }
+    if (selectedSymptomIds.length === 0) {
+      toast.error("Vui lòng chọn ít nhất một triệu chứng");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      if (source === 'manual') {
+        setBookingFlow('form');
+      }
+
+      const selectedSymptomNames = symptoms
+        .filter((symptom) => selectedSymptomIds.includes(symptom.id))
+        .map((symptom) => symptom.symptomName);
+
+      const paymentReferenceForRequest = paymentMethod === 'CHUYEN_KHOAN'
+        ? (paymentReference || generatePaymentReference())
+        : undefined;
+
+      const symptomsForApi = selectedSymptomNames.join(' | ')
+        + (normalizedCustomReason ? ' - ' + normalizedCustomReason : '');
+
+      const createdAppointment = await patientService.createAppointment({
+        appointmentTime: toApiDateTime(formData.appointmentTime),
+        categoryId: selectedCategoryId,
+        symptomIds: selectedSymptomIds,
+        paymentMethod,
+        symptoms: symptomsForApi,
+        paymentReference: paymentReferenceForRequest,
+      });
+
+      if (paymentMethod === 'CHUYEN_KHOAN') {
+        const resolvedPaymentReference = paymentReferenceForRequest || createdAppointment.paymentReference || '';
+        setPaymentReference(resolvedPaymentReference);
+        if (source === 'after-payment') {
+          setBookingFlow('success');
+          setPaymentStatusMessage('Đã nộp tiền và tự động đặt lịch thành công');
+          toast.success('Đã nộp tiền và tự động đặt lịch thành công');
+          onSuccess(createdAppointment.id);
+          return;
+        }
+
+        setBookingFlow('waiting-transfer');
+        setPaymentStatusMessage('Chưa nộp tiền. Quét QR và chuyển khoản trong 10 giây.');
+        toast.info('Chưa nộp tiền. Hệ thống sẽ chờ tối đa 10 giây để xác nhận');
+        return;
+      }
+
+      onSuccess(createdAppointment.id);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể đặt lịch khám"));
+    } finally {
+      setSubmitting(false);
+    }
+  }, [
+    formData.appointmentTime,
+    formData.fullName,
+    formData.gender,
+    formData.phone,
+    formData.reason,
+    paymentMethod,
+    paymentReference,
+    generatePaymentReference,
+    onSuccess,
+    selectedCategoryId,
+    selectedSymptomIds,
+    symptoms,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -81,7 +216,9 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
         setFormData((prev) => ({
           ...prev,
           fullName: profile.fullName ?? "",
-          gender: profile.gender ?? "",
+          gender: normalizeGenderValue(profile.gender),
+          dateOfBirth: normalizeDateInput(profile.dateOfBirth as unknown as string | null | undefined),
+          hometown: profile.hometown ?? "",
           phone: profile.phoneNumber ?? "",
           idNumber: profile.nationalId ?? "",
           insuranceNumber: profile.healthInsuranceNumber ?? "",
@@ -119,6 +256,23 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
     void loadProfile();
     void loadCategoriesAndSymptoms();
 
+    void clinicConfigService.getBankConfig()
+      .then((config) => {
+        if (isMounted) {
+          setBankConfig(config);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setBankConfig(null);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setBankConfigLoading(false);
+        }
+      });
+
     return () => {
       isMounted = false;
     };
@@ -142,7 +296,58 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
   }, [selectedCategoryId]);
 
   useEffect(() => {
-    if (selectedSymptomIds.length === 0) {
+    if (selectedCategoryId == null) return;
+    setSelectedSymptomIds([]);
+    setEstimatedTotalFee(null);
+    setEstimatedServices([]);
+    setFormData((prev) => ({ ...prev, reason: '' }));
+      setTransferRequested(false);
+      setPaymentReference('');
+  }, [selectedCategoryId]);
+
+  useEffect(() => {
+    if (paymentMethod === "TIEN_MAT") {
+      setPaymentReference('');
+      setTransferRequested(false);
+      setBookingFlow('form');
+      setPaymentStatusMessage('');
+      transferTrackingStartedRef.current = false;
+      transferFinalizeStartedRef.current = false;
+      transferStartedAtRef.current = null;
+    }
+  }, [generatePaymentReference, paymentMethod]);
+
+  useEffect(() => {
+    if (paymentMethod !== 'CHUYEN_KHOAN' || !transferRequested) {
+      return;
+    }
+
+    if (!isTransferBookingReady) {
+      setBookingFlow('form');
+      setPaymentStatusMessage('');
+      transferTrackingStartedRef.current = false;
+      transferFinalizeStartedRef.current = false;
+      transferStartedAtRef.current = null;
+      return;
+    }
+
+    if (paymentReference) {
+      if (!transferTrackingStartedRef.current) {
+        transferTrackingStartedRef.current = true;
+        transferStartedAtRef.current = Date.now();
+      }
+      setBookingFlow('waiting-transfer');
+      if (!paymentStatusMessage) {
+        setPaymentStatusMessage('Chưa nộp tiền. Quét QR và hệ thống sẽ kiểm tra lại sau 1 phút.');
+      }
+      return;
+    }
+
+    setPaymentReference((prev) => prev || generatePaymentReference());
+  }, [generatePaymentReference, isTransferBookingReady, paymentMethod, paymentReference, paymentStatusMessage]);
+
+  useEffect(() => {
+    if (selectedSymptomIds.length === 0 || selectedCategoryId == null) {
       setEstimatedTotalFee(null);
       setEstimatedServices([]);
       return;
@@ -173,64 +378,175 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
     };
   }, [selectedSymptomIds]);
 
+  useEffect(() => {
+    if (paymentMethod !== 'CHUYEN_KHOAN' || bookingFlow !== 'waiting-transfer' || !paymentReference) {
+      return;
+    }
+
+    let mounted = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const startedAt = transferStartedAtRef.current ?? Date.now();
+    transferStartedAtRef.current = startedAt;
+
+    const pollStatus = async () => {
+      try {
+        const status = await patientService.getPaymentReferenceStatus(paymentReference);
+        if (!mounted) return;
+
+        const normalizedTransactionStatus = (status.transactionStatus || '').toUpperCase();
+        const normalizedPaymentStatus = (status.paymentStatus || '').toUpperCase();
+
+        if (normalizedTransactionStatus === 'SUCCESS' || normalizedPaymentStatus === 'FULLY_PAID') {
+          setPaymentStatusMessage('Đã nộp tiền thành công. Đang tự động đặt lịch...');
+          if (!transferFinalizeStartedRef.current) {
+            transferFinalizeStartedRef.current = true;
+            await createAppointment('after-payment');
+          }
+          return;
+        }
+
+        if (normalizedTransactionStatus === 'FAILED') {
+          setBookingFlow('failed');
+          setPaymentStatusMessage('Thanh toán thất bại. Vui lòng thử lại.');
+          toast.error('Thanh toán thất bại. Vui lòng thử lại');
+          return;
+        }
+
+        const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+        setPaymentStatusMessage(
+          status.message || `Chưa nộp tiền. Hệ thống sẽ kiểm tra lại sau 1 phút. Đã chờ ${elapsedSeconds}s.`
+        );
+        timer = setTimeout(() => {
+          void pollStatus();
+        }, PAYMENT_CHECK_INTERVAL_MS);
+      } catch {
+        if (!mounted) return;
+        timer = setTimeout(() => {
+          void pollStatus();
+        }, PAYMENT_CHECK_INTERVAL_MS);
+      }
+    };
+
+    void pollStatus();
+
+    return () => {
+      mounted = false;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [bookingFlow, createAppointment, paymentMethod, paymentReference]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const normalizedCustomReason = formData.reason.trim();
-
-    if (!formData.fullName || !formData.gender || !formData.phone || !formData.appointmentTime) {
-      toast.error("Vui lòng điền đầy đủ thông tin bắt buộc");
+    if (paymentMethod === 'CHUYEN_KHOAN') {
+      if (!isTransferBookingReady) {
+        toast.info('Điền đủ thông tin để hiển thị QR và chờ xác nhận chuyển khoản');
+        return;
+      }
+      const nextReference = paymentReference || generatePaymentReference();
+      setPaymentReference(nextReference);
+      setTransferRequested(true);
+      setBookingFlow('waiting-transfer');
+      setPaymentStatusMessage('Chưa nộp tiền. Quét QR và hệ thống sẽ kiểm tra lại sau 1 phút.');
       return;
     }
-    if (selectedCategoryId == null) {
-      toast.error("Vui lòng chọn nhóm triệu chứng");
-      return;
-    }
-    if (selectedSymptomIds.length === 0) {
-      toast.error("Vui lòng chọn ít nhất một triệu chứng");
-      return;
-    }
-    //Gói dữ liệu và gửi lên backend
-    try {
-      setSubmitting(true);
-      // Gom các triệu chứng đã chọn và mô tả tùy chỉnh (nếu có)
-      const selectedSymptomNames = symptoms
-        .filter((symptom) => selectedSymptomIds.includes(symptom.id))
-        .map((symptom) => symptom.symptomName);
 
-      const symptomsForApi = selectedSymptomNames.join(' | ')
-        + (normalizedCustomReason ? ' - ' + normalizedCustomReason : '');
-
-      const createdAppointment = await patientService.createAppointment({
-        appointmentTime: toApiDateTime(formData.appointmentTime),
-        categoryId: selectedCategoryId,
-        symptomIds: selectedSymptomIds,
-        paymentMethod,
-        symptoms: symptomsForApi,
-      });
-      // Gọi callback để thông báo cho component cha biết đã tạo thành công và truyền ID của lịch hẹn mới tạo
-      onSuccess(createdAppointment.id);
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Không thể đặt lịch khám"));
-    } finally {
-      setSubmitting(false);
-    }
+    await createAppointment('manual');
   };
 
   const selectedSymptomsCount = selectedSymptomIds.length;
+  const selectedSymptomNames = symptoms
+    .filter((symptom) => selectedSymptomIds.includes(symptom.id))
+    .map((symptom) => symptom.symptomName);
+  const selectedSymptomsText = selectedSymptomNames.join(', ');
+  const reasonPrefix = selectedSymptomsText
+    ? `Triệu chứng đã chọn: ${selectedSymptomsText}\n`
+    : '';
+  const reasonInputValue = `${reasonPrefix}${formData.reason}`;
+  const patientLabel = formData.fullName.trim() || "BENHNHAN";
+  const phoneLabel = formData.phone.trim() || "NA";
+  const symptomLabel = selectedSymptomsText || "KHONG_RO";
+
+  const extractSymptomQuery = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    const tokens = trimmed.split(/[,\n]/).map((token) => token.trim()).filter(Boolean);
+    return tokens[tokens.length - 1] ?? '';
+  };
+
+  const replaceLastSymptomToken = (value: string, replacement: string) => {
+    const separatorMatch = value.match(/[\s\S]*([,\n])\s*[^,\n]*$/);
+    if (!separatorMatch) {
+      return replacement;
+    }
+    const separatorIndex = separatorMatch[0].lastIndexOf(separatorMatch[1]);
+    const prefix = value.slice(0, separatorIndex + 1);
+    return `${prefix} ${replacement}`.replace(/\s+$/u, '');
+  };
+
+  const removeSymptomTokens = (value: string, tokensToRemove: string[]) => {
+    const removeSet = new Set(tokensToRemove.map((token) => token.toLowerCase()));
+    return value
+      .split(/[\n,]/)
+      .map((token) => token.trim())
+      .filter((token) => token && !removeSet.has(token.toLowerCase()))
+      .join(', ');
+  };
+
+  const symptomQuery = extractSymptomQuery(formData.reason);
+  const symptomSuggestions = symptomQuery
+    ? symptoms.filter((symptom) => {
+        if (selectedSymptomIds.includes(symptom.id)) return false;
+        return symptom.symptomName.toLowerCase().includes(symptomQuery.toLowerCase());
+      })
+    : [];
   const estimatedTransferAmount = Math.max(0, Math.round(estimatedTotalFee ?? 0));
-  const bankBin = process.env.NEXT_PUBLIC_CLINIC_BANK_BIN?.trim();
-  const bankAccount = process.env.NEXT_PUBLIC_CLINIC_BANK_ACCOUNT?.trim();
-  const accountNameRaw = process.env.NEXT_PUBLIC_CLINIC_ACCOUNT_NAME?.trim();
-  const bankName = process.env.NEXT_PUBLIC_CLINIC_BANK_NAME?.trim() || "TRAN CAM UYEN";
+  const bankBin = bankConfig?.bankBin?.trim();
+  const bankAccount = bankConfig?.bankAccount?.trim();
+  const accountNameRaw = bankConfig?.accountName?.trim();
+  const bankName = bankConfig?.bankName?.trim() || "TRAN CAM UYEN";
   const qrReady = Boolean(bankBin && bankAccount && accountNameRaw);
   const transferAccountName = encodeURIComponent(accountNameRaw || "");
-  const transferNote = encodeURIComponent(`DAT LICH ${formData.phone || "BENHNHAN"}`);
+  const transferNote = encodeURIComponent(
+    `REF:${paymentReference || "NA"} BN:${patientLabel} SDT:${phoneLabel}`
+  );
   const transferQrUrl = qrReady
     ? `https://img.vietqr.io/image/${bankBin}-${bankAccount}-compact2.png?amount=${estimatedTransferAmount}&addInfo=${transferNote}&accountName=${transferAccountName}`
     : "";
+  const normalizedPaymentCode = paymentReference ? paymentReference.trim().replace(/\s+/g, "_") : "";
 
   return (
     <form onSubmit={handleSubmit} className={styles.form}>
+      {(bookingFlow === 'waiting-transfer' || bookingFlow === 'failed' || bookingFlow === 'success') && (
+        <div className={styles.paymentStatusBanner}>
+          <div className={styles.paymentStatusTitle}>
+            {bookingFlow === 'success'
+              ? 'Đã thanh toán thành công'
+              : bookingFlow === 'failed'
+                ? 'Thanh toán thất bại'
+                : 'Đang chờ xác nhận thanh toán'}
+          </div>
+          <div className={styles.paymentStatusText}>{paymentStatusMessage}</div>
+          {bookingFlow === 'failed' && (
+            <button
+              type="button"
+              className={styles.retryPaymentButton}
+              onClick={() => {
+                setBookingFlow('form');
+                setPaymentStatusMessage('');
+                setPaymentReference(generatePaymentReference());
+                transferTrackingStartedRef.current = false;
+                transferFinalizeStartedRef.current = false;
+                transferStartedAtRef.current = null;
+              }}
+            >
+              Thanh toán lại
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Thông tin cá nhân */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
@@ -360,7 +676,13 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
                   <button
                     type="button"
                     className={styles.symptomClearBtn}
-                    onClick={() => setSelectedSymptomIds([])}
+                    onClick={() => {
+                      setSelectedSymptomIds([]);
+                      setFormData((prev) => ({
+                        ...prev,
+                        reason: removeSymptomTokens(prev.reason, selectedSymptomNames),
+                      }));
+                    }}
                   >
                     Bỏ chọn tất cả
                   </button>
@@ -394,6 +716,10 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
                           setSelectedSymptomIds((prev) => [...prev, s.id]);
                         } else {
                           setSelectedSymptomIds((prev) => prev.filter((x) => x !== s.id));
+                          setFormData((prev) => ({
+                            ...prev,
+                            reason: removeSymptomTokens(prev.reason, [s.symptomName]),
+                          }));
                         }
                       }}
                     />
@@ -403,14 +729,46 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
               </div>
             </div>
 
-            <Textarea
-              id="reason"
-              className={styles.reasonTextarea}
-              value={formData.reason}
-              onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-              placeholder="Mô tả triệu chứng (nếu không có trong danh sách hoặc cần mô tả thêm)..."
-              rows={4}
-            />
+            <div className={styles.reasonInputBlock}>
+              <Textarea
+                id="reason"
+                className={styles.reasonTextarea}
+                value={reasonInputValue}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  const nextReason = nextValue.startsWith(reasonPrefix)
+                    ? nextValue.slice(reasonPrefix.length)
+                    : nextValue;
+                  setFormData({ ...formData, reason: nextReason });
+                }}
+                placeholder="Mô tả triệu chứng (nếu không có trong danh sách hoặc cần mô tả thêm)..."
+                rows={4}
+              />
+              {symptomSuggestions.length > 0 && (
+                <div className={styles.symptomSuggestions}>
+                  <div className={styles.symptomSuggestionsTitle}>Gợi ý triệu chứng phù hợp</div>
+                  <div className={styles.symptomSuggestionsList}>
+                    {symptomSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.id}
+                        type="button"
+                        className={styles.symptomSuggestionChip}
+                        onClick={() => {
+                          setSelectedSymptomIds((prev) => [...prev, suggestion.id]);
+                          setFormData((prev) => {
+                            const currentValue = prev.reason || '';
+                            const nextReason = replaceLastSymptomToken(currentValue, suggestion.symptomName);
+                            return { ...prev, reason: nextReason };
+                          });
+                        }}
+                      >
+                        {suggestion.symptomName}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             <div className={styles.paymentSection}>
               <div className={styles.servicePreview}>
                 <div className={styles.servicePreviewTitle}>Dịch vụ dự kiến</div>
@@ -450,7 +808,7 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
                   Phí ước tính được tính từ các dịch vụ gắn với triệu chứng đã chọn.
                 </p>
 
-                {paymentMethod === "CHUYEN_KHOAN" && (
+                {paymentMethod === "CHUYEN_KHOAN" && transferRequested && (
                   <div className={styles.paymentQrBox}>
                     <p className={styles.paymentQrTitle}>Quét mã QR để thanh toán</p>
                     {qrReady ? (
@@ -461,11 +819,26 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
                         </p>
                         <p className={styles.paymentQrMeta}>{bankName}</p>
                         <p className={styles.paymentQrMeta}>{bankAccount}</p>
+                        <p className={styles.paymentQrMeta}>Mã tham chiếu: {paymentReference || 'đang tạo...'}</p>
+                        <PaymentRealtimeListener
+                          paymentCode={normalizedPaymentCode}
+                          enabled={transferRequested && bookingFlow === 'waiting-transfer' && Boolean(normalizedPaymentCode)}
+                          successMessage="Tuyệt vời! Thanh toán đã được xác nhận tự động."
+                          waitingMessage="Hệ thống đang chờ nhận thanh toán..."
+                          onPaymentSuccess={async () => {
+                            if (!transferFinalizeStartedRef.current) {
+                              transferFinalizeStartedRef.current = true;
+                              setPaymentStatusMessage('Đã nộp tiền thành công. Đang tự động đặt lịch...');
+                              await createAppointment('after-payment');
+                            }
+                          }}
+                        />
                       </>
+                    ) : bankConfigLoading ? (
+                      <p className={styles.paymentQrError}>Đang tải cấu hình ngân hàng từ hệ thống...</p>
                     ) : (
                       <p className={styles.paymentQrError}>
-                        Thiếu cấu hình QR trong .env. Cần đủ: NEXT_PUBLIC_CLINIC_BANK_BIN,
-                        NEXT_PUBLIC_CLINIC_BANK_ACCOUNT, NEXT_PUBLIC_CLINIC_ACCOUNT_NAME
+                        Không lấy được cấu hình QR từ hệ thống. Vui lòng thử lại sau.
                       </p>
                     )}
                   </div>
@@ -480,9 +853,15 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
       </div>
 
       <div className={styles.actions}>
-        <Button type="submit" className={styles.submitBtn} size="lg" disabled={submitting}>
+        <Button type="submit" className={styles.submitBtn} size="lg" disabled={submitting || bookingFlow === 'waiting-transfer'}>
           {submitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Calendar className="w-5 h-5 mr-2" />}
-          {submitting ? "Đang gửi..." : "Đặt lịch khám"}
+          {submitting
+            ? "Đang gửi..."
+            : paymentMethod === 'CHUYEN_KHOAN'
+              ? bookingFlow === 'waiting-transfer'
+                ? 'Đang chờ thanh toán'
+                : 'Lịch sẽ tự tạo khi đủ thông tin'
+              : 'Đặt lịch khám'}
         </Button>
       </div>
     </form>

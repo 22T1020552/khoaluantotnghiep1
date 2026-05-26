@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import type { ReceptionistAppointment, ReceptionistDoctorOption } from "@/services/receptionistService";
+import { useEffect, useMemo, useState } from "react";
+import type { ReceptionistAppointment, ReceptionistDoctorOption, ReceptionistRoomScheduleOption } from "@/services/receptionistService";
 import { receptionistService } from "@/services/receptionistService";
 import styles from "@/styles/common.module.css";
 
@@ -14,9 +14,11 @@ interface ConfirmModalProps {
 
 export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approvalMessage, submitting = false }: ConfirmModalProps) {
   // Quản lý state riêng cho Modal
-  const [doctorId, setDoctorId] = useState<number | "">("");
   const [suggestedRoomName, setSuggestedRoomName] = useState<string>("Đang gợi ý phòng khám...");
+  const [suggestedRoomId, setSuggestedRoomId] = useState<number | null>(null);
   const [suggestedSpecialty, setSuggestedSpecialty] = useState<string | null>(null);
+  const [scheduleOptions, setScheduleOptions] = useState<ReceptionistRoomScheduleOption[]>([]);
+  const [selectedScheduleKey, setSelectedScheduleKey] = useState<string>("");
   const [appointmentTime, setAppointmentTime] = useState(() => {
     const date = new Date(appointment.appointmentTime);
     if (Number.isNaN(date.getTime())) {
@@ -31,6 +33,46 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
     return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
   });
 
+  const appointmentDate = useMemo(() => {
+    if (!appointmentTime || appointmentTime.length < 10) {
+      return "";
+    }
+    return appointmentTime.slice(0, 10);
+  }, [appointmentTime]);
+
+  const appointmentTimeOnly = useMemo(() => {
+    if (!appointmentTime || appointmentTime.length < 16) {
+      return "";
+    }
+    return appointmentTime.slice(11, 16);
+  }, [appointmentTime]);
+
+  const buildScheduleKey = (option: ReceptionistRoomScheduleOption) =>
+    `${option.roomId ?? "NA"}-${option.doctorId ?? "NA"}-${option.startTime ?? ""}-${option.endTime ?? ""}`;
+
+  const parseTimeToMinutes = (value?: string | null) => {
+    if (!value) {
+      return null;
+    }
+    const [hh, mm] = value.split(":");
+    const hour = Number(hh);
+    const minute = Number(mm);
+    if (Number.isNaN(hour) || Number.isNaN(minute)) {
+      return null;
+    }
+    return hour * 60 + minute;
+  };
+
+  const isTimeWithinSchedule = (timeValue: string, option: ReceptionistRoomScheduleOption) => {
+    const timeMinutes = parseTimeToMinutes(timeValue);
+    const startMinutes = parseTimeToMinutes(option.startTime ?? undefined);
+    const endMinutes = parseTimeToMinutes(option.endTime ?? undefined);
+    if (timeMinutes == null || startMinutes == null || endMinutes == null) {
+      return false;
+    }
+    return timeMinutes >= startMinutes && timeMinutes < endMinutes;
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -42,6 +84,7 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
         }
 
         setSuggestedRoomName(suggestion.roomName || "Chưa xác định được phòng khám");
+        setSuggestedRoomId(suggestion.roomId ?? null);
         setSuggestedSpecialty(suggestion.specialty || null);
       } catch {
         if (!mounted) {
@@ -49,6 +92,7 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
         }
 
         setSuggestedRoomName("Chưa xác định được phòng khám");
+        setSuggestedRoomId(null);
         setSuggestedSpecialty(null);
       }
     };
@@ -60,14 +104,61 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
     };
   }, [appointment.id]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSchedules = async () => {
+      try {
+        const data = await receptionistService.getRoomSchedules(appointmentDate || undefined);
+        if (!mounted) {
+          return;
+        }
+        setScheduleOptions(data || []);
+      } catch {
+        if (!mounted) {
+          return;
+        }
+        setScheduleOptions([]);
+      }
+    };
+
+    if (appointmentDate) {
+      void loadSchedules();
+    } else {
+      setScheduleOptions([]);
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [appointmentDate]);
+
+  useEffect(() => {
+    if (!scheduleOptions.length || selectedScheduleKey) {
+      return;
+    }
+
+    const matchedBySuggestion = suggestedRoomId
+      ? scheduleOptions.find((option) => option.roomId === suggestedRoomId
+        && (!appointmentTimeOnly || isTimeWithinSchedule(appointmentTimeOnly, option)))
+      : null;
+    const matchedByTime = appointmentTimeOnly
+      ? scheduleOptions.find((option) => isTimeWithinSchedule(appointmentTimeOnly, option))
+      : null;
+    const initial = matchedBySuggestion || matchedByTime || scheduleOptions[0];
+    if (initial) {
+      setSelectedScheduleKey(buildScheduleKey(initial));
+    }
+  }, [scheduleOptions, selectedScheduleKey, suggestedRoomId, appointmentTimeOnly]);
+
   const handleSubmit = () => {
     if (approvalMessage) {
       onClose();
       return;
     }
 
-    if (!doctorId) {
-      alert("Vui lòng chọn bác sĩ");
+    if (!selectedScheduleKey) {
+      alert("Vui lòng chọn phòng khám phù hợp");
       return;
     }
     if (!appointmentTime) {
@@ -75,16 +166,23 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
       return;
     }
 
-    const selectedDoctor = doctors.find((doctor) => doctor.doctorId === Number(doctorId));
-    if (!selectedDoctor?.roomName) {
-      alert("Bác sĩ chưa có phòng khám. Vui lòng chọn bác sĩ khác.");
+    const selectedSchedule = scheduleOptions.find((option) => buildScheduleKey(option) === selectedScheduleKey);
+    if (!selectedSchedule?.doctorId || !selectedSchedule.roomId) {
+      alert("Phòng khám chưa có bác sĩ trong lịch phân công.");
       return;
     }
 
-    onConfirm(Number(doctorId), appointmentTime, selectedDoctor.roomId ?? null, suggestedSpecialty ?? appointment.category?.name ?? null);
+    if (appointmentTimeOnly && !isTimeWithinSchedule(appointmentTimeOnly, selectedSchedule)) {
+      alert("Khung giờ khám không nằm trong lịch phân công của phòng đã chọn.");
+      return;
+    }
+
+    onConfirm(selectedSchedule.doctorId, appointmentTime, selectedSchedule.roomId, suggestedSpecialty ?? appointment.category?.name ?? null);
   };
 
-  const selectedDoctor = doctors.find((doctor) => doctor.doctorId === Number(doctorId));
+  const selectedSchedule = scheduleOptions.find((option) => buildScheduleKey(option) === selectedScheduleKey);
+  const resolvedRoomName = selectedSchedule?.roomName || suggestedRoomName;
+  const resolvedDoctorName = selectedSchedule?.doctorUsername || "";
 
   return (
     <div className={styles.modal} onClick={onClose}>
@@ -122,27 +220,24 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
           </div>
 
           <div className={styles.formGroup}>
-            <label className={styles.label}>Chọn bác sĩ *</label>
+            <label className={styles.label}>Chọn phòng khám *</label>
             <select
               className={styles.input}
-              value={doctorId}
-              onChange={(e) => {
-                const value = e.target.value;
-                setDoctorId(value === "" ? "" : Number(value));
-              }}
+              value={selectedScheduleKey}
+              onChange={(e) => setSelectedScheduleKey(e.target.value)}
               disabled={submitting || Boolean(approvalMessage)}
             >
-              <option value="">-- Chọn bác sĩ --</option>
-              {doctors.map((doctor) => (
-                <option key={doctor.doctorId} value={doctor.doctorId}>
-                  BS. {doctor.doctorUsername}
-                  {doctor.roomName ? ` - ${doctor.roomName}` : ""}
+              <option value="">-- Chọn phòng --</option>
+              {scheduleOptions.map((option) => (
+                <option key={buildScheduleKey(option)} value={buildScheduleKey(option)}>
+                  {option.roomName || "Phòng chưa đặt tên"} - BS. {option.doctorUsername || "Chưa phân công"}
+                  {option.startTime && option.endTime ? ` (${option.startTime} - ${option.endTime})` : ""}
                 </option>
               ))}
             </select>
-            {doctors.length === 0 && (
+            {scheduleOptions.length === 0 && (
               <p style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "#b91c1c" }}>
-                Hiện chưa có bác sĩ nào được gán phòng khám.
+                Chưa có lịch phân công phòng khám trong ngày này.
               </p>
             )}
           </div>
@@ -162,7 +257,7 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
             <label className={styles.label}>Phòng khám *</label>
             <input
               className={styles.input}
-              value={selectedDoctor?.roomName || suggestedRoomName}
+              value={resolvedRoomName}
               readOnly
               disabled
             />
@@ -171,6 +266,11 @@ export function ConfirmModal({ appointment, doctors, onClose, onConfirm, approva
                 ? `Phòng khám gợi ý theo triệu chứng: ${suggestedRoomName} (${suggestedSpecialty})`
                 : `Phòng khám gợi ý theo lịch hẹn: ${suggestedRoomName}`}
             </p>
+            {resolvedDoctorName && (
+              <p style={{ marginTop: "0.25rem", fontSize: "0.8rem", color: "#6b7280" }}>
+                Bác sĩ trực: {resolvedDoctorName}
+              </p>
+            )}
           </div>
         </div>
 
