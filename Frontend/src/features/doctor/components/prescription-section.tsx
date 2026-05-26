@@ -73,6 +73,18 @@ export function PrescriptionSection({
                   </div>
                 </div>
 
+                <div>
+                  <label htmlFor={`presc-${item.medicine_id}-usage`} className={`${styles.textSmall} ${styles.textMuted}`}>Hướng dẫn sử dụng</label>
+                  <textarea
+                    id={`presc-${item.medicine_id}-usage`}
+                    name={`usage_${item.medicine_id}`}
+                    className={`${styles.input} ${styles.mt1}`}
+                    rows={3}
+                    value={item.usage_instructions || ""}
+                    onChange={(e) => onUpdatePrescription(item.medicine_id, "usage_instructions", e.target.value)}
+                  />
+                </div>
+
                 <button
                   className={`${styles.button} ${styles.outline} ${styles.fullButton} ${styles.textDanger}`}
                   onClick={() => onRemoveMedicine(item.medicine_id)}

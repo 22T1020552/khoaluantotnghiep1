@@ -34,4 +34,7 @@ public class MedicalRecord {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
 }

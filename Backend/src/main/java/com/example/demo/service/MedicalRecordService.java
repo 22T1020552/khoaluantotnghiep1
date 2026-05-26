@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.demo.exception.AppException;
+import com.example.demo.constants.AppointmentStatus;
 
 import com.example.demo.dto.AddPrescriptionDetailRequest;
 import com.example.demo.dto.CreateMedicalRecordRequest;
@@ -135,7 +136,20 @@ public class MedicalRecordService {
         detail.setResultNote(normalizeOptionalResultNote(request.getResultNote()));
 
         MedicalRecordServiceDetail savedDetail = medicalRecordServiceDetailRepository.save(detail);
-        invoiceService.aggregateInvoiceAmount(medicalRecordId);
+        var invoice = invoiceService.aggregateInvoiceAmount(medicalRecordId);
+        // If the invoice now has a remaining amount, update the appointment's
+        // paymentStatus so receptionist shows the correct outstanding state.
+        Appointment appt = medicalRecord.getAppointment();
+        if (appt != null && invoice != null) {
+            var remaining = invoice.getRemainingAmount() == null ? java.math.BigDecimal.ZERO : invoice.getRemainingAmount();
+            if (remaining.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                appt.setPaymentStatus(com.example.demo.constants.PaymentStatus.PARTIALLY_PAID);
+            } else {
+                appt.setPaymentStatus(com.example.demo.constants.PaymentStatus.FULLY_PAID);
+            }
+            appointmentRepository.save(appt);
+        }
+
         return savedDetail;
     }
 
@@ -186,9 +200,10 @@ public class MedicalRecordService {
         }
 
         if (!STATUS_WAITING.equalsIgnoreCase(appointment.getStatus())
-                && !"IN_PROGRESS".equalsIgnoreCase(appointment.getStatus())) {
+            && !"IN_PROGRESS".equalsIgnoreCase(appointment.getStatus())
+            && !"IN_ROOM".equalsIgnoreCase(appointment.getStatus())) {
             throw AppException.of(HttpStatus.CONFLICT,
-                    "Chỉ lịch hẹn WAITING hoặc IN_PROGRESS mới có thể tạo bệnh án");
+                "Chỉ lịch hẹn WAITING, IN_ROOM hoặc IN_PROGRESS mới có thể tạo bệnh án");
         }
 
         if (medicalRecordRepository.existsByAppointment_Id(request.getAppointmentId())) {
@@ -477,13 +492,26 @@ public class MedicalRecordService {
     public MedicalRecord completeMedicalRecord(String username, Long medicalRecordId) {
         MedicalRecord medicalRecord = getAuthorizedMedicalRecord(username, medicalRecordId);
 
-        // Tính hóa đơn
-        invoiceService.aggregateInvoiceAmount(medicalRecordId);
-        // Lấy lịch hẹn
+        if (medicalRecord.getCompletedAt() == null) {
+            medicalRecord.setCompletedAt(LocalDateTime.now());
+            medicalRecordRepository.save(medicalRecord);
+        }
+
+        // Tính hóa đơn để biết còn phần dịch vụ nào phải chuyển qua thu ngân.
+        var invoice = invoiceService.aggregateInvoiceAmount(medicalRecordId);
         Appointment appointment = medicalRecord.getAppointment();
 
         if (appointment != null) {
-            appointment.setStatus(STATUS_COMPLETED);
+            BigDecimal remainingAmount = invoice == null || invoice.getRemainingAmount() == null
+                    ? BigDecimal.ZERO
+                    : invoice.getRemainingAmount();
+            if (remainingAmount.compareTo(BigDecimal.ZERO) > 0) {
+                appointment.setStatus(AppointmentStatus.WAITING_CASHIER);
+                appointment.setPaymentStatus(com.example.demo.constants.PaymentStatus.PARTIALLY_PAID);
+            } else {
+                appointment.setStatus(AppointmentStatus.COMPLETED);
+                appointment.setPaymentStatus(com.example.demo.constants.PaymentStatus.FULLY_PAID);
+            }
             appointmentRepository.save(appointment);
         }
 

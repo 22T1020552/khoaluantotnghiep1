@@ -61,6 +61,43 @@ const mapWorkspaceToPrescriptionState = (workspace: PrescriptionWorkspaceRespons
   return { medicines, prescriptions };
 };
 
+const normalizeCategoryName = (value?: string | null) => (value || "Khác").trim() || "Khác";
+
+const isGeneralDiagnosisCategory = (value?: string | null) => {
+  const normalized = normalizeCategoryName(value).toLowerCase();
+  return ["khác", "toàn thân", "tong quat", "tổng quát"].includes(normalized);
+};
+
+const loadOrderedDiagnosisOptions = async (priorityCategoryId?: number | null) => {
+  const categories = (await masterDataService.getCategories()).filter((category) => category.isActive !== false);
+  const groups = await Promise.all(
+    categories.map(async (category) => ({
+      category,
+      diagnoses: await masterDataService.getDiagnosesByCategory(category.id),
+    })),
+  );
+
+  const priorityCategory = priorityCategoryId ? categories.find((category) => category.id === priorityCategoryId) : null;
+
+  return groups
+    .sort((left, right) => {
+      const leftPriority = priorityCategory ? left.category.id === priorityCategory.id : false;
+      const rightPriority = priorityCategory ? right.category.id === priorityCategory.id : false;
+      if (leftPriority !== rightPriority) {
+        return leftPriority ? -1 : 1;
+      }
+
+      const leftGeneral = isGeneralDiagnosisCategory(left.category.name);
+      const rightGeneral = isGeneralDiagnosisCategory(right.category.name);
+      if (leftGeneral !== rightGeneral) {
+        return leftGeneral ? 1 : -1;
+      }
+
+      return normalizeCategoryName(left.category.name).localeCompare(normalizeCategoryName(right.category.name), "vi");
+    })
+    .flatMap((group) => group.diagnoses);
+};
+
 const mapDoctorAppointmentToUi = (
   item: Awaited<ReturnType<typeof doctorService.getWaitingPatients>>[number],
   queueNumber: number,
@@ -211,7 +248,7 @@ export function DoctorQueue() {
       try { console.debug("[Debug] handleStartExam - categoryId:", categoryId); } catch {};
       const [services, diagnoses] = await Promise.all([
         doctorService.getAvailableServices(),
-        categoryId ? masterDataService.getDiagnosesByCategory(categoryId) : Promise.resolve([]),
+        loadOrderedDiagnosisOptions(categoryId),
       ]);
       try { console.debug("[Debug] handleStartExam - diagnoses (fetched):", diagnoses); } catch {};
       setAvailableServices(services.filter((item) => item.isActive));
@@ -348,8 +385,18 @@ export function DoctorQueue() {
     setPrescriptions((prev) => [...prev, { medicine_id: medicine.id, quantity: 1, usage_instructions: "", medicine }]);
   };
 
-  const handleUpdatePrescription = (medicineId: number, field: "quantity" | "usage_instructions", value: number | string) => {
-    setPrescriptions((prev) => prev.map((p) => p.medicine_id === medicineId ? { ...p, [field]: value } : p));
+  const handleUpdatePrescription = async (medicineId: number, field: "quantity" | "usage_instructions", value: number | string) => {
+    setPrescriptions((prev) => prev.map((p) => (p.medicine_id === medicineId ? { ...p, [field]: value } : p)));
+
+    if (!medicalRecordId) return;
+    try {
+      const payload: { quantity?: number; usageInstructions?: string } = {};
+      if (field === "quantity") payload.quantity = Number(value) || 1;
+      if (field === "usage_instructions") payload.usageInstructions = String(value || "");
+      await doctorService.updatePrescriptionDetail(medicalRecordId, medicineId, { quantity: payload.quantity ?? 1, usageInstructions: payload.usageInstructions ?? "" });
+    } catch (err) {
+      console.debug("Failed to persist prescription update", err);
+    }
   };
 
   const handleRemoveMedicine = async (medicineId: number) => {
@@ -381,11 +428,27 @@ export function DoctorQueue() {
       setSaving(true);
       let recordId = medicalRecordId;
       if (!recordId) {
-        const created = await doctorService.createMedicalRecord({ appointmentId: selectedAppointment.id, diagnosis: medicalRecord.diagnosis, doctorAdvice: medicalRecord.doctor_advice });
-        recordId = created.id;
-        setMedicalRecordId(recordId);
+        try {
+          const created = await doctorService.createMedicalRecord({ appointmentId: selectedAppointment.id, diagnosis: medicalRecord.diagnosis, doctorAdvice: medicalRecord.doctor_advice });
+          recordId = created.id;
+          setMedicalRecordId(recordId);
+        } catch (error) {
+          const apiMessage = getApiErrorMessage(error);
+          if (apiMessage && apiMessage.includes("đã có bệnh án")) {
+            const existing = await doctorService.getMedicalRecordByAppointment(selectedAppointment.id);
+            recordId = existing.id;
+            setMedicalRecordId(recordId);
+          } else {
+            throw error;
+          }
+        }
       }
       if (!recordId) throw new Error("Không tạo được bệnh án");
+
+      await doctorService.updateMedicalRecord(recordId, {
+        diagnosis: medicalRecord.diagnosis.trim(),
+        doctorAdvice: medicalRecord.doctor_advice.trim(),
+      });
 
       for (const item of prescriptions) {
         try { await doctorService.updatePrescriptionDetail(recordId, item.medicine_id, { quantity: item.quantity, usageInstructions: item.usage_instructions }); } 
