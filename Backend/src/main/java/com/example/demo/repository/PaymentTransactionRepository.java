@@ -8,4 +8,10 @@ import com.example.demo.entity.PaymentTransaction;
 
 public interface PaymentTransactionRepository extends JpaRepository<PaymentTransaction, Long> {
     Optional<PaymentTransaction> findByExternalTransactionId(String externalTransactionId);
+
+    Optional<PaymentTransaction> findTopByPaymentReferenceOrderByIdDesc(String paymentReference);
+
+    Optional<PaymentTransaction> findTopByAppointment_IdOrderByIdDesc(Long appointmentId);
+
+    Optional<PaymentTransaction> findTopByInvoice_IdOrderByIdDesc(Long invoiceId);
 }

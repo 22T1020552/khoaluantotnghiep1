@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import axios from "axios";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Prescription } from "@/types/pharmacy.type";
 import PharmacyStats from "./components/pharmacy-stats";
@@ -12,6 +14,7 @@ import { getApiErrorMessage } from "@/services/api";
 import styles from "@/styles/common.module.css";
 
 export function PharmacyDashboard() {
+  const router = useRouter();
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -23,6 +26,7 @@ export function PharmacyDashboard() {
   const [transferConfirmed, setTransferConfirmed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const autoPaymentSubmittedRef = useRef(false);
 
   const pendingPrescriptions = prescriptions.filter((p) => p.status === "pending");
   const dispensedPrescriptions = prescriptions.filter((p) => p.status === "dispensed");
@@ -127,6 +131,7 @@ export function PharmacyDashboard() {
     setSelectedPrescription(prescription);
     setPaymentMethod("TIEN_MAT");
     setTransferConfirmed(false);
+    autoPaymentSubmittedRef.current = false;
     setPaymentData({
       serviceFee: String(Math.floor(prescription.remainingAmount ?? prescription.totalAmount ?? 0)),
       insuranceDiscount: String(Math.floor(prescription.insuranceDiscount || 0)),
@@ -138,11 +143,15 @@ export function PharmacyDashboard() {
     setPaymentData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handlePayment = async () => {
+  const handlePayment = async (autoTriggered = false) => {
     if (!selectedPrescription?.invoiceId) return;
 
-    if (paymentMethod === "CHUYEN_KHOAN" && !transferConfirmed) {
-      toast.error("Vui lòng xác nhận đã nhận chuyển khoản trước khi thanh toán");
+    if (autoTriggered && autoPaymentSubmittedRef.current) {
+      return;
+    }
+
+    if (paymentMethod === "CHUYEN_KHOAN" && !autoTriggered) {
+      toast.info("Đang chờ hệ thống tự động xác nhận chuyển khoản");
       return;
     }
 
@@ -153,9 +162,13 @@ export function PharmacyDashboard() {
 
     try {
       setProcessing(true);
+      if (autoTriggered) {
+        autoPaymentSubmittedRef.current = true;
+      }
+
       const response = await cashierService.processPayment(selectedPrescription.invoiceId, {
         paymentMethod,
-        paymentSuccessful: paymentMethod === "TIEN_MAT" ? true : transferConfirmed,
+        paymentSuccessful: paymentMethod === "TIEN_MAT" ? true : (autoTriggered || transferConfirmed),
         exportInvoice: false,
         applyHealthInsurance: Number(paymentData.insuranceDiscount || 0) > 0,
       });
@@ -163,9 +176,24 @@ export function PharmacyDashboard() {
       toast.success(response.message || "Thanh toán thành công");
       setIsPaymentOpen(false);
       setSelectedPrescription(null);
-      await loadDashboardData();
+      autoPaymentSubmittedRef.current = false;
+      router.push("/cashier/history");
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Thanh toán thất bại"));
+      const isAlreadyPaid =
+        paymentMethod === "CHUYEN_KHOAN"
+        && autoTriggered
+        && axios.isAxiosError(error)
+        && error.response?.status === 409;
+
+      autoPaymentSubmittedRef.current = false;
+      if (isAlreadyPaid) {
+        toast.success("Thanh toán đã được ghi nhận tự động.");
+        setIsPaymentOpen(false);
+        setSelectedPrescription(null);
+        router.push("/cashier/history");
+      } else {
+        toast.error(getApiErrorMessage(error, "Thanh toán thất bại"));
+      }
     } finally {
       setProcessing(false);
     }

@@ -10,6 +10,24 @@ const formatCurrency = (amount: number) =>
     amount,
   );
 
+const normalizeServiceName = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const isConsultationServiceName = (serviceName?: string | null) => {
+  if (!serviceName) {
+    return false;
+  }
+
+  const normalized = normalizeServiceName(serviceName);
+  return ["kham", "consultation", "examination", "tu van"].some((keyword) =>
+    normalized.includes(keyword),
+  );
+};
+
 interface PendingPrescriptionsProps {
   prescriptions: Prescription[];
   onOpenPayment: (prescription: Prescription) => void;
@@ -55,10 +73,12 @@ function PendingPrescriptions({ prescriptions, onOpenPayment }: PendingPrescript
 
             <div className={styles.bodyStack}>
               <div className={styles.diagnosisBox}>
-                <p className={`${styles.boxTitle} ${styles.diagnosisTitle}`}>Dịch vụ:</p>
+                <p className={`${styles.boxTitle} ${styles.diagnosisTitle}`}>Dịch vụ đang chờ thanh toán:</p>
                 {prescription.serviceItems && prescription.serviceItems.length > 0 ? (
                   <div className={styles.itemList}>
-                    {prescription.serviceItems.map((si) => (
+                    {prescription.serviceItems
+                      .filter((si) => isConsultationServiceName(si.serviceName))
+                      .map((si) => (
                       <div key={si.serviceId} className={styles.itemCard}>
                         <div className={styles.itemTop}>
                           <div className={styles.itemName}>{si.serviceName} x{si.quantity}</div>
@@ -73,16 +93,34 @@ function PendingPrescriptions({ prescriptions, onOpenPayment }: PendingPrescript
               </div>
 
               <div className={styles.treatmentBox}>
-                <p className={`${styles.boxTitle} ${styles.treatmentTitle}`}>Tổng tiền:</p>
+                <p className={`${styles.boxTitle} ${styles.treatmentTitle}`}>Tổng tiền dịch vụ:</p>
                 <p className={`${styles.boxText} ${styles.treatmentText}`}>{formatCurrency(prescription.grandTotal ?? prescription.totalAmount ?? 0)}</p>
 
                 {prescription.advanceAmount !== undefined && prescription.advanceAmount > 0 && (prescription.grandTotal ?? prescription.totalAmount ?? 0) > prescription.advanceAmount && (
                   <>
-                    <p className={`${styles.boxTitle}`}>Đã thu:</p>
+                    <p className={`${styles.boxTitle}`}>Đã nộp trước:</p>
                     <p className={`${styles.boxText}`}>{formatCurrency(prescription.advanceAmount)}</p>
-                    <p className={`${styles.boxTitle} ${styles.treatmentTitle}`}>Còn lại cần thu:</p>
+                    <p className={`${styles.boxTitle} ${styles.treatmentTitle}`}>Còn nộp sau:</p>
                     <p className={`${styles.boxText} ${styles.treatmentText}`}>{formatCurrency(prescription.remainingAmount ?? ((prescription.grandTotal ?? prescription.totalAmount ?? 0) - prescription.advanceAmount))}</p>
                   </>
+                )}
+
+                {prescription.serviceItems && prescription.serviceItems.some((si) => !isConsultationServiceName(si.serviceName)) && (
+                  <div className={styles.additionalServiceBox}>
+                    <p className={`${styles.boxTitle} ${styles.additionalTitle}`}>Dịch vụ phát sinh chưa thanh toán:</p>
+                    <div className={styles.itemList}>
+                      {prescription.serviceItems
+                        .filter((si) => !isConsultationServiceName(si.serviceName))
+                        .map((si) => (
+                          <div key={si.serviceId} className={styles.itemCard}>
+                            <div className={styles.itemTop}>
+                              <div className={styles.itemName}>{si.serviceName} x{si.quantity}</div>
+                              <div className={styles.itemAmount}>{formatCurrency(si.lineTotal)}</div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

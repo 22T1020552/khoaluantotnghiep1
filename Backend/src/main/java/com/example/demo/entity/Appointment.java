@@ -66,6 +66,9 @@ public class Appointment {
     @Column(name = "payment_status", length = 30)
     private String paymentStatus;
 
+    @Column(name = "payment_reference", length = 200)
+    private String paymentReference;
+
     @Column(name = "cancellation_reason", length = 500)
     private String cancellationReason;
 }

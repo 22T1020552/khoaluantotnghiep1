@@ -28,6 +28,8 @@ public class PatientAppointmentRequest {
 
     private BigDecimal advancePayment;
 
+    private String paymentReference;
+
     @NotBlank(message = "paymentMethod là bắt buộc")
     private String paymentMethod;
 

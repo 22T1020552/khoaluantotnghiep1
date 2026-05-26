@@ -343,6 +343,18 @@
   border-top: 1px solid #e5e7eb;
 }
 
+.additionalServiceBox {
+  margin-top: 0.75rem;
+  padding: 0.8rem;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.additionalTitle {
+  color: #c2410c;
+}
+
 .discountRow {
   color: #dc2626;
 }
@@ -456,6 +468,13 @@
 .dialogItemAmount {
   color: #7e22ce;
   font-weight: 700;
+}
+
+.dialogSummarySplit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 0.8rem;
 }
 
 .formStack {
