@@ -167,7 +167,7 @@ export function InvoicesHistory() {
                     <p className={cashierStyles.statLabel}>Doanh thu theo bộ lọc</p>
                     <p className={cashierStyles.statValue}>
                       {transactions
-                        .reduce((sum, inv) => sum + inv.totalAmount, 0)
+                        .reduce((sum, inv) => sum + inv.grandTotal, 0)
                         .toLocaleString("vi-VN")}
                       đ
                     </p>

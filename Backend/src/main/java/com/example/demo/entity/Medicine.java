@@ -21,6 +21,9 @@ public class Medicine {
     @Column(name = "medicine_name", nullable = false, length = 200)
     private String medicineName;
 
+    @Column(name = "medicine_type", nullable = false, length = 100)
+    private String medicineType = "Khác";
+
     @Column(name = "unit", length = 50)
     private String unit;
 

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getApiErrorMessage } from "@/services/api";
+import { PaymentReferenceCard } from "@/features/patient/components/payment-reference-card";
 import {
   patientService,
   type PatientMedicalRecordDetailResponse,
@@ -181,6 +182,7 @@ export function PatientHistory() {
           const detail = recordDetails[record.medicalRecordId] ?? null;
           const { examinationCost, totalCost } = getCostBreakdown(record, detail);
           const serviceItems = detail?.services ?? [];
+          const paymentReference = detail?.paymentReference ?? record.paymentReference ?? null;
 
           return (
           <Card key={record.medicalRecordId} className={styles.recordCard}>
@@ -195,7 +197,7 @@ export function PatientHistory() {
                   <div className={styles.badgeGroup}>
                     <Badge variant="secondary" className={styles.customBadge}>
                       <Calendar size={12} style={{ marginRight: '4px' }} />
-                      {formatDateTime(record.createdAt)}
+                      {formatDateTime(record.appointmentTime)}
                     </Badge>
                     <Badge variant="secondary" className={styles.customBadge}>
                       <Stethoscope size={12} style={{ marginRight: '4px' }} />
@@ -217,6 +219,16 @@ export function PatientHistory() {
                 </div>
               </div>
             </div>
+
+            {record.paid && (
+              <PaymentReferenceCard
+                paymentReference={paymentReference}
+                amount={totalCost}
+                title="Mã chuyển khoản của hóa đơn"
+                subtitle="Bệnh nhân có thể dùng mã này để đối soát hoặc mở lại QR khi cần."
+                paidAt={record.paidAt ? formatDateTime(record.paidAt) : undefined}
+              />
+            )}
 
             {/* Record Details */}
             <div className={styles.detailsContainer}>
@@ -249,13 +261,13 @@ export function PatientHistory() {
                 </div>
               )}
 
-              {record.appointmentTime && (
+              {record.createdAt && (
                 <div className={`${styles.block} ${styles.blockBlue}`} style={{ backgroundColor: '#f0f9ff' }}>
                   <div className={styles.blockTitleBlue} style={{ color: '#0369a1' }}>
-                    <Activity size={16} /> Thời gian khám:
+                    <Activity size={16} /> Thời gian hoàn thành khám:
                   </div>
                   <ul className={styles.medList} style={{ color: '#0ea5e9' }}>
-                    <li>{formatDateTime(record.appointmentTime)}</li>
+                    <li>{formatDateTime(record.createdAt)}</li>
                   </ul>
                 </div>
               )}

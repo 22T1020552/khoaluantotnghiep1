@@ -20,6 +20,18 @@ export interface AdminRoom {
   currentDoctorUsername: string | null;
 }
 
+export interface AdminRoomSchedule {
+  id: number;
+  roomId: number;
+  roomName: string;
+  doctorId: number;
+  doctorUsername: string;
+  scheduleDate: string;
+  startTime: string;
+  endTime: string;
+  timeSlot: string;
+}
+
 export interface AdminMedicine {
   id: number;
   medicineName: string;
@@ -35,6 +47,48 @@ export interface AdminMedicalService {
   serviceName: string;
   currentPrice: number;
   isActive: boolean;
+}
+
+export interface AdminMedicalCategory {
+  id: number;
+  name: string;
+  description?: string | null;
+  isActive?: boolean;
+}
+
+export interface AdminSymptomTemplate {
+  id: number;
+  categoryId: number;
+  categoryName?: string | null;
+  symptomName: string;
+}
+
+export interface AdminDiagnosisTemplate {
+  id: number;
+  categoryId: number;
+  categoryName?: string | null;
+  diagnosisName: string;
+  defaultAdvice?: string | null;
+}
+
+export interface AdminDiagnosisMedicineRule {
+  id: number;
+  diagnosisId: number;
+  diagnosisName?: string | null;
+  medicineId: number;
+  medicineName?: string | null;
+  minAge: number;
+  maxAge: number;
+  defaultQuantity: number;
+  defaultUsage?: string | null;
+}
+
+export interface AdminSymptomServiceMapping {
+  symptomId: number;
+  symptomName?: string | null;
+  serviceId: number;
+  serviceName?: string | null;
+  categoryName?: string | null;
 }
 
 export interface AdminDashboardData {
@@ -56,13 +110,12 @@ export interface AdminRevenueChartPoint {
 
 export interface AdminRevenueReportItem {
   invoiceId: number;
-  medicalRecordId: number | null;
+  appointmentId: number | null;
   patientName: string | null;
   paymentMethod: string | null;
   paidAt: string | null;
   totalServiceFee: number;
-  totalMedicineFee: number;
-  totalAmount: number;
+  grandTotal: number;
   services: string[];
   medicines: string[];
 }
@@ -76,7 +129,6 @@ export interface AdminRevenueReportResponse {
   totalInvoices: number;
   totalRevenue: number;
   totalServiceRevenue: number;
-  totalMedicineRevenue: number;
   items: AdminRevenueReportItem[];
   chart: AdminRevenueChartPoint[];
   message: string;
@@ -166,6 +218,38 @@ export const adminService = {
     return response.data;
   },
 
+  async getRoomSchedules(params: { month: string }) {
+    const response = await api.get<AdminRoomSchedule[]>("/api/admin/room-schedules", { params });
+    return response.data;
+  },
+
+  async createRoomSchedule(payload: {
+    roomId: number;
+    doctorId: number;
+    scheduleDate: string;
+    timeSlot: string;
+  }) {
+    const response = await api.post<AdminRoomSchedule>("/api/admin/room-schedules", payload);
+    return response.data;
+  },
+
+  async updateRoomSchedule(
+    scheduleId: number,
+    payload: {
+      roomId: number;
+      doctorId: number;
+      scheduleDate: string;
+      timeSlot: string;
+    },
+  ) {
+    const response = await api.put<AdminRoomSchedule>(`/api/admin/room-schedules/${scheduleId}`, payload);
+    return response.data;
+  },
+
+  async deleteRoomSchedule(scheduleId: number) {
+    await api.delete(`/api/admin/room-schedules/${scheduleId}`);
+  },
+
   async getMedicines() {
     const response = await api.get<AdminMedicine[]>("/api/admin/medicines");
     return response.data;
@@ -239,5 +323,146 @@ export const adminService = {
       description,
     });
     return response.data;
+  },
+
+  async getMedicalCategories() {
+    const response = await api.get<AdminMedicalCategory[]>("/api/admin/master-data/categories");
+    return response.data;
+  },
+
+  async createMedicalCategory(payload: { name: string; description?: string | null; isActive?: boolean }) {
+    const response = await api.post<AdminMedicalCategory>("/api/admin/master-data/categories", payload);
+    return response.data;
+  },
+
+  async updateMedicalCategory(
+    categoryId: number,
+    payload: { name: string; description?: string | null; isActive?: boolean },
+  ) {
+    const response = await api.put<AdminMedicalCategory>(
+      `/api/admin/master-data/categories/${categoryId}`,
+      payload,
+    );
+    return response.data;
+  },
+
+  async deleteMedicalCategory(categoryId: number) {
+    await api.delete(`/api/admin/master-data/categories/${categoryId}`);
+  },
+
+  async getSymptoms(categoryId: number) {
+    const response = await api.get<AdminSymptomTemplate[]>("/api/admin/master-data/symptoms", {
+      params: { categoryId },
+    });
+    return response.data;
+  },
+
+  async createSymptom(payload: { categoryId: number; symptomName: string }) {
+    const response = await api.post<AdminSymptomTemplate>("/api/admin/master-data/symptoms", payload);
+    return response.data;
+  },
+
+  async updateSymptom(symptomId: number, payload: { categoryId: number; symptomName: string }) {
+    const response = await api.put<AdminSymptomTemplate>(
+      `/api/admin/master-data/symptoms/${symptomId}`,
+      payload,
+    );
+    return response.data;
+  },
+
+  async deleteSymptom(symptomId: number) {
+    await api.delete(`/api/admin/master-data/symptoms/${symptomId}`);
+  },
+
+  async getDiagnoses(categoryId: number) {
+    const response = await api.get<AdminDiagnosisTemplate[]>("/api/admin/master-data/diagnoses", {
+      params: { categoryId },
+    });
+    return response.data;
+  },
+
+  async createDiagnosis(payload: { categoryId: number; diagnosisName: string; defaultAdvice?: string | null }) {
+    const response = await api.post<AdminDiagnosisTemplate>("/api/admin/master-data/diagnoses", payload);
+    return response.data;
+  },
+
+  async updateDiagnosis(
+    diagnosisId: number,
+    payload: { categoryId: number; diagnosisName: string; defaultAdvice?: string | null },
+  ) {
+    const response = await api.put<AdminDiagnosisTemplate>(
+      `/api/admin/master-data/diagnoses/${diagnosisId}`,
+      payload,
+    );
+    return response.data;
+  },
+
+  async deleteDiagnosis(diagnosisId: number) {
+    await api.delete(`/api/admin/master-data/diagnoses/${diagnosisId}`);
+  },
+
+  async getDiagnosisMedicineRules(diagnosisId: number) {
+    const response = await api.get<AdminDiagnosisMedicineRule[]>(
+      "/api/admin/master-data/diagnosis-medicine-rules",
+      { params: { diagnosisId } },
+    );
+    return response.data;
+  },
+
+  async createDiagnosisMedicineRule(payload: {
+    diagnosisId: number;
+    medicineId: number;
+    minAge: number;
+    maxAge: number;
+    defaultQuantity: number;
+    defaultUsage?: string | null;
+  }) {
+    const response = await api.post<AdminDiagnosisMedicineRule>(
+      "/api/admin/master-data/diagnosis-medicine-rules",
+      payload,
+    );
+    return response.data;
+  },
+
+  async updateDiagnosisMedicineRule(
+    ruleId: number,
+    payload: {
+      diagnosisId: number;
+      medicineId: number;
+      minAge: number;
+      maxAge: number;
+      defaultQuantity: number;
+      defaultUsage?: string | null;
+    },
+  ) {
+    const response = await api.put<AdminDiagnosisMedicineRule>(
+      `/api/admin/master-data/diagnosis-medicine-rules/${ruleId}`,
+      payload,
+    );
+    return response.data;
+  },
+
+  async deleteDiagnosisMedicineRule(ruleId: number) {
+    await api.delete(`/api/admin/master-data/diagnosis-medicine-rules/${ruleId}`);
+  },
+
+  async getSymptomServiceMappings(symptomId: number) {
+    const response = await api.get<AdminSymptomServiceMapping[]>(
+      "/api/admin/master-data/symptom-service-mappings",
+      { params: { symptomId } },
+    );
+    return response.data;
+  },
+
+  async createSymptomServiceMapping(payload: { symptomId: number; serviceId: number }) {
+    const response = await api.post<AdminSymptomServiceMapping>(
+      "/api/admin/master-data/symptom-service-mappings",
+      payload,
+    );
+    return response.data;
+  },
+
+  async deleteSymptomServiceMapping(symptomId: number, serviceId: number) {
+    await api.delete("/api/admin/master-data/symptom-service-mappings", { params: { symptomId, serviceId } });
   },
 };

@@ -27,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 @SuppressWarnings("null")
 public class DoctorService {
 
-    private static final String STATUS_WAITING = "WAITING";
+    private static final String STATUS_IN_ROOM = "IN_ROOM";
     private static final String STATUS_COMPLETED = "COMPLETED";
 
     private final UserRepository userRepository;
@@ -78,16 +78,17 @@ public class DoctorService {
         if (date != null) {
             LocalDateTime from = date.atStartOfDay();
             LocalDateTime to = from.plusDays(1);
-            return appointmentRepository.findByDoctor_IdAndStatusAndAppointmentTimeBetweenOrderByAppointmentTimeAsc(
-                    doctor.getId(),
-                    STATUS_WAITING,
-                    from,
-                    to);
+            return appointmentRepository
+                    .findVisibleForDoctorAndStatusAndAppointmentTimeBetweenOrderByAppointmentTimeAsc(
+                            doctor.getId(),
+                            STATUS_IN_ROOM,
+                            from,
+                            to);
         }
 
-        return appointmentRepository.findByDoctor_IdAndStatusOrderByAppointmentTimeAsc(
+        return appointmentRepository.findVisibleForDoctorAndStatusOrderByAppointmentTimeAsc(
                 doctor.getId(),
-                STATUS_WAITING);
+                STATUS_IN_ROOM);
     }
 
     // Chức năng: lấy danh sách bệnh nhân đã khám.
@@ -99,14 +100,15 @@ public class DoctorService {
         if (date != null) {
             LocalDateTime from = date.atStartOfDay();
             LocalDateTime to = from.plusDays(1);
-            return appointmentRepository.findByDoctor_IdAndStatusAndAppointmentTimeBetweenOrderByAppointmentTimeAsc(
-                    doctor.getId(),
-                    STATUS_COMPLETED,
-                    from,
-                    to);
+            return appointmentRepository
+                    .findVisibleForDoctorAndStatusAndAppointmentTimeBetweenOrderByAppointmentTimeAsc(
+                            doctor.getId(),
+                            STATUS_COMPLETED,
+                            from,
+                            to);
         }
 
-        return appointmentRepository.findByDoctor_IdAndStatusOrderByAppointmentTimeAsc(
+        return appointmentRepository.findVisibleForDoctorAndStatusOrderByAppointmentTimeAsc(
                 doctor.getId(),
                 STATUS_COMPLETED);
     }
@@ -128,7 +130,9 @@ public class DoctorService {
         return new DoctorMedicineResponse(
                 medicine.getId(),
                 medicine.getMedicineName(),
-                medicine.getUnit() == null || medicine.getUnit().isBlank() ? "Khác" : medicine.getUnit(),
+                medicine.getMedicineType() == null || medicine.getMedicineType().isBlank()
+                        ? "Khác"
+                        : medicine.getMedicineType(),
                 medicine.getUnit(),
                 medicine.getSellingPrice(),
                 medicine.getStockQuantity(),

@@ -1,5 +1,7 @@
 package com.example.demo.entity;
 
+import java.time.LocalDate;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
@@ -31,6 +33,12 @@ public class Patient {
 
     @Column(name = "gender", length = 10)
     private String gender;
+
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
+
+    @Column(name = "hometown", length = 200)
+    private String hometown;
 
     // CCCD
     @Column(name = "national_id", unique = true, length = 20)

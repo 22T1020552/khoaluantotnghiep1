@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.demo.dto.AppointmentFeeEstimateResponse;
 import com.example.demo.dto.PatientAppointmentRequest;
 import com.example.demo.dto.PatientMedicalRecordDetailResponse;
 import com.example.demo.dto.PatientMedicalRecordHistoryItemResponse;
@@ -44,6 +45,13 @@ public class PatientController {
     @Operation(summary = "Đặt lịch khám")
     public Appointment createAppointment(@Valid @RequestBody PatientAppointmentRequest request) {
         return appointmentService.createAppointmentForPatient(request);
+    }
+
+    @GetMapping("/appointments/estimate-fee")
+    @Operation(summary = "Ước tính phí khám theo triệu chứng")
+    public AppointmentFeeEstimateResponse estimateAppointmentFee(
+            @RequestParam(name = "symptomIds") List<Long> symptomIds) {
+        return appointmentService.estimateFeeForSymptoms(symptomIds);
     }
 
     @GetMapping("/appointments")

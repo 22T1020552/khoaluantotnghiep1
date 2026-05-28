@@ -14,14 +14,13 @@ public class CashierReceiptResponse {
     private String clinicName;
     private String clinicLogoText;
     private Long invoiceId;
-    private Long medicalRecordId;
+    private Long appointmentId;
     private String patientName;
     private String phoneNumber;
     private LocalDateTime paidAt;
     private List<CashierServiceLineItemResponse> services;
     private List<CashierMedicineLineItemResponse> medicines;
     private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
-    private BigDecimal totalAmount;
+    private BigDecimal grandTotal;
     private String formattedReceiptText;
 }

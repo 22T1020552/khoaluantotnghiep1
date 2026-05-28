@@ -4,7 +4,7 @@ import styles from "@/styles/common.module.css";
 interface PendingAppointmentsProps {
   appointments: ReceptionistAppointment[];
   onConfirmClick: (appointment: ReceptionistAppointment) => void;
-  onCancelClick: (id: number) => void;
+  onCancelClick: (appointment: ReceptionistAppointment) => void;
   disabled?: boolean;
 }
 
@@ -18,6 +18,20 @@ export function PendingAppointments({ appointments, onConfirmClick, onCancelClic
       return "Nữ";
     }
     return "Khác";
+  };
+
+  const toPaymentLabel = (paymentStatus?: string | null) => {
+    const normalized = (paymentStatus ?? '').trim().toUpperCase();
+    if (normalized === 'FULLY_PAID') {
+      return 'Đã nộp tiền';
+    }
+    if (normalized === 'PENDING_TRANSFER') {
+      return 'Chưa nộp tiền';
+    }
+    if (normalized === 'PARTIALLY_PAID') {
+      return 'Thanh toán một phần';
+    }
+    return 'Chưa nộp tiền';
   };
 
   return (
@@ -47,12 +61,17 @@ export function PendingAppointments({ appointments, onConfirmClick, onCancelClic
                     </p>
                     <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>{appointment.symptoms || "Chưa có"}</p>
                   </div>
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <span className={`${styles.badge} ${appointment.paymentStatus?.toUpperCase() === 'FULLY_PAID' ? styles.confirmed : styles.cancelled}`}>
+                      {toPaymentLabel(appointment.paymentStatus)}
+                    </span>
+                  </div>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   <button className={`${styles.button} ${styles.primary}`} onClick={() => onConfirmClick(appointment)} disabled={disabled}>
                     Xác nhận
                   </button>
-                  <button className={`${styles.button} ${styles.outline}`} onClick={() => onCancelClick(appointment.id)} disabled={disabled}>
+                  <button className={`${styles.button} ${styles.outline}`} onClick={() => onCancelClick(appointment)} disabled={disabled}>
                     Hủy
                   </button>
                 </div>

@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,6 +20,7 @@ import com.example.demo.dto.DoctorMedicineResponse;
 import com.example.demo.dto.DoctorPatientHistoryDetailResponse;
 import com.example.demo.dto.DoctorPatientHistoryResponse;
 import com.example.demo.dto.DoctorResponse;
+import com.example.demo.dto.PrescriptionWorkspaceResponse;
 import com.example.demo.entity.Appointment;
 import com.example.demo.service.AdminService;
 import com.example.demo.service.DoctorService;
@@ -85,7 +87,7 @@ public class DoctorController {
     @Operation(summary = "Lịch sử bệnh án tổng quan", description = "Lấy tổng quan lịch sử bệnh án của bệnh nhân theo cuộc hẹn.")
     public DoctorPatientHistoryResponse getPatientHistorySummary(
             Authentication authentication,
-            @PathVariable Long appointmentId) {
+            @PathVariable(name = "appointmentId") Long appointmentId) {
         return medicalRecordService.getPatientHistorySummaryForDoctor(authentication.getName(), appointmentId);
     }
 
@@ -93,11 +95,21 @@ public class DoctorController {
     @Operation(summary = "Lịch sử bệnh án chi tiết", description = "Lấy chi tiết một bệnh án cụ thể để bác sĩ đối chiếu khi khám.")
     public DoctorPatientHistoryDetailResponse getPatientHistoryDetail(
             Authentication authentication,
-            @PathVariable Long appointmentId,
-            @PathVariable Long medicalRecordId) {
+            @PathVariable(name = "appointmentId") Long appointmentId,
+            @PathVariable(name = "medicalRecordId") Long medicalRecordId) {
         return medicalRecordService.getPatientHistoryDetailForDoctor(
                 authentication.getName(),
                 appointmentId,
                 medicalRecordId);
+    }
+
+    @PostMapping("/medical-records/{medicalRecordId}/prescriptions/autopopulate")
+    @Operation(summary = "Auto-populate prescriptions", description = "Gợi ý đơn thuốc dựa trên DiagnosisTemplate và tuổi bệnh nhân.")
+    public PrescriptionWorkspaceResponse autoPopulatePrescriptions(
+            Authentication authentication,
+            @PathVariable(name = "medicalRecordId") Long medicalRecordId,
+            @RequestParam(name = "diagnosisId") Long diagnosisId) {
+        return medicalRecordService.autoPopulatePrescriptionsFromDiagnosis(authentication.getName(), medicalRecordId,
+                diagnosisId);
     }
 }

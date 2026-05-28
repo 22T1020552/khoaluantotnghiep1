@@ -72,11 +72,11 @@ public class NotificationService {
         String host = resolveMailHost();
         int port = resolveMailPort();
         LOGGER.info(
-            "Mail notification config at startup: host={}, port={}, senderConfigured={}, configuredRecipients='{}'",
-            host,
-            port,
-            !from.isBlank(),
-            configuredRecipients);
+                "Mail notification config at startup: host={}, port={}, senderConfigured={}, configuredRecipients='{}'",
+                host,
+                port,
+                !from.isBlank(),
+                configuredRecipients);
     }
 
     // Chức năng: thông báo cho bệnh nhân về việc hủy lịch khám.
@@ -125,8 +125,8 @@ public class NotificationService {
                 reason));
 
         try {
-                mailSender.send(message);
-                LOGGER.info("Đã gửi email hủy lịch do phòng khám: appointmentId={}, recipient={}", appointment.getId(),
+            mailSender.send(message);
+            LOGGER.info("Đã gửi email hủy lịch do phòng khám: appointmentId={}, recipient={}", appointment.getId(),
                     recipient);
         } catch (MailException ex) {
             LOGGER.error(
@@ -259,6 +259,72 @@ public class NotificationService {
                     "Không thể gửi email lịch hẹn mới cho lễ tân: appointmentId={}, recipients={}, error={}",
                     appointment.getId(),
                     recipients,
+                    ex.getMessage(),
+                    ex);
+        }
+    }
+
+    // Chức năng: gửi email xin thông tin tài khoản hoàn tiền khi bệnh nhân không
+    // đến khám.
+    public void notifyRefundRequestForNoShow(Appointment appointment) {
+        Patient patient = appointment == null ? null : appointment.getPatient();
+        String recipient = patient == null || patient.getGmail() == null ? "" : patient.getGmail().trim();
+        if (!isValidEmail(recipient)) {
+            LOGGER.warn(
+                    "Bỏ qua gửi email xin thông tin hoàn tiền vì email bệnh nhân thiếu/không hợp lệ: appointmentId={}",
+                    appointment == null ? null : appointment.getId());
+            return;
+        }
+
+        String from = resolveSenderEmail();
+        if (from.isBlank()) {
+            LOGGER.warn("Bỏ qua gửi email xin thông tin hoàn tiền vì spring.mail.username đang trống");
+            return;
+        }
+
+        String patientName = resolvePatientName(patient, "Quý khách");
+        String appointmentTime = appointment == null || appointment.getAppointmentTime() == null
+                ? "Không có"
+                : appointment.getAppointmentTime().format(APPOINTMENT_TIME_FORMAT);
+        String advanceAmount = appointment == null || appointment.getAdvancePayment() == null
+                ? "Không có"
+                : appointment.getAdvancePayment().toPlainString() + " VND";
+
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(from);
+        message.setTo(recipient);
+        message.setSubject("[Phòng khám] Xin thông tin tài khoản để hoàn tiền");
+        message.setText("""
+                Xin chào %s,
+
+                Phòng khám ghi nhận bạn đã thanh toán tiền khám nhưng chưa thể đến khám.
+                - Mã lịch hẹn: %s
+                - Thời gian hẹn: %s
+                - Số tiền đã thanh toán trước: %s
+
+                Vui lòng phản hồi email này và cung cấp các thông tin sau để phòng khám hoàn tiền:
+                1) Tên chủ tài khoản
+                2) Số tài khoản
+                3) Ngân hàng
+                4) Chi nhánh (nếu có)
+
+                Cảm ơn bạn đã thông cảm và hợp tác.
+                    """.formatted(
+                patientName,
+                appointment == null ? "" : appointment.getId(),
+                appointmentTime,
+                advanceAmount));
+
+        try {
+            mailSender.send(message);
+            LOGGER.info("Đã gửi email xin thông tin hoàn tiền: appointmentId={}, recipient={}",
+                    appointment == null ? null : appointment.getId(),
+                    recipient);
+        } catch (MailException ex) {
+            LOGGER.error(
+                    "Không thể gửi email xin thông tin hoàn tiền: appointmentId={}, recipient={}, error={}",
+                    appointment == null ? null : appointment.getId(),
+                    recipient,
                     ex.getMessage(),
                     ex);
         }

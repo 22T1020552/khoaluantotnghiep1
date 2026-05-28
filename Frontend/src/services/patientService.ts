@@ -4,6 +4,8 @@ export interface PatientProfileResponse {
   patientId: number;
   fullName: string;
   gender: string;
+  dateOfBirth?: string | null;
+  hometown?: string | null;
   nationalId: string;
   phoneNumber: string;
   healthInsuranceNumber: string;
@@ -12,7 +14,42 @@ export interface PatientProfileResponse {
 
 export interface PatientAppointmentRequestPayload {
   appointmentTime: string;
+  categoryId: number;
+  symptomIds: number[];
+  paymentMethod: string;
   symptoms: string;
+  paymentReference?: string;
+}
+
+export interface AppointmentPaymentStatusResponse {
+  appointmentId: number;
+  invoiceId: number | null;
+  paymentMethod: string | null;
+  paymentStatus: string | null;
+  paymentReference: string | null;
+  transactionStatus: string | null;
+  appointmentStatus: string | null;
+  message: string;
+}
+
+export interface PaymentReferenceStatusResponse {
+  paymentReference: string;
+  invoiceId: number | null;
+  appointmentId: number | null;
+  paymentStatus: string;
+  transactionStatus: string | null;
+  message: string;
+}
+
+export interface AppointmentFeeEstimateResponse {
+  estimatedTotalFee: number;
+  services: {
+    serviceId: number;
+    serviceName: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+  }[];
 }
 
 export interface PatientAppointmentResponse {
@@ -20,6 +57,10 @@ export interface PatientAppointmentResponse {
   appointmentTime: string;
   symptoms: string;
   status: string;
+  paymentStatus?: string | null;
+  paymentMethod?: string | null;
+  paymentReference?: string | null;
+  cancellationReason?: string | null;
   doctor?: {
     id: number;
     username?: string;
@@ -39,11 +80,11 @@ export interface PatientMedicalRecordHistoryItemResponse {
   prescriptionItemCount: number;
   invoiceId: number | null;
   totalServiceFee: number;
-  totalMedicineFee: number;
   totalAmount: number;
   paid: boolean;
   paidAt: string | null;
   paymentMethod: string | null;
+  paymentReference: string | null;
 }
 
 export interface PatientPrescriptionHistoryItemResponse {
@@ -67,11 +108,11 @@ export interface PatientMedicalRecordDetailResponse {
   createdAt: string | null;
   invoiceId: number | null;
   totalServiceFee: number;
-  totalMedicineFee: number;
   totalAmount: number;
   paid: boolean;
   paidAt: string | null;
   paymentMethod: string | null;
+  paymentReference: string | null;
   services: {
     serviceId: number | null;
     serviceName: string | null;
@@ -93,6 +134,13 @@ export const patientService = {
     return response.data;
   },
 
+  async estimateAppointmentFee(symptomIds: number[]) {
+    const response = await api.get<AppointmentFeeEstimateResponse>("/api/patient/appointments/estimate-fee", {
+      params: { symptomIds },
+    });
+    return response.data;
+  },
+
   async getMyAppointments() {
     const response = await api.get<PatientAppointmentResponse[]>("/api/patient/appointments");
     return response.data;
@@ -110,6 +158,16 @@ export const patientService = {
 
   async getMedicalRecordDetail(medicalRecordId: number) {
     const response = await api.get<PatientMedicalRecordDetailResponse>(`/api/patient/medical-records/${medicalRecordId}`);
+    return response.data;
+  },
+
+  async getAppointmentPaymentStatus(appointmentId: number) {
+    const response = await api.get<AppointmentPaymentStatusResponse>(`/api/payments/appointments/${appointmentId}/status`);
+    return response.data;
+  },
+
+  async getPaymentReferenceStatus(paymentReference: string) {
+    const response = await api.get<PaymentReferenceStatusResponse>(`/api/payments/reference/${encodeURIComponent(paymentReference)}/status`);
     return response.data;
   },
 };

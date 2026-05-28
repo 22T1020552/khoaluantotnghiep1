@@ -343,6 +343,18 @@
   border-top: 1px solid #e5e7eb;
 }
 
+.additionalServiceBox {
+  margin-top: 0.75rem;
+  padding: 0.8rem;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.additionalTitle {
+  color: #c2410c;
+}
+
 .discountRow {
   color: #dc2626;
 }
@@ -458,6 +470,13 @@
   font-weight: 700;
 }
 
+.dialogSummarySplit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 0.8rem;
+}
+
 .formStack {
   display: flex;
   flex-direction: column;
@@ -538,6 +557,8 @@
 .summaryRow {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
 }
 
 .summaryMuted {
@@ -563,6 +584,35 @@
   font-size: 1.7rem;
   font-weight: 800;
   color: #16a34a;
+}
+
+.remainingItems {
+  margin-top: 0.15rem;
+  padding: 0.45rem 0 0.1rem 0.85rem;
+  border-left: 3px solid #bfdbfe;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.remainingRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.8rem;
+  font-size: 0.9rem;
+}
+
+.remainingLabel {
+  color: #475569;
+  line-height: 1.35;
+  padding-right: 0.5rem;
+}
+
+.remainingValue {
+  color: #111827;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .dialogActions {

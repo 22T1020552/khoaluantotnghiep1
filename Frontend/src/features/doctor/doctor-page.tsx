@@ -5,7 +5,13 @@ import { Users, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { getApiErrorMessage } from "@/services/api";
-import { doctorService, type DoctorMedicalService, type PrescriptionCatalogMedicine } from "@/services/doctorService";
+import { masterDataService, type DiagnosisTemplateResponse } from "@/services/masterDataService";
+import {
+  doctorService,
+  type DoctorMedicalService,
+  type PrescriptionCatalogMedicine,
+  type PrescriptionWorkspaceResponse,
+} from "@/services/doctorService";
 import type { Appointment, MedicalRecordInput, Medicine, PrescriptionItem, SelectedServiceItem } from "@/types/doctor.type";
 import styles from "@/styles/common.module.css";
 
@@ -31,6 +37,67 @@ const mapCatalogToMedicine = (item: PrescriptionCatalogMedicine): Medicine => ({
   selling_price: item.sellingPrice || 0,
 });
 
+const mapWorkspaceToPrescriptionState = (workspace: PrescriptionWorkspaceResponse) => {
+  const medicines = (workspace.medicineCatalog || []).map(mapCatalogToMedicine);
+  const byId = new Map<number, Medicine>(medicines.map((medicine) => [medicine.id, medicine]));
+
+  const prescriptions: PrescriptionItem[] = (workspace.prescribedMedicines || []).map((line) => ({
+    medicine_id: line.medicineId,
+    quantity: line.quantity,
+    usage_instructions: line.usageInstructions,
+    medicine:
+      byId.get(line.medicineId) ||
+      ({
+        id: line.medicineId,
+        medicine_name: line.medicineName,
+        dosage: "",
+        category: "Khác",
+        unit: line.unit || "đv",
+        stock_quantity: 0,
+        selling_price: line.sellingPrice,
+      } as Medicine),
+  }));
+
+  return { medicines, prescriptions };
+};
+
+const normalizeCategoryName = (value?: string | null) => (value || "Khác").trim() || "Khác";
+
+const isGeneralDiagnosisCategory = (value?: string | null) => {
+  const normalized = normalizeCategoryName(value).toLowerCase();
+  return ["khác", "toàn thân", "tong quat", "tổng quát"].includes(normalized);
+};
+
+const loadOrderedDiagnosisOptions = async (priorityCategoryId?: number | null) => {
+  const categories = (await masterDataService.getCategories()).filter((category) => category.isActive !== false);
+  const groups = await Promise.all(
+    categories.map(async (category) => ({
+      category,
+      diagnoses: await masterDataService.getDiagnosesByCategory(category.id),
+    })),
+  );
+
+  const priorityCategory = priorityCategoryId ? categories.find((category) => category.id === priorityCategoryId) : null;
+
+  return groups
+    .sort((left, right) => {
+      const leftPriority = priorityCategory ? left.category.id === priorityCategory.id : false;
+      const rightPriority = priorityCategory ? right.category.id === priorityCategory.id : false;
+      if (leftPriority !== rightPriority) {
+        return leftPriority ? -1 : 1;
+      }
+
+      const leftGeneral = isGeneralDiagnosisCategory(left.category.name);
+      const rightGeneral = isGeneralDiagnosisCategory(right.category.name);
+      if (leftGeneral !== rightGeneral) {
+        return leftGeneral ? 1 : -1;
+      }
+
+      return normalizeCategoryName(left.category.name).localeCompare(normalizeCategoryName(right.category.name), "vi");
+    })
+    .flatMap((group) => group.diagnoses);
+};
+
 const mapDoctorAppointmentToUi = (
   item: Awaited<ReturnType<typeof doctorService.getWaitingPatients>>[number],
   queueNumber: number,
@@ -53,6 +120,7 @@ const mapDoctorAppointmentToUi = (
       gender,
     },
     doctor_name: item.doctor?.username || "BS phụ trách",
+    category: item.category ? { id: item.category.id ?? null, name: item.category.name ?? null } : null,
     symptoms: item.symptoms || "",
     scheduled_time: formatTime(item.appointmentTime),
     appointment_time: item.appointmentTime,
@@ -77,6 +145,8 @@ export function DoctorQueue() {
   const [activeTab, setActiveTab] = useState<"waiting" | "completed">("waiting");
   const [isExamining, setIsExamining] = useState(false);
   const [medicalRecord, setMedicalRecord] = useState<MedicalRecordInput>({ diagnosis: "", doctor_advice: "" });
+  const [diagnosisOptions, setDiagnosisOptions] = useState<DiagnosisTemplateResponse[]>([]);
+  const [selectedDiagnosisId, setSelectedDiagnosisId] = useState<number | null>(null);
   const [prescriptions, setPrescriptions] = useState<PrescriptionItem[]>([]);
   const [availableMedicines, setAvailableMedicines] = useState<Medicine[]>([]);
   const [availableServices, setAvailableServices] = useState<DoctorMedicalService[]>([]);
@@ -90,6 +160,7 @@ export function DoctorQueue() {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [diagnosisLoading, setDiagnosisLoading] = useState(false);
 
   const waitingAppointments = appointments.filter(
     (a) => a.status === "confirmed" && !isPastAppointmentDay(a.appointment_time),
@@ -161,6 +232,9 @@ export function DoctorQueue() {
   const handleStartExam = async (appointment: Appointment) => {
     try {
       setSaving(true);
+      try { console.debug("[Debug] handleStartExam - appointmentId:", appointment.id); } catch {};
+      setDiagnosisOptions([]);
+      setSelectedDiagnosisId(null);
       setAppointments((prev) => prev.map((item) => (item.id === appointment.id ? { ...item, status: "pending" } : item)));
       setSelectedAppointment(appointment);
       setIsExamining(true);
@@ -170,8 +244,16 @@ export function DoctorQueue() {
       setPrescriptions(appointment.prescription_items ?? []);
       setSelectedServices(appointment.service_items ?? []);
       
-      const services = await doctorService.getAvailableServices();
+      const categoryId = appointment.category?.id ?? null;
+      try { console.debug("[Debug] handleStartExam - categoryId:", categoryId); } catch {};
+      const [services, diagnoses] = await Promise.all([
+        doctorService.getAvailableServices(),
+        loadOrderedDiagnosisOptions(categoryId),
+      ]);
+      try { console.debug("[Debug] handleStartExam - diagnoses (fetched):", diagnoses); } catch {};
       setAvailableServices(services.filter((item) => item.isActive));
+
+      setDiagnosisOptions(diagnoses);
 
       setHistoryLoading(true);
       try {
@@ -187,15 +269,15 @@ export function DoctorQueue() {
       if (record) {
         setMedicalRecordId(record.id);
         setMedicalRecord({ diagnosis: record.diagnosis || "", doctor_advice: record.doctorAdvice || "" });
+        const matchedDiagnosis = diagnoses.find(
+          (item) => item.diagnosisName.trim().toLowerCase() === (record.diagnosis || "").trim().toLowerCase(),
+        );
+        setSelectedDiagnosisId(matchedDiagnosis?.id ?? null);
 
         const workspace = await doctorService.getPrescriptionWorkspace(record.id);
-        const mappedMeds = (workspace.medicineCatalog || []).map(mapCatalogToMedicine);
-        const byId = new Map<number, Medicine>(mappedMeds.map((m) => [m.id, m]));
-        setAvailableMedicines(mappedMeds);
-        setPrescriptions((workspace.prescribedMedicines || []).map((line) => ({
-          medicine_id: line.medicineId, quantity: line.quantity, usage_instructions: line.usageInstructions,
-          medicine: byId.get(line.medicineId) || ({ id: line.medicineId, medicine_name: line.medicineName, dosage: "", category: "Khác", unit: line.unit || "đv", stock_quantity: 0, selling_price: line.sellingPrice } as Medicine),
-        })));
+        const mappedWorkspace = mapWorkspaceToPrescriptionState(workspace);
+        setAvailableMedicines(mappedWorkspace.medicines);
+        setPrescriptions(mappedWorkspace.prescriptions);
 
         const recordDetail = await doctorService.getPatientHistoryDetail(appointment.id, record.id).catch(() => null);
         setSelectedServices((recordDetail?.services || []).map((service) => ({
@@ -217,6 +299,82 @@ export function DoctorQueue() {
     }
   };
 
+  const clearCurrentPrescriptionDetails = async (recordId: number, items: PrescriptionItem[]) => {
+    await Promise.allSettled(items.map((item) => doctorService.removePrescriptionDetail(recordId, item.medicine_id)));
+  };
+
+  const handleDiagnosisSelect = async (diagnosisId: number) => {
+    if (!selectedAppointment) {
+      return;
+    }
+
+    const diagnosis = diagnosisOptions.find((item) => item.id === diagnosisId);
+    if (!diagnosis) {
+      return;
+    }
+
+    try {
+      setDiagnosisLoading(true);
+      const diagnosisName = diagnosis.diagnosisName.trim();
+      const defaultAdvice = (diagnosis.defaultAdvice || "").trim() || "Chưa có lời khuyên mặc định. Vui lòng chỉnh sửa.";
+
+      setSelectedDiagnosisId(diagnosis.id);
+      setMedicalRecord({ diagnosis: diagnosisName, doctor_advice: defaultAdvice });
+
+      // Diagnostic logging to trace diagnosis selection
+      try {
+        console.debug("[Debug] handleDiagnosisSelect - selectedDiagnosisId:", diagnosis.id);
+        console.debug("[Debug] handleDiagnosisSelect - diagnosisName, defaultAdvice:", diagnosisName, defaultAdvice);
+      } catch (err) {}
+
+      let recordId = medicalRecordId;
+      if (!recordId) {
+        const created = await doctorService.createMedicalRecord({
+          appointmentId: selectedAppointment.id,
+          diagnosis: diagnosisName,
+          doctorAdvice: defaultAdvice,
+        });
+        recordId = created.id;
+        setMedicalRecordId(recordId);
+      } else {
+        await doctorService.updateMedicalRecord(recordId, {
+          diagnosis: diagnosisName,
+          doctorAdvice: defaultAdvice,
+        });
+      }
+
+      const currentPrescriptionItems = prescriptions;
+      if (recordId && currentPrescriptionItems.length > 0) {
+        await clearCurrentPrescriptionDetails(recordId, currentPrescriptionItems);
+      }
+      setPrescriptions([]);
+
+      if (!recordId) {
+        throw new Error("Không tạo được bệnh án");
+      }
+
+      await doctorService.autoPopulatePrescriptionsFromDiagnosis(recordId, diagnosisId);
+      const workspace = await doctorService.getPrescriptionWorkspace(recordId);
+      try { console.debug("[Debug] autoPopulate workspace:", workspace); } catch {}
+      const mappedWorkspace = mapWorkspaceToPrescriptionState(workspace);
+      setAvailableMedicines(mappedWorkspace.medicines);
+      setPrescriptions(mappedWorkspace.prescriptions);
+      if ((mappedWorkspace.prescriptions || []).length === 0) {
+        try { console.debug("[Debug] No suggested prescriptions returned for diagnosisId:", diagnosisId); } catch {}
+        toast.info("Không có thuốc gợi ý cho chẩn đoán này");
+      }
+    } catch (error) {
+      const apiMessage = getApiErrorMessage(error, "Không thể tự động điền chẩn đoán hoặc thuốc gợi ý");
+      if (apiMessage && apiMessage.includes("Hóa đơn đã thanh toán")) {
+        try { console.debug("[Debug] suppressed invoice-paid notification:", apiMessage); } catch {}
+      } else {
+        toast.error(apiMessage);
+      }
+    } finally {
+      setDiagnosisLoading(false);
+    }
+  };
+
   const handleMedicalRecordChange = (field: string, value: string) => setMedicalRecord((prev) => ({ ...prev, [field]: value }));
 
   const handleAddMedicine = async (medicine: Medicine) => {
@@ -227,8 +385,18 @@ export function DoctorQueue() {
     setPrescriptions((prev) => [...prev, { medicine_id: medicine.id, quantity: 1, usage_instructions: "", medicine }]);
   };
 
-  const handleUpdatePrescription = (medicineId: number, field: "quantity" | "usage_instructions", value: number | string) => {
-    setPrescriptions((prev) => prev.map((p) => p.medicine_id === medicineId ? { ...p, [field]: value } : p));
+  const handleUpdatePrescription = async (medicineId: number, field: "quantity" | "usage_instructions", value: number | string) => {
+    setPrescriptions((prev) => prev.map((p) => (p.medicine_id === medicineId ? { ...p, [field]: value } : p)));
+
+    if (!medicalRecordId) return;
+    try {
+      const payload: { quantity?: number; usageInstructions?: string } = {};
+      if (field === "quantity") payload.quantity = Number(value) || 1;
+      if (field === "usage_instructions") payload.usageInstructions = String(value || "");
+      await doctorService.updatePrescriptionDetail(medicalRecordId, medicineId, { quantity: payload.quantity ?? 1, usageInstructions: payload.usageInstructions ?? "" });
+    } catch (err) {
+      console.debug("Failed to persist prescription update", err);
+    }
   };
 
   const handleRemoveMedicine = async (medicineId: number) => {
@@ -254,18 +422,33 @@ export function DoctorQueue() {
   const handleCompleteExam = async () => {
     if (!selectedAppointment) return;
     if (!medicalRecord.diagnosis || !medicalRecord.doctor_advice) return toast.error("Vui lòng điền đầy đủ chẩn đoán và hướng dẫn điều trị");
-    if (prescriptions.length > 0 && prescriptions.some((p) => !p.usage_instructions.trim())) return toast.error("Vui lòng nhập hướng dẫn sử dụng cho tất cả thuốc");
     if (selectedServices.some((item) => item.quantity < 1 || item.actual_price <= 0)) return toast.error("Số lượng dịch vụ phải >= 1 và đơn giá phải > 0");
 
     try {
       setSaving(true);
       let recordId = medicalRecordId;
       if (!recordId) {
-        const created = await doctorService.createMedicalRecord({ appointmentId: selectedAppointment.id, diagnosis: medicalRecord.diagnosis, doctorAdvice: medicalRecord.doctor_advice });
-        recordId = created.id;
-        setMedicalRecordId(recordId);
+        try {
+          const created = await doctorService.createMedicalRecord({ appointmentId: selectedAppointment.id, diagnosis: medicalRecord.diagnosis, doctorAdvice: medicalRecord.doctor_advice });
+          recordId = created.id;
+          setMedicalRecordId(recordId);
+        } catch (error) {
+          const apiMessage = getApiErrorMessage(error);
+          if (apiMessage && apiMessage.includes("đã có bệnh án")) {
+            const existing = await doctorService.getMedicalRecordByAppointment(selectedAppointment.id);
+            recordId = existing.id;
+            setMedicalRecordId(recordId);
+          } else {
+            throw error;
+          }
+        }
       }
       if (!recordId) throw new Error("Không tạo được bệnh án");
+
+      await doctorService.updateMedicalRecord(recordId, {
+        diagnosis: medicalRecord.diagnosis.trim(),
+        doctorAdvice: medicalRecord.doctor_advice.trim(),
+      });
 
       for (const item of prescriptions) {
         try { await doctorService.updatePrescriptionDetail(recordId, item.medicine_id, { quantity: item.quantity, usageInstructions: item.usage_instructions }); } 
@@ -357,6 +540,9 @@ export function DoctorQueue() {
           <ExaminationModal 
             appointment={selectedAppointment}
             saving={saving}
+            diagnosisLoading={diagnosisLoading}
+            diagnosisOptions={diagnosisOptions}
+            selectedDiagnosisId={selectedDiagnosisId}
             medicalRecord={medicalRecord}
             prescriptions={prescriptions}
             availableMedicines={availableMedicines}
@@ -370,6 +556,7 @@ export function DoctorQueue() {
             onClose={handleCloseExam}
             onComplete={handleCompleteExam}
             onMedicalRecordChange={handleMedicalRecordChange}
+            onDiagnosisSelect={handleDiagnosisSelect}
             onAddMedicine={handleAddMedicine}
             onUpdatePrescription={handleUpdatePrescription}
             onRemoveMedicine={handleRemoveMedicine}

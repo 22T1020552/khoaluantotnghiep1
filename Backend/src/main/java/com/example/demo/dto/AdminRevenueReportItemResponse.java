@@ -12,13 +12,12 @@ import lombok.Data;
 public class AdminRevenueReportItemResponse {
 
     private Long invoiceId;
-    private Long medicalRecordId;
+    private Long appointmentId;
     private String patientName;
     private String paymentMethod;
     private LocalDateTime paidAt;
     private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
-    private BigDecimal totalAmount;
+    private BigDecimal grandTotal;
     private List<String> services;
     private List<String> medicines;
 }

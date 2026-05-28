@@ -12,17 +12,25 @@ import lombok.Data;
 public class CashierPaymentRecordDetailResponse {
 
     private Long invoiceId;
-    private Long medicalRecordId;
+    private Long appointmentId;
     private Long patientId;
     private String patientName;
     private String phoneNumber;
     private LocalDateTime appointmentTime;
-    private String paymentStatus;
+    private String invoiceStatus;
     private String paymentMethod;
     private LocalDateTime paidAt;
     private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
-    private BigDecimal totalAmount;
+    private BigDecimal grandTotal;
+    private BigDecimal advanceAmount;
+    private BigDecimal remainingAmount;
+    private BigDecimal consultationFee;
+    private BigDecimal consultationCoveredAmount;
+    private BigDecimal consultationOutstandingAmount;
+    private BigDecimal additionalServiceFee;
+    private BigDecimal additionalCoveredAmount;
+    private BigDecimal additionalOutstandingAmount;
     private List<CashierServiceLineItemResponse> services;
+    private List<CashierServicePaymentBreakdownLineResponse> serviceBreakdown;
     private List<CashierMedicineLineItemResponse> medicines;
 }

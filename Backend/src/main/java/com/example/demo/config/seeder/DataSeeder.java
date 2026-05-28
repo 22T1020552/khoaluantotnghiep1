@@ -22,7 +22,12 @@ public class DataSeeder implements ApplicationRunner {
     private final PatientSeeder patientSeeder;
     private final MedicineSeeder medicineSeeder;
     private final MedicalServiceSeeder medicalServiceSeeder;
+    private final com.example.demo.config.SymptomDataSeeder symptomDataSeeder;
+    private final com.example.demo.config.DiagnosisDataSeeder diagnosisDataSeeder;
+    private final com.example.demo.config.DiagnosisMedicineRuleSeeder diagnosisMedicineRuleSeeder;
+    private final SymptomServiceMappingSeeder symptomServiceMappingSeeder;
     private final RoomSeeder roomSeeder;
+    private final com.example.demo.config.seeder.DoctorSeeder doctorSeeder;
     private final SystemSettingSeeder systemSettingSeeder;
 
     @Override
@@ -36,7 +41,12 @@ public class DataSeeder implements ApplicationRunner {
         patientSeeder.seed();
         medicineSeeder.seed();
         medicalServiceSeeder.seed();
+        symptomDataSeeder.seed();
+        diagnosisDataSeeder.seed();
+        diagnosisMedicineRuleSeeder.seed();
+        symptomServiceMappingSeeder.seed();
         roomSeeder.seed();
+        doctorSeeder.seed();
         systemSettingSeeder.seed();
     }
 }

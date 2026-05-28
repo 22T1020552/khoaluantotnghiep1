@@ -6,7 +6,9 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.time.Year;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -35,18 +37,22 @@ import com.example.demo.dto.AdminRevenueChartPointResponse;
 import com.example.demo.dto.AdminRevenueReportItemResponse;
 import com.example.demo.dto.AdminRevenueReportResponse;
 import com.example.demo.dto.AdminRoomResponse;
+import com.example.demo.dto.AdminRoomScheduleRequest;
+import com.example.demo.dto.AdminRoomScheduleResponse;
 import com.example.demo.dto.AdminUpdateUserRequest;
 import com.example.demo.dto.AdminUserResponse;
 import com.example.demo.dto.DashboardResponse;
 import com.example.demo.dto.TopDoctorDTO;
 import com.example.demo.entity.Appointment;
 import com.example.demo.entity.Invoice;
+import com.example.demo.entity.MedicalRecord;
 import com.example.demo.entity.MedicalService;
 import com.example.demo.entity.Medicine;
 import com.example.demo.entity.Patient;
 import com.example.demo.entity.PrescriptionDetail;
 import com.example.demo.entity.Role;
 import com.example.demo.entity.Room;
+import com.example.demo.entity.RoomSchedule;
 import com.example.demo.entity.User;
 import com.example.demo.repository.AppointmentRepository;
 import com.example.demo.repository.InvoiceRepository;
@@ -57,6 +63,7 @@ import com.example.demo.repository.MedicineRepository;
 import com.example.demo.repository.PatientRepository;
 import com.example.demo.repository.PrescriptionDetailRepository;
 import com.example.demo.repository.RoomRepository;
+import com.example.demo.repository.RoomScheduleRepository;
 import com.example.demo.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -74,6 +81,7 @@ public class AdminService {
     private static final DateTimeFormatter MONTH_FORMAT = DateTimeFormatter.ofPattern("MM/yyyy");
     private static final DateTimeFormatter YEAR_FORMAT = DateTimeFormatter.ofPattern("yyyy");
     private static final DateTimeFormatter DATETIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
     private final PatientRepository patientRepository;
     private final AppointmentRepository appointmentRepository;
@@ -81,6 +89,7 @@ public class AdminService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final RoomRepository roomRepository;
+    private final RoomScheduleRepository roomScheduleRepository;
     private final MedicineRepository medicineRepository;
     private final MedicalServiceRepository medicalServiceRepository;
     private final InvoiceRepository invoiceRepository;
@@ -152,7 +161,10 @@ public class AdminService {
         String normalizedMedicineFilter = normalizeFilter(medicineFilter);
 
         List<Invoice> paidInvoices = invoiceRepository
-                .findByIsPaidTrueAndPaidAtBetweenOrderByPaidAtDesc(resolvedStart, resolvedEnd);
+                .findByIsPaidAndPaidAtBetweenOrderByPaidAtDesc(
+                        Boolean.TRUE,
+                        resolvedStart,
+                        resolvedEnd);
 
         List<AdminRevenueReportItemResponse> items = paidInvoices.stream()
                 .map(this::toRevenueReportItem)
@@ -169,24 +181,18 @@ public class AdminService {
                     0,
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
-                    BigDecimal.ZERO,
                     List.of(),
                     List.of(),
                     "Không có du lieu trong khoang thoi gian nay");
         }
 
         BigDecimal totalRevenue = items.stream()
-                .map(AdminRevenueReportItemResponse::getTotalAmount)
+                .map(AdminRevenueReportItemResponse::getGrandTotal)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalServiceRevenue = items.stream()
                 .map(AdminRevenueReportItemResponse::getTotalServiceFee)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal totalMedicineRevenue = items.stream()
-                .map(AdminRevenueReportItemResponse::getTotalMedicineFee)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -201,7 +207,6 @@ public class AdminService {
                 items.size(),
                 totalRevenue,
                 totalServiceRevenue,
-                totalMedicineRevenue,
                 items,
                 chart,
                 "OK");
@@ -389,6 +394,73 @@ public class AdminService {
         return toAdminRoomResponse(saved);
     }
 
+    // Chức năng: xử lý lấy lịch phân công phòng theo tháng.
+    public List<AdminRoomScheduleResponse> getRoomSchedules(String month) {
+        YearMonth yearMonth = resolveYearMonth(month);
+        LocalDate startDate = yearMonth.atDay(1);
+        LocalDate endDate = yearMonth.atEndOfMonth();
+
+        return roomScheduleRepository.findByScheduleDateBetweenOrderByScheduleDateAscStartTimeAsc(startDate, endDate)
+                .stream()
+                .map(this::toAdminRoomScheduleResponse)
+                .toList();
+    }
+
+    // Chức năng: xử lý tạo lịch phân công phòng.
+    public AdminRoomScheduleResponse createRoomSchedule(AdminRoomScheduleRequest request) {
+        Room room = roomRepository.findById(request.getRoomId())
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy phòng"));
+
+        User doctor = userRepository.findByIdAndRole(request.getDoctorId(), Role.DOCTOR)
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bác sĩ"));
+
+        LocalDate scheduleDate = request.getScheduleDate();
+        TimeSlot timeSlot = parseTimeSlot(request.getTimeSlot());
+
+        ensureScheduleAvailable(room.getId(), doctor.getId(), scheduleDate, timeSlot, null);
+
+        RoomSchedule schedule = new RoomSchedule();
+        schedule.setRoom(room);
+        schedule.setDoctor(doctor);
+        schedule.setScheduleDate(scheduleDate);
+        schedule.setStartTime(timeSlot.start);
+        schedule.setEndTime(timeSlot.end);
+
+        return toAdminRoomScheduleResponse(roomScheduleRepository.save(schedule));
+    }
+
+    // Chức năng: xử lý cập nhật lịch phân công phòng.
+    public AdminRoomScheduleResponse updateRoomSchedule(Long scheduleId, AdminRoomScheduleRequest request) {
+        RoomSchedule schedule = roomScheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch phân công"));
+
+        Room room = roomRepository.findById(request.getRoomId())
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy phòng"));
+
+        User doctor = userRepository.findByIdAndRole(request.getDoctorId(), Role.DOCTOR)
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy bác sĩ"));
+
+        LocalDate scheduleDate = request.getScheduleDate();
+        TimeSlot timeSlot = parseTimeSlot(request.getTimeSlot());
+
+        ensureScheduleAvailable(room.getId(), doctor.getId(), scheduleDate, timeSlot, scheduleId);
+
+        schedule.setRoom(room);
+        schedule.setDoctor(doctor);
+        schedule.setScheduleDate(scheduleDate);
+        schedule.setStartTime(timeSlot.start);
+        schedule.setEndTime(timeSlot.end);
+
+        return toAdminRoomScheduleResponse(roomScheduleRepository.save(schedule));
+    }
+
+    // Chức năng: xử lý xóa lịch phân công phòng.
+    public void deleteRoomSchedule(Long scheduleId) {
+        RoomSchedule schedule = roomScheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy lịch phân công"));
+        roomScheduleRepository.delete(schedule);
+    }
+
     // Chức năng: xử lý lấy danh sách tất cả thuốc.
     public List<AdminMedicineResponse> getAllMedicines() {
         return medicineRepository.findAll().stream()
@@ -399,6 +471,7 @@ public class AdminService {
     // Chức năng: xử lý tạo thuốc mới.
     public AdminMedicineResponse createMedicine(AdminMedicineCreateRequest request) {
         String normalizedMedicineName = normalizeRequiredText(request.getMedicineName(), "Tên thuốc là bắt buộc");
+        String normalizedMedicineType = normalizeRequiredText(request.getMedicineType(), "Loại thuốc là bắt buộc");
 
         if (medicineRepository.existsByMedicineNameIgnoreCase(normalizedMedicineName)) {
             throw AppException.of(HttpStatus.CONFLICT, "Tên thuốc đã tồn tại");
@@ -406,6 +479,7 @@ public class AdminService {
 
         Medicine medicine = new Medicine();
         medicine.setMedicineName(normalizedMedicineName);
+        medicine.setMedicineType(normalizedMedicineType);
         medicine.setUnit(normalizeOptionalText(request.getUnit()));
         medicine.setSellingPrice(request.getSellingPrice());
         Integer stockQuantity = request.getStockQuantity();
@@ -433,6 +507,10 @@ public class AdminService {
 
         if (request.getUnit() != null) {
             medicine.setUnit(normalizeOptionalText(request.getUnit()));
+        }
+        if (request.getMedicineType() != null) {
+            String normalizedMedicineType = normalizeOptionalText(request.getMedicineType());
+            medicine.setMedicineType(normalizedMedicineType == null ? "Khác" : normalizedMedicineType);
         }
         if (request.getSellingPrice() != null) {
             medicine.setSellingPrice(request.getSellingPrice());
@@ -533,11 +611,113 @@ public class AdminService {
                 doctor == null ? null : doctor.getUsername());
     }
 
+    // Chức năng: xử lý chuyển đổi response lịch phân công phòng.
+    private AdminRoomScheduleResponse toAdminRoomScheduleResponse(RoomSchedule schedule) {
+        Room room = schedule.getRoom();
+        User doctor = schedule.getDoctor();
+        LocalTime startTime = schedule.getStartTime();
+        LocalTime endTime = schedule.getEndTime();
+        String timeSlot = startTime.format(TIME_FORMAT) + "-" + endTime.format(TIME_FORMAT);
+
+        return new AdminRoomScheduleResponse(
+                schedule.getId(),
+                room == null ? null : room.getId(),
+                room == null ? null : room.getRoomName(),
+                doctor == null ? null : doctor.getId(),
+                doctor == null ? null : doctor.getUsername(),
+                schedule.getScheduleDate(),
+                startTime,
+                endTime,
+                timeSlot);
+    }
+
+    // Chức năng: xử lý đảm bảo lịch phân công không trùng.
+    private void ensureScheduleAvailable(
+            Long roomId,
+            Long doctorId,
+            LocalDate scheduleDate,
+            TimeSlot timeSlot,
+            Long ignoredScheduleId) {
+        List<RoomSchedule> doctorSchedules = roomScheduleRepository.findByDoctor_IdAndScheduleDate(doctorId,
+                scheduleDate);
+        for (RoomSchedule existing : doctorSchedules) {
+            if (ignoredScheduleId != null && ignoredScheduleId.equals(existing.getId())) {
+                continue;
+            }
+            if (overlaps(timeSlot.start, timeSlot.end, existing.getStartTime(), existing.getEndTime())) {
+                throw AppException.of(HttpStatus.CONFLICT, "Bác sĩ đã có lịch vào khung giờ này");
+            }
+        }
+
+        List<RoomSchedule> roomSchedules = roomScheduleRepository.findByRoom_IdAndScheduleDate(roomId, scheduleDate);
+        for (RoomSchedule existing : roomSchedules) {
+            if (ignoredScheduleId != null && ignoredScheduleId.equals(existing.getId())) {
+                continue;
+            }
+            if (overlaps(timeSlot.start, timeSlot.end, existing.getStartTime(), existing.getEndTime())) {
+                throw AppException.of(HttpStatus.CONFLICT, "Phòng đã có lịch vào khung giờ này");
+            }
+        }
+    }
+
+    // Chức năng: xử lý kiểm tra giao nhau thời gian.
+    private boolean overlaps(LocalTime start, LocalTime end, LocalTime otherStart, LocalTime otherEnd) {
+        return start.isBefore(otherEnd) && end.isAfter(otherStart);
+    }
+
+    // Chức năng: xử lý parse timeSlot.
+    private TimeSlot parseTimeSlot(String timeSlot) {
+        if (timeSlot == null || timeSlot.isBlank()) {
+            throw AppException.of(HttpStatus.BAD_REQUEST, "timeSlot là bắt buộc");
+        }
+
+        String[] parts = timeSlot.trim().split("-");
+        if (parts.length != 2) {
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Định dạng timeSlot không hợp lệ");
+        }
+
+        try {
+            LocalTime start = LocalTime.parse(parts[0]);
+            LocalTime end = LocalTime.parse(parts[1]);
+            if (!end.isAfter(start)) {
+                throw AppException.of(HttpStatus.BAD_REQUEST,
+                        "Thời gian kết thúc của timeSlot phải sau thời gian bắt đầu");
+            }
+            return new TimeSlot(start, end);
+        } catch (DateTimeParseException ex) {
+            throw AppException.of(HttpStatus.BAD_REQUEST, "Giá trị timeSlot không hợp lệ", ex);
+        }
+    }
+
+    // Chức năng: xử lý parse năm-tháng.
+    private YearMonth resolveYearMonth(String month) {
+        if (month == null || month.isBlank()) {
+            return YearMonth.now();
+        }
+
+        try {
+            return YearMonth.parse(month.trim(), DateTimeFormatter.ofPattern("yyyy-MM"));
+        } catch (DateTimeParseException ex) {
+            throw AppException.of(HttpStatus.BAD_REQUEST, "month phải đúng định dạng yyyy-MM", ex);
+        }
+    }
+
+    private static class TimeSlot {
+        private final LocalTime start;
+        private final LocalTime end;
+
+        private TimeSlot(LocalTime start, LocalTime end) {
+            this.start = start;
+            this.end = end;
+        }
+    }
+
     // Chức năng: xử lý chuyển đổi response thuốc.
     private AdminMedicineResponse toAdminMedicineResponse(Medicine medicine) {
         return new AdminMedicineResponse(
                 medicine.getId(),
                 medicine.getMedicineName(),
+                medicine.getMedicineType(),
                 medicine.getUnit(),
                 medicine.getSellingPrice(),
                 medicine.getStockQuantity(),
@@ -587,10 +767,10 @@ public class AdminService {
 
     // Chức năng: xử lý ánh xạ hóa đơn vào dòng báo cáo.
     private AdminRevenueReportItemResponse toRevenueReportItem(Invoice invoice) {
-        Long medicalRecordId = invoice.getMedicalRecord() == null ? null : invoice.getMedicalRecord().getId();
-        Appointment appointment = invoice.getMedicalRecord() == null ? null
-                : invoice.getMedicalRecord().getAppointment();
+        Appointment appointment = invoice.getAppointment();
         Patient patient = appointment == null ? null : appointment.getPatient();
+        Long appointmentId = appointment == null ? null : appointment.getId();
+        Long medicalRecordId = resolveMedicalRecordId(appointmentId);
 
         List<String> services = medicalRecordId == null
                 ? List.of()
@@ -612,15 +792,26 @@ public class AdminService {
 
         return new AdminRevenueReportItemResponse(
                 invoice.getId(),
-                medicalRecordId,
+                appointmentId,
                 patient == null ? null : patient.getFullName(),
                 invoice.getPaymentMethod(),
                 invoice.getPaidAt(),
                 invoice.getTotalServiceFee(),
-                invoice.getTotalMedicineFee(),
-                invoice.getTotalAmount(),
+                invoice.getGrandTotal(),
                 services,
                 medicines);
+    }
+
+    private Long resolveMedicalRecordId(Long appointmentId) {
+        if (appointmentId == null) {
+            return null;
+        }
+        List<MedicalRecord> records = medicalRecordRepository
+                .findAllByAppointment_IdOrderByCreatedAtDescIdDesc(appointmentId);
+        if (records.isEmpty()) {
+            return null;
+        }
+        return records.get(0).getId();
     }
 
     // Chức năng: xử lý áp dụng bộ lọc dịch vụ/thuốc.
@@ -661,7 +852,7 @@ public class AdminService {
                         continue;
                     }
                     YearMonth key = YearMonth.from(item.getPaidAt());
-                    BigDecimal amount = item.getTotalAmount() == null ? BigDecimal.ZERO : item.getTotalAmount();
+                    BigDecimal amount = item.getGrandTotal() == null ? BigDecimal.ZERO : item.getGrandTotal();
                     bucket.put(key, bucket.getOrDefault(key, BigDecimal.ZERO).add(amount));
                 }
 
@@ -679,7 +870,7 @@ public class AdminService {
                         continue;
                     }
                     Year key = Year.of(item.getPaidAt().getYear());
-                    BigDecimal amount = item.getTotalAmount() == null ? BigDecimal.ZERO : item.getTotalAmount();
+                    BigDecimal amount = item.getGrandTotal() == null ? BigDecimal.ZERO : item.getGrandTotal();
                     bucket.put(key, bucket.getOrDefault(key, BigDecimal.ZERO).add(amount));
                 }
 
@@ -697,7 +888,7 @@ public class AdminService {
                         continue;
                     }
                     LocalDate key = item.getPaidAt().toLocalDate();
-                    BigDecimal amount = item.getTotalAmount() == null ? BigDecimal.ZERO : item.getTotalAmount();
+                    BigDecimal amount = item.getGrandTotal() == null ? BigDecimal.ZERO : item.getGrandTotal();
                     bucket.put(key, bucket.getOrDefault(key, BigDecimal.ZERO).add(amount));
                 }
 
@@ -714,18 +905,17 @@ public class AdminService {
     private byte[] exportRevenueReportCsv(AdminRevenueReportResponse report) {
         StringBuilder builder = new StringBuilder();
         builder.append(
-                "InvoiceId,MedicalRecordId,PatientName,PaymentMethod,PaidAt,ServiceRevenue,MedicineRevenue,TotalRevenue,Services,Medicines\n");
+                "InvoiceId,AppointmentId,PatientName,PaymentMethod,PaidAt,ServiceRevenue,TotalRevenue,Services,Medicines\n");
 
         for (AdminRevenueReportItemResponse item : report.getItems()) {
             builder.append(nullSafe(item.getInvoiceId())).append(',')
-                    .append(nullSafe(item.getMedicalRecordId())).append(',')
+                    .append(nullSafe(item.getAppointmentId())).append(',')
                     .append(csvEscape(item.getPatientName())).append(',')
                     .append(csvEscape(item.getPaymentMethod())).append(',')
                     .append(csvEscape(item.getPaidAt() == null ? null : item.getPaidAt().format(DATETIME_FORMAT)))
                     .append(',')
                     .append(nullSafe(item.getTotalServiceFee())).append(',')
-                    .append(nullSafe(item.getTotalMedicineFee())).append(',')
-                    .append(nullSafe(item.getTotalAmount())).append(',')
+                    .append(nullSafe(item.getGrandTotal())).append(',')
                     .append(csvEscape(String.join(" | ", item.getServices()))).append(',')
                     .append(csvEscape(String.join(" | ", item.getMedicines())))
                     .append('\n');
@@ -766,7 +956,7 @@ public class AdminService {
                         AdminRevenueReportItemResponse item = report.getItems().get(i);
                         String line = "HD#" + item.getInvoiceId()
                                 + " | BN: " + nullSafe(item.getPatientName())
-                                + " | Tong: " + nullSafe(item.getTotalAmount())
+                                + " | Tong: " + nullSafe(item.getGrandTotal())
                                 + " | " + (item.getPaidAt() == null ? "" : item.getPaidAt().format(DATETIME_FORMAT));
                         content.showText(line);
                         content.newLine();

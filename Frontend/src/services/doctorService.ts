@@ -24,6 +24,7 @@ export interface DoctorAppointment {
   status: string;
   patient: DoctorPatient;
   doctor?: DoctorUser | null;
+  category?: { id?: number | null; name?: string | null } | null;
 }
 
 export interface DoctorMedicine {
@@ -48,6 +49,14 @@ export interface MedicalRecordResponse {
   diagnosis: string;
   doctorAdvice: string;
   createdAt?: string;
+}
+
+export interface DiagnosisTemplateResponse {
+  id: number;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  diagnosisName: string;
+  defaultAdvice?: string | null;
 }
 
 export interface PrescriptionCatalogMedicine {
@@ -144,6 +153,20 @@ export const doctorService = {
 
   async createMedicalRecord(payload: { appointmentId: number; diagnosis: string; doctorAdvice: string }) {
     const response = await api.post<MedicalRecordResponse>("/api/medical-records/doctor", payload);
+    return response.data;
+  },
+
+  async updateMedicalRecord(medicalRecordId: number, payload: { diagnosis: string; doctorAdvice: string }) {
+    const response = await api.put<MedicalRecordResponse>(`/api/medical-records/${medicalRecordId}`, payload);
+    return response.data;
+  },
+
+  async autoPopulatePrescriptionsFromDiagnosis(medicalRecordId: number, diagnosisId: number) {
+    const response = await api.post<PrescriptionWorkspaceResponse>(
+      `/api/doctors/medical-records/${medicalRecordId}/prescriptions/autopopulate`,
+      null,
+      { params: { diagnosisId } },
+    );
     return response.data;
   },
 

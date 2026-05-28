@@ -21,9 +21,9 @@ public class PatientMedicalRecordHistoryItemResponse {
     private Integer prescriptionItemCount;
     private Long invoiceId;
     private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
     private BigDecimal totalAmount;
     private Boolean paid;
     private LocalDateTime paidAt;
     private String paymentMethod;
+    private String paymentReference;
 }

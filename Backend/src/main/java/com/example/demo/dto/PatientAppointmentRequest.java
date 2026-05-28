@@ -2,6 +2,8 @@ package com.example.demo.dto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
@@ -17,6 +19,19 @@ public class PatientAppointmentRequest {
 
     // Optional for testing mode when no JWT is sent.
     private Long patientId;
+
+    @NotNull(message = "categoryId là bắt buộc")
+    private Long categoryId;
+
+    @NotNull(message = "symptomIds là bắt buộc")
+    private List<Long> symptomIds;
+
+    private BigDecimal advancePayment;
+
+    private String paymentReference;
+
+    @NotBlank(message = "paymentMethod là bắt buộc")
+    private String paymentMethod;
 
     @NotNull(message = "appointmentTime là bắt buộc")
     @FutureOrPresent(message = "appointmentTime phải từ thời điểm hiện tại trở đi")

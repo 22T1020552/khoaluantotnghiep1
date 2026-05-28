@@ -4,9 +4,10 @@ import styles from "@/styles/common.module.css";
 interface PatientInfoProps {
   patient: Patient;
   symptoms: string;
+  categoryName?: string | null;
 }
 
-export function PatientInfo({ patient, symptoms }: PatientInfoProps) {
+export function PatientInfo({ patient, symptoms, categoryName }: PatientInfoProps) {
   const genderLabel =
     patient.gender === "male" ? "Nam" : patient.gender === "female" ? "Nữ" : "Chưa cập nhật";
 
@@ -34,6 +35,9 @@ export function PatientInfo({ patient, symptoms }: PatientInfoProps) {
         </p>
         <p className={styles.textSmall}>
           <span className={styles.textMuted}>Giới tính:</span> {genderLabel}
+        </p>
+        <p className={styles.textSmall}>
+          <span className={styles.textMuted}>Chuyên khoa:</span> {categoryName || "Chưa cập nhật"}
         </p>
         {!!patient.insurance_number && (
           <p className={styles.textSmall}>

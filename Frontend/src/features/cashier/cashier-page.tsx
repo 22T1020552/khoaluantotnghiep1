@@ -1,17 +1,21 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import axios from "axios";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Prescription } from "@/types/pharmacy.type";
 import PharmacyStats from "./components/pharmacy-stats";
 import PendingPrescriptions from "./components/pending-prescriptions";
 import DispensedPrescriptions from "./components/dispensed-prescriptions";
 import PaymentDialog from "./components/payment-dialog";
+import CashierRefreshListener from "@/components/cashier-refresh-listener";
 import { cashierService } from "@/services/cashierService";
 import { getApiErrorMessage } from "@/services/api";
 import styles from "@/styles/common.module.css";
 
 export function PharmacyDashboard() {
+  const router = useRouter();
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -23,6 +27,7 @@ export function PharmacyDashboard() {
   const [transferConfirmed, setTransferConfirmed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const autoPaymentSubmittedRef = useRef(false);
 
   const pendingPrescriptions = prescriptions.filter((p) => p.status === "pending");
   const dispensedPrescriptions = prescriptions.filter((p) => p.status === "dispensed");
@@ -33,21 +38,22 @@ export function PharmacyDashboard() {
     paidAt?: string,
     paymentMethod?: string,
   ): Prescription => {
-    const totalMedicationCost = Number(detail.totalMedicineFee || 0);
+    const totalMedicationCost = 0;
     const serviceFee = Number(detail.totalServiceFee || 0);
-    const totalAmount = Number(detail.totalAmount || 0);
-    const rawInsuranceDiscount = Math.max(totalMedicationCost + serviceFee - totalAmount, 0);
-    const insuranceDiscount = Math.min(rawInsuranceDiscount, serviceFee);
-    const payableServiceAmount = Math.max(serviceFee - insuranceDiscount, 0);
+    const grandTotal = Number(detail.grandTotal || 0);
+    const remainingAmount = Number(detail.remainingAmount ?? grandTotal);
+    const advanceAmount = Number(detail.advanceAmount ?? Math.max(grandTotal - remainingAmount, 0));
+    const insuranceDiscount = 0;
+    const payableServiceAmount = status === "pending" ? remainingAmount : grandTotal;
 
     return {
       id: `RX-${detail.invoiceId}`,
       invoiceId: detail.invoiceId,
-      medicalRecordId: detail.medicalRecordId,
+      appointmentId: detail.appointmentId,
       patientName: detail.patientName,
       phone: detail.phoneNumber || "",
-      insuranceNumber: insuranceDiscount > 0 ? "Có áp dụng" : "",
-      doctor: `HS #${detail.medicalRecordId}`,
+      insuranceNumber: "",
+      doctor: `LH #${detail.appointmentId}`,
       diagnosis: "Theo bệnh án từ bác sĩ",
       treatment: "Thanh toán dịch vụ khám theo chỉ định",
       prescriptionItems: (detail.medicines || []).map((item) => ({
@@ -62,10 +68,13 @@ export function PharmacyDashboard() {
       totalMedicationCost,
       date: paidAt || detail.appointmentTime,
       status,
-      serviceFee,
+      serviceFee: serviceFee || grandTotal,
       serviceItems: detail.services || [],
       insuranceDiscount,
       totalAmount: payableServiceAmount,
+      grandTotal,
+      advanceAmount,
+      remainingAmount,
       paymentMethod,
     };
   };
@@ -97,6 +106,8 @@ export function PharmacyDashboard() {
         .filter((row): row is NonNullable<typeof row> => Boolean(row))
         .map((row) => toPrescription(row.detail, "dispensed", row.paidAt, row.paymentMethod));
 
+      // Không loại hồ sơ chờ theo lịch sử đã thanh toán, vì một hóa đơn có thể đã thanh toán
+      // trước đó nhưng được mở lại khi bác sĩ chỉ định thêm dịch vụ và phát sinh số tiền mới.
       const merged = [...pendingMapped, ...paidMapped];
       const unique = new Map<string, Prescription>();
       merged.forEach((item) => {
@@ -123,8 +134,9 @@ export function PharmacyDashboard() {
     setSelectedPrescription(prescription);
     setPaymentMethod("TIEN_MAT");
     setTransferConfirmed(false);
+    autoPaymentSubmittedRef.current = false;
     setPaymentData({
-      serviceFee: String(Math.floor(prescription.serviceFee || 0)),
+      serviceFee: String(Math.floor(prescription.remainingAmount ?? prescription.totalAmount ?? 0)),
       insuranceDiscount: String(Math.floor(prescription.insuranceDiscount || 0)),
     });
     setIsPaymentOpen(true);
@@ -134,11 +146,15 @@ export function PharmacyDashboard() {
     setPaymentData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handlePayment = async () => {
+  const handlePayment = async (autoTriggered = false) => {
     if (!selectedPrescription?.invoiceId) return;
 
-    if (paymentMethod === "CHUYEN_KHOAN" && !transferConfirmed) {
-      toast.error("Vui lòng xác nhận đã nhận chuyển khoản trước khi thanh toán");
+    if (autoTriggered && autoPaymentSubmittedRef.current) {
+      return;
+    }
+
+    if (paymentMethod === "CHUYEN_KHOAN" && !autoTriggered) {
+      toast.info("Đang chờ hệ thống tự động xác nhận chuyển khoản");
       return;
     }
 
@@ -149,9 +165,13 @@ export function PharmacyDashboard() {
 
     try {
       setProcessing(true);
+      if (autoTriggered) {
+        autoPaymentSubmittedRef.current = true;
+      }
+
       const response = await cashierService.processPayment(selectedPrescription.invoiceId, {
         paymentMethod,
-        paymentSuccessful: paymentMethod === "TIEN_MAT" ? true : transferConfirmed,
+        paymentSuccessful: paymentMethod === "TIEN_MAT" ? true : (autoTriggered || transferConfirmed),
         exportInvoice: false,
         applyHealthInsurance: Number(paymentData.insuranceDiscount || 0) > 0,
       });
@@ -159,9 +179,24 @@ export function PharmacyDashboard() {
       toast.success(response.message || "Thanh toán thành công");
       setIsPaymentOpen(false);
       setSelectedPrescription(null);
-      await loadDashboardData();
+      autoPaymentSubmittedRef.current = false;
+      router.push("/cashier/history");
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Thanh toán thất bại"));
+      const isAlreadyPaid =
+        paymentMethod === "CHUYEN_KHOAN"
+        && autoTriggered
+        && axios.isAxiosError(error)
+        && error.response?.status === 409;
+
+      autoPaymentSubmittedRef.current = false;
+      if (isAlreadyPaid) {
+        toast.success("Thanh toán đã được ghi nhận tự động.");
+        setIsPaymentOpen(false);
+        setSelectedPrescription(null);
+        router.push("/cashier/history");
+      } else {
+        toast.error(getApiErrorMessage(error, "Thanh toán thất bại"));
+      }
     } finally {
       setProcessing(false);
     }
@@ -170,6 +205,7 @@ export function PharmacyDashboard() {
   return (
       <main className={styles.mainArea}>
         <div className={styles.container}>
+          <CashierRefreshListener enabled onRefresh={loadDashboardData} />
           <div className={styles.header}>
             <h1>Thu ngân phòng khám</h1>
             <p>Thanh toán phí khám và các dịch vụ được chỉ định</p>

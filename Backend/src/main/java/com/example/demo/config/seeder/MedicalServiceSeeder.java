@@ -25,7 +25,16 @@ public class MedicalServiceSeeder {
             new MedicalServiceSeedItem("Khám nội tổng quát", new BigDecimal("200000")),
             new MedicalServiceSeedItem("Khám nhi", new BigDecimal("180000")),
             new MedicalServiceSeedItem("Tư vấn dinh dưỡng", new BigDecimal("120000")),
-            new MedicalServiceSeedItem("Đo huyết áp", new BigDecimal("30000")));
+            new MedicalServiceSeedItem("Đo huyết áp", new BigDecimal("30000")),
+            new MedicalServiceSeedItem("Khám tiêu hóa", new BigDecimal("150000")),
+            new MedicalServiceSeedItem("Nội soi", new BigDecimal("400000")),
+            new MedicalServiceSeedItem("Chụp phim", new BigDecimal("100000")),
+            new MedicalServiceSeedItem("Chụp X-quang", new BigDecimal("180000")),
+            new MedicalServiceSeedItem("Siêu âm", new BigDecimal("220000")),
+            new MedicalServiceSeedItem("Chụp MRI", new BigDecimal("1500000")),
+            new MedicalServiceSeedItem("Khám da liễu", new BigDecimal("150000")),
+            new MedicalServiceSeedItem("Khám hô hấp", new BigDecimal("150000")),
+            new MedicalServiceSeedItem("Khám thần kinh", new BigDecimal("150000")));
 
     @Value("${app.seed.medical-services.enabled:true}")
     private boolean defaultMedicalServicesEnabled;

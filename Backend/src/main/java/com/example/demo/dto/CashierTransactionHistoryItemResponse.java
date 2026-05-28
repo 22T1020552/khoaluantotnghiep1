@@ -11,10 +11,10 @@ import lombok.Data;
 public class CashierTransactionHistoryItemResponse {
 
     private Long invoiceId;
-    private Long medicalRecordId;
+    private Long appointmentId;
     private Long patientId;
     private String patientName;
     private String paymentMethod;
     private LocalDateTime paidAt;
-    private BigDecimal totalAmount;
+    private BigDecimal grandTotal;
 }

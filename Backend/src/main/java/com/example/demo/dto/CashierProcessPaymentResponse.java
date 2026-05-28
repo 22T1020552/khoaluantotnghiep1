@@ -11,13 +11,12 @@ import lombok.Data;
 public class CashierProcessPaymentResponse {
 
     private Long invoiceId;
-    private Long medicalRecordId;
+    private Long appointmentId;
     private String paymentMethod;
     private BigDecimal totalServiceFee;
-    private BigDecimal totalMedicineFee;
-    private BigDecimal grossTotalAmount;
+    private BigDecimal grandTotal;
     private BigDecimal insuranceDiscountAmount;
-    private BigDecimal totalAmount;
+    private BigDecimal remainingAmount;
     private Boolean insuranceApplied;
     private LocalDateTime paidAt;
     private String transactionStatus;
