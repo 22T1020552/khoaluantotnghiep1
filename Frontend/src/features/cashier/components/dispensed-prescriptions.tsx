@@ -2,30 +2,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle } from "lucide-react";
 import { Prescription } from "@/types/pharmacy.type";
+import { getServicePaymentBreakdown } from "../utils/service-payment-breakdown";
 import styles from "../cashier.module.css";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(
     amount,
   );
-
-const normalizeServiceName = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-const isConsultationServiceName = (serviceName?: string | null) => {
-  if (!serviceName) {
-    return false;
-  }
-
-  const normalized = normalizeServiceName(serviceName);
-  return ["kham", "consultation", "examination", "tu van"].some((keyword) =>
-    normalized.includes(keyword),
-  );
-};
 
 interface DispensedPrescriptionsProps {
   prescriptions: Prescription[];
@@ -43,13 +26,11 @@ function DispensedPrescriptions({ prescriptions }: DispensedPrescriptionsProps) 
             {(() => {
               const serviceItems = prescription.serviceItems ?? [];
               const totalServiceFee = prescription.serviceFee ?? 0;
-              const consultationServices = serviceItems.filter((item) => isConsultationServiceName(item.serviceName));
-              const additionalServices = serviceItems.filter((item) => !isConsultationServiceName(item.serviceName));
-              const consultationFee =
-                consultationServices.length > 0
-                  ? consultationServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0)
-                  : totalServiceFee;
-              const additionalServiceFee = additionalServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+              const breakdown = getServicePaymentBreakdown(prescription, Number(prescription.advanceAmount ?? 0));
+              const initialConsultationFee = Number(
+                prescription.advanceAmount ?? breakdown.consultationCoveredAmount ?? breakdown.consultationFee ?? 0,
+              );
+              const prepaidConsultationItems = breakdown.consultationServices.filter((item) => Number(item.coveredLineTotal || 0) > 0);
 
               return (
                 <>
@@ -72,28 +53,28 @@ function DispensedPrescriptions({ prescriptions }: DispensedPrescriptionsProps) 
                         {new Date(prescription.date).toLocaleDateString("vi-VN")}
                       </span>
                     </div>
-                    {serviceItems.length > 0 && consultationFee > 0 ? (
+                    {serviceItems.length > 0 && breakdown.consultationFee > 0 ? (
                       <>
                         <div className={`${styles.amountRow} ${styles.amountBorder}`}>
                           <span className={styles.amountLabel}>Phí khám ban đầu:</span>
-                          <span className={styles.amountValue}>{formatCurrency(consultationFee)}</span>
+                          <span className={styles.amountValue}>{formatCurrency(initialConsultationFee)}</span>
                         </div>
-                        {consultationServices.map((item) => (
+                        {prepaidConsultationItems.map((item) => (
                           <div key={`consult-${item.serviceId}`} className={styles.amountRow}>
                             <span className={styles.amountLabel}>- {item.serviceName}</span>
-                            <span className={styles.amountValue}>{formatCurrency(item.lineTotal)}</span>
+                            <span className={styles.amountValue}>{formatCurrency(Number(item.coveredLineTotal || 0))}</span>
                           </div>
                         ))}
-                        {additionalServiceFee > 0 && (
+                        {breakdown.additionalOutstandingAmount > 0 && (
                           <>
                             <div className={styles.amountRow}>
-                              <span className={styles.amountLabel}>Dịch vụ chỉ định thêm:</span>
-                              <span className={styles.amountValue}>{formatCurrency(additionalServiceFee)}</span>
+                              <span className={styles.amountLabel}>Dịch vụ chỉ định thêm chưa thanh toán:</span>
+                              <span className={styles.amountValue}>{formatCurrency(breakdown.additionalOutstandingAmount)}</span>
                             </div>
-                            {additionalServices.map((item) => (
+                            {breakdown.unpaidAdditionalServices.map((item) => (
                               <div key={`additional-${item.serviceId}`} className={styles.amountRow}>
                                 <span className={styles.amountLabel}>- {item.serviceName}</span>
-                                <span className={styles.amountValue}>{formatCurrency(item.lineTotal)}</span>
+                                <span className={styles.amountValue}>{formatCurrency(item.unpaidLineTotal)}</span>
                               </div>
                             ))}
                           </>

@@ -27,6 +27,7 @@ public class DataSeeder implements ApplicationRunner {
     private final com.example.demo.config.DiagnosisMedicineRuleSeeder diagnosisMedicineRuleSeeder;
     private final SymptomServiceMappingSeeder symptomServiceMappingSeeder;
     private final RoomSeeder roomSeeder;
+    private final com.example.demo.config.seeder.DoctorSeeder doctorSeeder;
     private final SystemSettingSeeder systemSettingSeeder;
 
     @Override
@@ -45,6 +46,7 @@ public class DataSeeder implements ApplicationRunner {
         diagnosisMedicineRuleSeeder.seed();
         symptomServiceMappingSeeder.seed();
         roomSeeder.seed();
+        doctorSeeder.seed();
         systemSettingSeeder.seed();
     }
 }

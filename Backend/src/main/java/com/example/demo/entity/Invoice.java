@@ -10,9 +10,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 import lombok.Data;
+
+import com.example.demo.constants.InvoiceStatus;
 
 @Entity
 @Table(name = "INVOICES")
@@ -47,16 +50,15 @@ public class Invoice {
     @Column(name = "payment_reference", length = 200)
     private String paymentReference;
 
-    @Transient
+    @Column(name = "advance_amount", precision = 18, scale = 0)
     private BigDecimal advanceAmount;
 
-    @Transient
+    @Column(name = "remaining_amount", precision = 18, scale = 0)
     private BigDecimal remainingAmount;
 
-    @Transient
+    @Column(name = "invoice_status", length = 30)
     private String invoiceStatus;
 
-    @Transient
     public Appointment getAppointment() {
         return medicalRecord == null ? null : medicalRecord.getAppointment();
     }
@@ -65,7 +67,6 @@ public class Invoice {
         // Use setMedicalRecord(...) for persistence.
     }
 
-    @Transient
     public Patient getPatient() {
         Appointment appointment = getAppointment();
         return appointment == null ? null : appointment.getPatient();
@@ -73,5 +74,13 @@ public class Invoice {
 
     public void setPatient(Patient patient) {
         // Derived from appointment; stored for API compatibility only.
+    }
+
+    @PrePersist
+    @PreUpdate
+    private void syncInvoiceStatus() {
+        this.invoiceStatus = Boolean.TRUE.equals(this.isPaid)
+                ? InvoiceStatus.PAID
+                : InvoiceStatus.UNPAID;
     }
 }

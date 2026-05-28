@@ -1,6 +1,5 @@
 package com.example.demo.controller;
 
-import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,8 +15,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.example.demo.dto.CashierProcessPaymentRequest;
-import com.example.demo.dto.CashierProcessPaymentResponse;
 import com.example.demo.dto.ClinicBankConfigResponse;
 import com.example.demo.dto.PaymentAppointmentStatusResponse;
 import com.example.demo.dto.PaymentReferenceStatusResponse;
@@ -48,7 +45,7 @@ public class PaymentWebhookController {
 
     @Value("${payments.webhook.secret:}")
     private String webhookSecret;
-    
+
     @Value("${sepay.webhook.token:}")
     private String validSepayToken;
 
@@ -71,13 +68,16 @@ public class PaymentWebhookController {
             @RequestParam(name = "signature", required = false) String signature,
             @org.springframework.web.bind.annotation.RequestHeader(value = "Authorization", required = false) String apiToken) {
         if (apiToken != null && !apiToken.isBlank()) {
-            if (!apiToken.startsWith("Apikey ")) {
+            String incomingToken;
+            if (apiToken.startsWith("Apikey ")) {
+                incomingToken = apiToken.replace("Apikey ", "").trim();
+            } else if (apiToken.startsWith("Bearer ")) {
+                incomingToken = apiToken.replace("Bearer ", "").trim();
+            } else {
                 log.warn("SePay webhook rejected: missing or invalid Authorization header");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body("Tu choi truy cap: Thieu hoac sai dinh dang Token");
             }
-
-            String incomingToken = apiToken.replace("Apikey ", "").trim();
             if (validSepayToken == null || validSepayToken.isBlank()) {
                 log.warn("SePay webhook rejected: server token not configured");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -121,8 +121,51 @@ public class PaymentWebhookController {
 
         // Tính bất biến: kiểm tra giao dịch hiện có
         java.util.Optional<com.example.demo.entity.PaymentTransaction> existing = paymentTransactionRepository
-            .findByExternalTransactionId(resolvedTransactionId);
+                .findByExternalTransactionId(resolvedTransactionId);
         if (existing.isPresent() && "SUCCESS".equalsIgnoreCase(existing.get().getStatus())) {
+            com.example.demo.entity.PaymentTransaction existingTx = existing.get();
+            Long payloadInvoiceId = payload == null ? null : payload.getInvoiceId();
+            Long payloadMedicalId = payload == null ? null : payload.getMedicalRecordId();
+            Long invoiceIdFromReference = extractInvoiceIdFromReference(resolvedPaymentReference);
+            com.example.demo.entity.Invoice invoice = null;
+            if (payloadInvoiceId != null) {
+                invoice = invoiceRepository.findById(payloadInvoiceId).orElse(null);
+                if (invoice == null && payloadMedicalId != null) {
+                    invoice = invoiceRepository.findByMedicalRecord_Id(payloadMedicalId).orElse(null);
+                }
+                if (invoice == null && resolvedPaymentReference != null) {
+                    invoice = invoiceRepository.findByPaymentReference(resolvedPaymentReference).orElse(null);
+                }
+                if (invoice == null && invoiceIdFromReference != null) {
+                    invoice = invoiceRepository.findById(invoiceIdFromReference).orElse(null);
+                }
+            } else if (payloadMedicalId != null) {
+                invoice = invoiceRepository.findByMedicalRecord_Id(payloadMedicalId).orElse(null);
+            } else {
+                if (resolvedPaymentReference != null) {
+                    invoice = invoiceRepository.findByPaymentReference(resolvedPaymentReference).orElse(null);
+                }
+                if (invoice == null && invoiceIdFromReference != null) {
+                    invoice = invoiceRepository.findById(invoiceIdFromReference).orElse(null);
+                }
+            }
+
+            if (invoice != null) {
+                existingTx.setInvoice(invoice);
+                if (invoice.getAppointment() != null) {
+                    existingTx.setAppointment(invoice.getAppointment());
+                }
+                if (existingTx.getPaymentReference() == null || existingTx.getPaymentReference().isBlank()) {
+                    existingTx.setPaymentReference(resolvedPaymentReference);
+                }
+                paymentTransactionRepository.save(existingTx);
+                if (!Boolean.TRUE.equals(invoice.getIsPaid())) {
+                    invoiceService.markTransferInvoiceAsPaid(invoice.getId(),
+                            payload.getPaymentMethod() == null ? "CHUYEN_KHOAN" : payload.getPaymentMethod());
+                }
+                notifyCashierRefresh(invoice.getId());
+            }
+
             log.info("Webhook duplicate success ignored: transactionId={}", resolvedTransactionId);
             return ResponseEntity.ok("Already processed");
         }
@@ -176,13 +219,13 @@ public class PaymentWebhookController {
 
         if (successStatus && invoice == null) {
             String paymentCode = resolvedPaymentReference != null && !resolvedPaymentReference.isBlank()
-                ? resolvedPaymentReference
-                : resolvedTransactionId;
+                    ? resolvedPaymentReference
+                    : resolvedTransactionId;
             if (paymentCode != null && !paymentCode.isBlank()) {
-            messagingTemplate.convertAndSend("/topic/payments/" + paymentCode, "PAYMENT_SUCCESS");
-            log.info("WebSocket payment event sent: destination=/topic/payments/{}, code={}",
-                paymentCode,
-                paymentCode);
+                messagingTemplate.convertAndSend("/topic/payments/" + paymentCode, "PAYMENT_SUCCESS");
+                log.info("WebSocket payment event sent: destination=/topic/payments/{}, code={}",
+                        paymentCode,
+                        paymentCode);
             }
         }
 
@@ -225,6 +268,8 @@ public class PaymentWebhookController {
                             paymentCode);
                 }
 
+                notifyCashierRefresh(invoice.getId());
+
                 log.info("Webhook processed successfully: transactionId={}, invoiceId={}, appointmentId={}",
                         resolvedTransactionId,
                         invoiceId,
@@ -234,7 +279,8 @@ public class PaymentWebhookController {
             } catch (Exception ex) {
                 tx.setStatus("FAILED");
                 paymentTransactionRepository.save(tx);
-                log.error("Webhook processing failed: transactionId={}, reason={}", resolvedTransactionId, ex.getMessage(), ex);
+                log.error("Webhook processing failed: transactionId={}, reason={}", resolvedTransactionId,
+                        ex.getMessage(), ex);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                         .body("Processing failed: " + ex.getMessage());
             }
@@ -303,6 +349,7 @@ public class PaymentWebhookController {
                 "amount", payload.getAmount(),
                 "provider", payload.getProvider()));
     }
+
     @GetMapping(value = "/bank-config")
     @Operation(summary = "Cấu hình ngân hàng cho QR", description = "Trả về thông tin ngân hàng hardcode để frontend tạo QR đồng nhất.")
     public ClinicBankConfigResponse getClinicBankConfig() {
@@ -316,6 +363,7 @@ public class PaymentWebhookController {
     @GetMapping(value = "/appointments/{appointmentId}/status")
     @Operation(summary = "Trạng thái thanh toán của lịch hẹn", description = "Tra cứu trạng thái thanh toán theo lịch hẹn để frontend polling.")
     public PaymentAppointmentStatusResponse getAppointmentPaymentStatus(@PathVariable Long appointmentId) {
+        java.util.Objects.requireNonNull(appointmentId, "appointmentId is required");
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Không tìm thấy lịch hẹn"));
@@ -359,13 +407,14 @@ public class PaymentWebhookController {
     @Operation(summary = "Trạng thái thanh toán theo mã tham chiếu", description = "Tra cứu giao dịch SePay/VietQR trước khi lịch hẹn được tạo.")
     public PaymentReferenceStatusResponse getPaymentReferenceStatus(@PathVariable String paymentReference) {
         com.example.demo.entity.PaymentTransaction tx = paymentTransactionRepository
-            .findTopByPaymentReferenceOrderByIdDesc(paymentReference)
-            .orElseGet(() -> paymentTransactionRepository.findByExternalTransactionId(paymentReference).orElse(null));
+                .findTopByPaymentReferenceOrderByIdDesc(paymentReference)
+                .orElseGet(
+                        () -> paymentTransactionRepository.findByExternalTransactionId(paymentReference).orElse(null));
 
         log.info("Payment reference status lookup: reference={}, foundTransaction={}, txStatus={}",
-            paymentReference,
-            tx != null,
-            tx == null ? null : tx.getStatus());
+                paymentReference,
+                tx != null,
+                tx == null ? null : tx.getStatus());
 
         if (tx == null) {
             return new PaymentReferenceStatusResponse(
@@ -380,8 +429,8 @@ public class PaymentWebhookController {
         Invoice invoice = invoiceRepository.findByPaymentReference(paymentReference).orElse(null);
         Long invoiceId = invoice == null ? null : invoice.getId();
         Long appointmentId = invoice == null || invoice.getAppointment() == null
-            ? null
-            : invoice.getAppointment().getId();
+                ? null
+                : invoice.getAppointment().getId();
 
         String transactionStatus = tx.getStatus();
         String normalized = transactionStatus == null ? "" : transactionStatus.trim().toUpperCase();
@@ -398,12 +447,13 @@ public class PaymentWebhookController {
             message = "Đang chờ ngân hàng xác nhận giao dịch";
         }
 
-        log.info("Payment reference status resolved: reference={}, invoiceId={}, appointmentId={}, paymentStatus={}, transactionStatus={}",
-            paymentReference,
-            invoiceId,
-            appointmentId,
-            paymentStatus,
-            transactionStatus);
+        log.info(
+                "Payment reference status resolved: reference={}, invoiceId={}, appointmentId={}, paymentStatus={}, transactionStatus={}",
+                paymentReference,
+                invoiceId,
+                appointmentId,
+                paymentStatus,
+                transactionStatus);
 
         return new PaymentReferenceStatusResponse(
                 paymentReference,
@@ -445,28 +495,29 @@ public class PaymentWebhookController {
         private Long invoiceId;
         private Long medicalRecordId;
         private String externalTransactionId;
-        @JsonAlias({"transactionId", "transaction_id", "bankTransactionId", "bank_transaction_id", "id"})
+        @JsonAlias({ "transactionId", "transaction_id", "bankTransactionId", "bank_transaction_id", "id" })
         private String transactionId;
-        @JsonAlias({"paymentReference", "payment_reference", "reference", "content", "description", "note", "memo", "remark", "comment"})
+        @JsonAlias({ "paymentReference", "payment_reference", "reference", "content", "description", "note", "memo",
+                "remark", "comment" })
         private String paymentReference;
         private String provider;
         private java.math.BigDecimal amount;
         private String rawPayload;
         private String status;
         private String paymentMethod;
-        @JsonAlias({"transferAmount", "transfer_amount", "amount"})
+        @JsonAlias({ "transferAmount", "transfer_amount", "amount" })
         private java.math.BigDecimal transferAmount;
-        @JsonAlias({"transferType", "transfer_type", "direction"})
+        @JsonAlias({ "transferType", "transfer_type", "direction" })
         private String transferType;
-        @JsonAlias({"content", "note", "memo", "remark", "comment"})
+        @JsonAlias({ "content", "note", "memo", "remark", "comment" })
         private String content;
-        @JsonAlias({"description"})
+        @JsonAlias({ "description" })
         private String description;
-        @JsonAlias({"referenceCode", "reference_code", "ref"})
+        @JsonAlias({ "referenceCode", "reference_code", "ref" })
         private String referenceCode;
-        @JsonAlias({"gateway", "bank", "bankName"})
+        @JsonAlias({ "gateway", "bank", "bankName" })
         private String gateway;
-        @JsonAlias({"id"})
+        @JsonAlias({ "id" })
         private Long id;
 
         public Long getInvoiceId() {
@@ -660,12 +711,12 @@ public class PaymentWebhookController {
                 || "COMPLETED".equals(normalized) || "DONE".equals(normalized);
     }
 
-    private String normalizePaymentCode(String value) {
-        if (value == null) {
-            return null;
+    @SuppressWarnings("null")
+    private void notifyCashierRefresh(Long invoiceId) {
+        if (invoiceId == null) {
+            return;
         }
-        String normalized = value.trim().replaceAll("\\s+", "_");
-        return normalized.isBlank() ? null : normalized;
+        messagingTemplate.convertAndSend("/topic/cashier/refresh", String.valueOf(invoiceId));
     }
 
     private WebhookPayload readWebhookPayload(HttpServletRequest request) {
@@ -731,11 +782,15 @@ public class PaymentWebhookController {
 
         payload.setInvoiceId(parseLongParam(params, "invoiceId", payload.getInvoiceId()));
         payload.setMedicalRecordId(parseLongParam(params, "medicalRecordId", payload.getMedicalRecordId()));
-        payload.setExternalTransactionId(firstNonBlank(params, payload.getExternalTransactionId(), "externalTransactionId", "transactionId", "id"));
-        payload.setTransactionId(firstNonBlank(params, payload.getTransactionId(), "transactionId", "transaction_id", "id"));
-        payload.setPaymentReference(firstNonBlank(params, payload.getPaymentReference(), "paymentReference", "payment_reference", "reference", "content", "description", "note", "memo", "remark", "comment"));
+        payload.setExternalTransactionId(firstNonBlank(params, payload.getExternalTransactionId(),
+                "externalTransactionId", "transactionId", "id"));
+        payload.setTransactionId(
+                firstNonBlank(params, payload.getTransactionId(), "transactionId", "transaction_id", "id"));
+        payload.setPaymentReference(firstNonBlank(params, payload.getPaymentReference(), "paymentReference",
+                "payment_reference", "reference", "content", "description", "note", "memo", "remark", "comment"));
         payload.setProvider(firstNonBlank(params, payload.getProvider(), "provider", "bank", "bankName"));
-        payload.setStatus(firstNonBlank(params, payload.getStatus(), "status", "transactionStatus", "transaction_status"));
+        payload.setStatus(
+                firstNonBlank(params, payload.getStatus(), "status", "transactionStatus", "transaction_status"));
         payload.setPaymentMethod(firstNonBlank(params, payload.getPaymentMethod(), "paymentMethod", "payment_method"));
         payload.setReferenceCode(firstNonBlank(params, payload.getReferenceCode(), "referenceCode", "reference_code"));
         payload.setTransferType(firstNonBlank(params, payload.getTransferType(), "transferType", "transfer_type"));
@@ -812,8 +867,8 @@ public class PaymentWebhookController {
         String normalized = trimmed.toUpperCase();
         if (normalized.startsWith("BK-INV-") || normalized.startsWith("BKINV")) {
             return normalized.startsWith("BK-INV-")
-                ? normalized
-                : normalized.replaceFirst("BKINV", "BK-INV-");
+                    ? normalized
+                    : normalized.replaceFirst("BKINV", "BK-INV-");
         }
 
         String compact = normalized.replaceAll("[^A-Z0-9]", "");

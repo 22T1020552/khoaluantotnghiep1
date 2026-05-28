@@ -25,6 +25,7 @@ public class PatientMedicalRecordDetailResponse {
     private Boolean paid;
     private LocalDateTime paidAt;
     private String paymentMethod;
+    private String paymentReference;
     private List<DoctorPatientServiceItemResponse> services;
     private List<PatientPrescriptionHistoryItemResponse> prescriptionItems;
 }

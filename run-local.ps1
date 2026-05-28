@@ -62,6 +62,41 @@ function ConvertTo-PowerShellLiteral {
     return "'" + $Value.Replace("'", "''") + "'"
 }
 
+function Import-DotEnv {
+    param([string]$EnvPath)
+
+    if (-not (Test-Path $EnvPath)) {
+        return
+    }
+
+    $lines = Get-Content -Path $EnvPath -ErrorAction SilentlyContinue
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith("#")) {
+            continue
+        }
+
+        $parts = $trimmed.Split("=", 2)
+        if ($parts.Count -lt 2) {
+            continue
+        }
+
+        $key = $parts[0].Trim()
+        $value = $parts[1]
+
+        if ($value.StartsWith('"') -and $value.EndsWith('"')) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+        if ($value.StartsWith("'") -and $value.EndsWith("'")) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+
+        if ($key) {
+            Set-Item -Path ("env:{0}" -f $key) -Value $value
+        }
+    }
+}
+
 $repoRoot = (Resolve-Path $PSScriptRoot).Path
 $backendPath = Join-Path $repoRoot "Backend"
 $frontendPath = Join-Path $repoRoot "Frontend"
@@ -71,6 +106,9 @@ $stopRedisCmd = Join-Path $backendPath "scripts\stop-redis.cmd"
 $mvnwCmd = Join-Path $backendPath "mvnw.cmd"
 $frontendPackage = Join-Path $frontendPath "package.json"
 $frontendNodeModules = Join-Path $frontendPath "node_modules"
+
+$backendEnvPath = Join-Path $backendPath ".env"
+Import-DotEnv -EnvPath $backendEnvPath
 
 if (-not (Test-Path $backendPath)) {
     throw "Cannot find Backend folder. Expected path: $backendPath"

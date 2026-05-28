@@ -3,30 +3,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ShoppingBag, Phone, User, Clock } from "lucide-react";
 import { Prescription } from "@/types/pharmacy.type";
+import { getServicePaymentBreakdown } from "../utils/service-payment-breakdown";
 import styles from "../cashier.module.css";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(
     amount,
   );
-
-const normalizeServiceName = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-const isConsultationServiceName = (serviceName?: string | null) => {
-  if (!serviceName) {
-    return false;
-  }
-
-  const normalized = normalizeServiceName(serviceName);
-  return ["kham", "consultation", "examination", "tu van"].some((keyword) =>
-    normalized.includes(keyword),
-  );
-};
 
 interface PendingPrescriptionsProps {
   prescriptions: Prescription[];
@@ -40,7 +23,10 @@ function PendingPrescriptions({ prescriptions, onOpenPayment }: PendingPrescript
         Hồ sơ chờ thanh toán ({prescriptions.length})
       </h2>
       <div className={styles.list}>
-        {prescriptions.map((prescription, idx) => (
+        {prescriptions.map((prescription, idx) => {
+          const breakdown = getServicePaymentBreakdown(prescription, Number(prescription.advanceAmount ?? 0));
+
+          return (
           <Card key={`${prescription.id}-${prescription.invoiceId ?? "na"}-${idx}`} className={styles.prescriptionCard}>
             <div className={styles.topRow}>
               <div className={styles.patientBlock}>
@@ -74,11 +60,9 @@ function PendingPrescriptions({ prescriptions, onOpenPayment }: PendingPrescript
             <div className={styles.bodyStack}>
               <div className={styles.diagnosisBox}>
                 <p className={`${styles.boxTitle} ${styles.diagnosisTitle}`}>Dịch vụ đang chờ thanh toán:</p>
-                {prescription.serviceItems && prescription.serviceItems.length > 0 ? (
+                {breakdown.consultationServices.length > 0 ? (
                   <div className={styles.itemList}>
-                    {prescription.serviceItems
-                      .filter((si) => isConsultationServiceName(si.serviceName))
-                      .map((si) => (
+                    {breakdown.consultationServices.map((si) => (
                       <div key={si.serviceId} className={styles.itemCard}>
                         <div className={styles.itemTop}>
                           <div className={styles.itemName}>{si.serviceName} x{si.quantity}</div>
@@ -105,17 +89,15 @@ function PendingPrescriptions({ prescriptions, onOpenPayment }: PendingPrescript
                   </>
                 )}
 
-                {prescription.serviceItems && prescription.serviceItems.some((si) => !isConsultationServiceName(si.serviceName)) && (
+                {breakdown.unpaidAdditionalServices.length > 0 && (
                   <div className={styles.additionalServiceBox}>
                     <p className={`${styles.boxTitle} ${styles.additionalTitle}`}>Dịch vụ phát sinh chưa thanh toán:</p>
                     <div className={styles.itemList}>
-                      {prescription.serviceItems
-                        .filter((si) => !isConsultationServiceName(si.serviceName))
-                        .map((si) => (
+                      {breakdown.unpaidAdditionalServices.map((si) => (
                           <div key={si.serviceId} className={styles.itemCard}>
                             <div className={styles.itemTop}>
                               <div className={styles.itemName}>{si.serviceName} x{si.quantity}</div>
-                              <div className={styles.itemAmount}>{formatCurrency(si.lineTotal)}</div>
+                              <div className={styles.itemAmount}>{formatCurrency(si.unpaidLineTotal)}</div>
                             </div>
                           </div>
                         ))}
@@ -130,7 +112,8 @@ function PendingPrescriptions({ prescriptions, onOpenPayment }: PendingPrescript
               Thanh toán dịch vụ khám
             </Button>
           </Card>
-        ))}
+          );
+        })}
 
         {prescriptions.length === 0 && (
           <Card className={styles.emptyCard}>

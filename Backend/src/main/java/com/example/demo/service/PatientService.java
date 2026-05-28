@@ -117,6 +117,7 @@ public class PatientService {
                                 invoice != null && Boolean.TRUE.equals(invoice.getIsPaid()),
                                 invoice == null ? null : invoice.getPaidAt(),
                                 invoice == null ? null : invoice.getPaymentMethod(),
+                                invoice == null ? null : invoice.getPaymentReference(),
                                 services,
                                 prescriptionItems);
         }
@@ -151,7 +152,8 @@ public class PatientService {
                                 totalAmount,
                                 invoice != null && Boolean.TRUE.equals(invoice.getIsPaid()),
                                 invoice == null ? null : invoice.getPaidAt(),
-                                invoice == null ? null : invoice.getPaymentMethod());
+                                invoice == null ? null : invoice.getPaymentMethod(),
+                                invoice == null ? null : invoice.getPaymentReference());
         }
 
         private java.time.LocalDateTime resolveCompletedAt(MedicalRecord medicalRecord) {

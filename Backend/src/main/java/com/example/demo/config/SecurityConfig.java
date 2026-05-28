@@ -46,6 +46,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/payments/reference/**").permitAll()
                         .requestMatchers("/api/payments/appointments/**").permitAll()
                         .requestMatchers("/api/payments/bank-config").permitAll()
+                        .requestMatchers("/api/payments/webhook").permitAll()
                         .requestMatchers("/api/chatbot/history/**").authenticated()
                         .requestMatchers("/api/chatbot/ask").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

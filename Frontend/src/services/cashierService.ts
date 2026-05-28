@@ -44,7 +44,17 @@ export interface CashierPaymentRecordDetailResponse {
   grandTotal: number;
   advanceAmount: number;
   remainingAmount: number;
+  consultationFee?: number;
+  consultationCoveredAmount?: number;
+  consultationOutstandingAmount?: number;
+  additionalServiceFee?: number;
+  additionalCoveredAmount?: number;
+  additionalOutstandingAmount?: number;
   services: CashierServiceLineItemResponse[];
+  serviceBreakdown?: Array<CashierServiceLineItemResponse & {
+    coveredAmount: number;
+    unpaidAmount: number;
+  }>;
   medicines: CashierMedicineLineItemResponse[];
 }
 

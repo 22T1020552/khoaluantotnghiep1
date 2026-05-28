@@ -42,7 +42,17 @@ export interface CashierPaymentDetail {
   grandTotal: number;
   advanceAmount: number;
   remainingAmount: number;
+  consultationFee?: number;
+  consultationCoveredAmount?: number;
+  consultationOutstandingAmount?: number;
+  additionalServiceFee?: number;
+  additionalCoveredAmount?: number;
+  additionalOutstandingAmount?: number;
   services: CashierServiceLine[];
+  serviceBreakdown?: Array<CashierServiceLine & {
+    coveredAmount: number;
+    unpaidAmount: number;
+  }>;
   medicines: CashierMedicineLine[];
 }
 
@@ -80,6 +90,16 @@ export interface Prescription {
   status: "pending" | "dispensed";
   serviceFee?: number;
   serviceItems?: CashierServiceLine[];
+  consultationFee?: number;
+  consultationCoveredAmount?: number;
+  consultationOutstandingAmount?: number;
+  additionalServiceFee?: number;
+  additionalCoveredAmount?: number;
+  additionalOutstandingAmount?: number;
+  serviceBreakdown?: Array<CashierServiceLine & {
+    coveredAmount: number;
+    unpaidAmount: number;
+  }>;
   insuranceDiscount?: number;
   totalAmount?: number;
   invoiceId?: number;

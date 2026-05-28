@@ -104,6 +104,76 @@
       "name": "auth.jwt.refresh-token.ttl-days",
       "type": "java.lang.Long",
       "description": "Refresh token time-to-live in days."
+    },
+    {
+      "name": "payments.reconciliation.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable or disable the payment reconciliation job."
+    },
+    {
+      "name": "payments.reconciliation.fixed-delay-ms",
+      "type": "java.lang.Long",
+      "description": "Fixed delay in milliseconds between reconciliation runs."
+    },
+    {
+      "name": "payments.reconciliation.initial-delay-ms",
+      "type": "java.lang.Long",
+      "description": "Initial delay in milliseconds before first reconciliation run."
+    },
+    {
+      "name": "payments.reconciliation.lookback-minutes",
+      "type": "java.lang.Long",
+      "description": "Lookback window in minutes when scanning recent transactions."
+    },
+    {
+      "name": "payments.refund-request.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable or disable the scheduled refund request email job."
+    },
+    {
+      "name": "payments.refund-request.cron",
+      "type": "java.lang.String",
+      "description": "Cron expression used to trigger refund request emails."
+    },
+    {
+      "name": "payments.refund-request.cutoff-hour",
+      "type": "java.lang.Integer",
+      "description": "Hour of day used to decide when a no-show payment is eligible for a refund request."
+    },
+    {
+      "name": "payments.refund-request.cutoff-minute",
+      "type": "java.lang.Integer",
+      "description": "Minute of hour used with cutoff-hour for refund request eligibility."
+    },
+    {
+      "name": "sepay.api.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable or disable SePay API checks in reconciliation."
+    },
+    {
+      "name": "sepay.api.endpoint",
+      "type": "java.lang.String",
+      "description": "SePay API endpoint to list transactions."
+    },
+    {
+      "name": "sepay.api.auth-token",
+      "type": "java.lang.String",
+      "description": "SePay API bearer token (without the 'Bearer ' prefix)."
+    },
+    {
+      "name": "sepay.api.query",
+      "type": "java.lang.String",
+      "description": "Optional query string to append to SePay API requests."
+    },
+    {
+      "name": "sepay.api.require-amount-match",
+      "type": "java.lang.Boolean",
+      "description": "Require SePay amount_in to meet or exceed invoice total."
+    },
+    {
+      "name": "sepay.api.amount-tolerance",
+      "type": "java.math.BigDecimal",
+      "description": "Allowed tolerance when comparing SePay amount_in with invoice total."
     }
   ]
 }

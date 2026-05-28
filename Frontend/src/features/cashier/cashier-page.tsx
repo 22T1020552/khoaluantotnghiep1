@@ -9,6 +9,7 @@ import PharmacyStats from "./components/pharmacy-stats";
 import PendingPrescriptions from "./components/pending-prescriptions";
 import DispensedPrescriptions from "./components/dispensed-prescriptions";
 import PaymentDialog from "./components/payment-dialog";
+import CashierRefreshListener from "@/components/cashier-refresh-listener";
 import { cashierService } from "@/services/cashierService";
 import { getApiErrorMessage } from "@/services/api";
 import styles from "@/styles/common.module.css";
@@ -105,6 +106,8 @@ export function PharmacyDashboard() {
         .filter((row): row is NonNullable<typeof row> => Boolean(row))
         .map((row) => toPrescription(row.detail, "dispensed", row.paidAt, row.paymentMethod));
 
+      // Không loại hồ sơ chờ theo lịch sử đã thanh toán, vì một hóa đơn có thể đã thanh toán
+      // trước đó nhưng được mở lại khi bác sĩ chỉ định thêm dịch vụ và phát sinh số tiền mới.
       const merged = [...pendingMapped, ...paidMapped];
       const unique = new Map<string, Prescription>();
       merged.forEach((item) => {
@@ -202,6 +205,7 @@ export function PharmacyDashboard() {
   return (
       <main className={styles.mainArea}>
         <div className={styles.container}>
+          <CashierRefreshListener enabled onRefresh={loadDashboardData} />
           <div className={styles.header}>
             <h1>Thu ngân phòng khám</h1>
             <p>Thanh toán phí khám và các dịch vụ được chỉ định</p>

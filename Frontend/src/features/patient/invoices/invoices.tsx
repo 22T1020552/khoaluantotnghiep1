@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getApiErrorMessage } from "@/services/api";
+import { PaymentReferenceCard } from "@/features/patient/components/payment-reference-card";
 import {
   patientService,
   type PatientMedicalRecordDetailResponse,
@@ -19,6 +20,7 @@ interface PatientInvoiceItem {
   medicalRecordId: number;
   appointmentId: number | null;
   paidAt: string | null;
+  paymentReference: string | null;
   doctorUsername: string | null;
   diagnosis: string | null;
   serviceTotal: number;
@@ -95,6 +97,7 @@ export function PatientInvoices() {
       return (
         invoice.invoiceCode.toLowerCase().includes(keyword) ||
         String(invoice.medicalRecordId).includes(keyword) ||
+        (invoice.paymentReference ?? "").toLowerCase().includes(keyword) ||
         (invoice.doctorUsername ?? "").toLowerCase().includes(keyword) ||
         (invoice.diagnosis ?? "").toLowerCase().includes(keyword)
       );
@@ -177,6 +180,14 @@ export function PatientInvoices() {
                   <span>Tổng đã thanh toán</span>
                   <strong>{invoice.serviceTotal.toLocaleString("vi-VN")}đ</strong>
                 </div>
+
+                <PaymentReferenceCard
+                  paymentReference={invoice.paymentReference}
+                  amount={invoice.totalAmount}
+                  title="Mã chuyển khoản hóa đơn"
+                  subtitle="Dùng mã này để ngân hàng/SePay đối soát đúng hóa đơn của bạn."
+                  paidAt={invoice.paidAt ? toLocaleDateTime(invoice.paidAt) : undefined}
+                />
               </article>
             ))}
           </div>
@@ -198,6 +209,7 @@ function mapToInvoiceItem(
     medicalRecordId: history.medicalRecordId,
     appointmentId: history.appointmentId,
     paidAt: history.paidAt ?? history.createdAt,
+    paymentReference: detail?.paymentReference ?? history.paymentReference ?? null,
     doctorUsername: detail?.doctorUsername ?? history.doctorUsername,
     diagnosis: detail?.diagnosis ?? history.diagnosis,
     serviceTotal,

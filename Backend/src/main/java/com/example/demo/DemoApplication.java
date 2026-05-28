@@ -8,8 +8,10 @@ import java.util.Map;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class DemoApplication {
 
 	private static final String DEFAULT_DB_URL = "jdbc:postgresql://localhost:5432/KLTN";

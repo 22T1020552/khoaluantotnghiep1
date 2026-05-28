@@ -84,6 +84,7 @@ export interface PatientMedicalRecordHistoryItemResponse {
   paid: boolean;
   paidAt: string | null;
   paymentMethod: string | null;
+  paymentReference: string | null;
 }
 
 export interface PatientPrescriptionHistoryItemResponse {
@@ -111,6 +112,7 @@ export interface PatientMedicalRecordDetailResponse {
   paid: boolean;
   paidAt: string | null;
   paymentMethod: string | null;
+  paymentReference: string | null;
   services: {
     serviceId: number | null;
     serviceName: string | null;

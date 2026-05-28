@@ -845,9 +845,6 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
                 )}
               </div>
             </div>
-            <p className={styles.mutedNote}>
-              Chọn các triệu chứng có sẵn để điền nhanh. Hoặc mô tả chi tiết nếu cần. Nếu chọn triệu chứng, bạn có thể để mô tả trống.
-            </p>
           </div>
         </div>
       </div>

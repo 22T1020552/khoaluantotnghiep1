@@ -9,25 +9,8 @@ import { Prescription } from "@/types/pharmacy.type";
 import { clinicConfigService } from "@/services/clinicConfigService";
 import { cashierService } from "@/services/cashierService";
 import PaymentRealtimeListener from "@/components/payment-realtime-listener";
+import { getServicePaymentBreakdown } from "../utils/service-payment-breakdown";
 import styles from "../cashier.module.css";
-
-const normalizeServiceName = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-const isConsultationServiceName = (serviceName?: string | null) => {
-  if (!serviceName) {
-    return false;
-  }
-
-  const normalized = normalizeServiceName(serviceName);
-  return ["kham", "consultation", "examination", "tu van"].some((keyword) =>
-    normalized.includes(keyword),
-  );
-};
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(
@@ -160,18 +143,19 @@ function PaymentDialog({
 
   const serviceItems = prescription.serviceItems ?? [];
   const totalServiceFee = Number((prescription.grandTotal ?? paymentData.serviceFee) || 0);
-  const consultationServices = serviceItems.filter((item) => isConsultationServiceName(item.serviceName));
-  const additionalServices = serviceItems.filter((item) => !isConsultationServiceName(item.serviceName));
-  const consultationFee =
-    consultationServices.length > 0
-      ? consultationServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0)
-      : Math.max(0, totalServiceFee - additionalServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0));
-  const additionalServiceFee = additionalServices.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+  const breakdown = getServicePaymentBreakdown(prescription, Number(prescription.advanceAmount ?? 0));
+  const { consultationServices, consultationFee, unpaidAdditionalServices, unpaidAdditionalServiceFee, totalDueAfterAdvance, consultationCoveredAmount } = breakdown;
+  const initialConsultationFee = Number(
+    prescription.advanceAmount ?? consultationCoveredAmount ?? consultationFee ?? 0,
+  );
+  const prepaidConsultationItems = consultationServices.filter((item) => Number(item.coveredLineTotal || 0) > 0);
   const insuranceDiscount = parseFloat(paymentData.insuranceDiscount || "0");
   const remainingAmount = prescription.remainingAmount ?? null;
-  const payableAmount = remainingAmount !== null
+  const computedRemaining = Math.max(0, totalDueAfterAdvance);
+  const effectiveRemaining = remainingAmount !== null && remainingAmount > 0
     ? remainingAmount
-    : Math.max(0, totalServiceFee - insuranceDiscount);
+    : computedRemaining;
+  const payableAmount = Math.max(0, effectiveRemaining - insuranceDiscount);
 
   const bankBin = bankConfig?.bankBin?.trim();
   const bankAccount = bankConfig?.bankAccount?.trim();
@@ -304,21 +288,34 @@ function PaymentDialog({
                 </div>
                 <div className={styles.summaryRow}>
                   <span className={styles.summaryMuted}>Còn nộp sau:</span>
-                  <span className={styles.amountValue}>{formatCurrency(remainingAmount ?? Math.max(0, totalServiceFee - Number(prescription.advanceAmount ?? 0)))}</span>
+                  <span className={styles.amountValue}>{formatCurrency(effectiveRemaining)}</span>
                 </div>
 
-                {additionalServices.length > 0 && (
+                {breakdown.consultationServices.filter((s) => Number(s.unpaidLineTotal || 0) > 0).length > 0 && (
+                  <div className={styles.remainingItems}>
+                    {breakdown.consultationServices
+                      .filter((s) => Number(s.unpaidLineTotal || 0) > 0)
+                      .map((s) => (
+                        <div key={`rem-cons-${s.serviceId}`} className={styles.remainingRow}>
+                          <span className={styles.remainingLabel}>- {s.serviceName}</span>
+                          <span className={styles.remainingValue}>{formatCurrency(Number(s.unpaidLineTotal || 0))}</span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {unpaidAdditionalServices.length > 0 && (
                   <div className={styles.dialogPrescriptionBox}>
                     <p className={styles.dialogPrescriptionTitle}>Dịch vụ phát sinh chưa thanh toán</p>
                     <div className={styles.dialogItems}>
-                      {additionalServices.map((item) => (
+                      {unpaidAdditionalServices.map((item) => (
                         <div key={`additional-${item.serviceId}`} className={styles.dialogItem}>
                           <div className={styles.dialogItemTop}>
                             <div>
                               <div className={styles.dialogItemName}>{item.serviceName} x{item.quantity}</div>
-                              <div className={styles.dialogItemMeta}>Chưa nộp: {formatCurrency(Number(item.lineTotal || 0))}</div>
+                              <div className={styles.dialogItemMeta}>Chưa nộp: {formatCurrency(item.unpaidLineTotal)}</div>
                             </div>
-                            <div className={styles.dialogItemAmount}>{formatCurrency(Number(item.lineTotal || 0))}</div>
+                            <div className={styles.dialogItemAmount}>{formatCurrency(item.unpaidLineTotal)}</div>
                           </div>
                         </div>
                       ))}
@@ -330,19 +327,19 @@ function PaymentDialog({
                   <>
                     <div className={styles.summaryRow}>
                       <span className={styles.summaryMuted}>Phí khám ban đầu:</span>
-                      <span className={styles.amountValue}>{formatCurrency(consultationFee)}</span>
+                      <span className={styles.amountValue}>{formatCurrency(initialConsultationFee)}</span>
                     </div>
-                    {consultationServices.map((item) => (
+                    {prepaidConsultationItems.map((item) => (
                       <div key={`consult-${item.serviceId}`} className={styles.summaryRow}>
                         <span className={styles.summaryMuted}>- {item.serviceName}</span>
-                        <span className={styles.amountValue}>{formatCurrency(item.lineTotal)}</span>
+                        <span className={styles.amountValue}>{formatCurrency(Number(item.coveredLineTotal || 0))}</span>
                       </div>
                     ))}
-                    {additionalServiceFee > 0 && (
+                    {unpaidAdditionalServiceFee > 0 && (
                       <>
                         <div className={styles.summaryRow}>
-                          <span className={styles.summaryMuted}>Dịch vụ chỉ định thêm:</span>
-                          <span className={styles.amountValue}>{formatCurrency(additionalServiceFee)}</span>
+                          <span className={styles.summaryMuted}>Dịch vụ chỉ định thêm chưa thanh toán:</span>
+                          <span className={styles.amountValue}>{formatCurrency(unpaidAdditionalServiceFee)}</span>
                         </div>
                       </>
                     )}

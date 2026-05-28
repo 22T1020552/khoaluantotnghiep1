@@ -25,4 +25,5 @@ public class PatientMedicalRecordHistoryItemResponse {
     private Boolean paid;
     private LocalDateTime paidAt;
     private String paymentMethod;
+    private String paymentReference;
 }

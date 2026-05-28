@@ -28,4 +28,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
                         String paymentMethod,
                         LocalDateTime startTime,
                         LocalDateTime endTime);
+
+        List<Invoice> findByIsPaidFalseAndPaymentMethodIgnoreCaseAndPaymentReferenceIsNotNull(String paymentMethod);
 }

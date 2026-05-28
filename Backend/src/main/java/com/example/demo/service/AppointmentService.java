@@ -43,7 +43,6 @@ import com.example.demo.repository.SymptomServiceMappingRepository;
 import com.example.demo.repository.SymptomTemplateRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.constants.PaymentStatus;
-import com.example.demo.service.InvoiceService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -141,7 +140,8 @@ public class AppointmentService {
         // duplicate. This prevents duplicate records when the client retries
         // or both polling and websocket events trigger creation.
         if (request.getPaymentReference() != null && !request.getPaymentReference().isBlank()) {
-            var existingOpt = appointmentRepository.findTopByPaymentReferenceOrderByIdDesc(request.getPaymentReference());
+            var existingOpt = appointmentRepository
+                    .findTopByPaymentReferenceOrderByIdDesc(request.getPaymentReference());
             if (existingOpt != null && existingOpt.isPresent()) {
                 return existingOpt.get();
             }
@@ -192,7 +192,7 @@ public class AppointmentService {
                 paymentReference = buildPaymentReference(savedAppointment.getId());
             }
             savedAppointment.setPaymentReference(paymentReference);
-                boolean alreadyPaid = paymentTransactionRepository.findTopByPaymentReferenceOrderByIdDesc(paymentReference)
+            boolean alreadyPaid = paymentTransactionRepository.findTopByPaymentReferenceOrderByIdDesc(paymentReference)
                     .map(tx -> "SUCCESS".equalsIgnoreCase(tx.getStatus()))
                     .orElse(false);
             savedAppointment.setPaymentStatus(alreadyPaid ? PaymentStatus.FULLY_PAID : PaymentStatus.PENDING_TRANSFER);

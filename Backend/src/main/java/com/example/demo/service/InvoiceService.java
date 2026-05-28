@@ -33,6 +33,7 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import com.example.demo.exception.AppException;
 
 import com.example.demo.constants.AppointmentStatus;
@@ -45,6 +46,7 @@ import com.example.demo.dto.CashierProcessPaymentRequest;
 import com.example.demo.dto.CashierProcessPaymentResponse;
 import com.example.demo.dto.CashierReceiptResponse;
 import com.example.demo.dto.CashierServiceLineItemResponse;
+import com.example.demo.dto.CashierServicePaymentBreakdownLineResponse;
 import com.example.demo.dto.CashierTransactionHistoryItemResponse;
 import com.example.demo.dto.CashierTransactionHistoryResponse;
 import com.example.demo.dto.CashierWaitingPaymentItemResponse;
@@ -92,6 +94,8 @@ public class InvoiceService {
     private final MedicineRepository medicineRepository;
     private final MedicalServiceRepository medicalServiceRepository;
     private final RoomRepository roomRepository;
+    private final com.example.demo.repository.PaymentTransactionRepository paymentTransactionRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     // Chức năng: xử lý lấy thông tin theo mã số hồ sơ y tế.
     public Invoice getByMedicalRecordId(Long medicalRecordId) {
@@ -309,7 +313,7 @@ public class InvoiceService {
         invoice.setIsPaid(Boolean.FALSE);
         invoice.setPaidAt(null);
 
-        return invoiceRepository.save(invoice);
+        return saveInvoiceWithPaymentReference(invoice);
     }
 
     // Chức năng: tạo hóa đơn cho lịch hẹn khi chuyển qua thu ngân.
@@ -365,7 +369,20 @@ public class InvoiceService {
         invoice.setRemainingAmount(remainingAmount);
         invoice.setPaidAt(null);
 
-        return invoiceRepository.save(invoice);
+        return saveInvoiceWithPaymentReference(invoice);
+    }
+
+    private Invoice saveInvoiceWithPaymentReference(Invoice invoice) {
+        Invoice saved = invoiceRepository.save(invoice);
+        if (saved.getPaymentReference() == null || saved.getPaymentReference().isBlank()) {
+            saved.setPaymentReference(buildPaymentReference(saved));
+            saved = invoiceRepository.save(saved);
+        }
+        return saved;
+    }
+
+    private String buildPaymentReference(Invoice invoice) {
+        return "INV-" + invoice.getId();
     }
 
     // Chức năng: lưu hóa đơn sau khi gán thêm thông tin như payment reference.
@@ -563,15 +580,70 @@ public class InvoiceService {
                 ? calculateHealthInsuranceDiscount(grossTotalAmount)
                 : BigDecimal.ZERO;
         BigDecimal payableTotalAmount = grossTotalAmount.subtract(insuranceDiscountAmount);
-        invoice.setGrandTotal(payableTotalAmount);
-        invoice.setAdvanceAmount(payableTotalAmount);
-        invoice.setRemainingAmount(BigDecimal.ZERO);
+
+        // Khoản tạm ứng hiện có (ví dụ: chuyển khoản ngân hàng đã được ghi nhận trước
+        // đó)
+        BigDecimal existingAdvance = defaultAmount(invoice.getAdvanceAmount());
+
+        // Số tiền thu ngân cần nhận ngay
+        BigDecimal amountToCollect = payableTotalAmount.subtract(existingAdvance);
+        if (amountToCollect.signum() < 0) {
+            amountToCollect = BigDecimal.ZERO;
+        }
+
+        // Nếu thanh toán thành công (tiền mặt/máy POS hoặc chuyển khoản đã xác nhận),
+        // hãy ghi lại khoản thanh toán
+        // giao dịch
+        if (Boolean.TRUE.equals(request.getPaymentSuccessful()) && amountToCollect.signum() > 0) {
+            com.example.demo.entity.PaymentTransaction tx = new com.example.demo.entity.PaymentTransaction();
+            tx.setExternalTransactionId(
+                    (paymentMethod == null ? "CASH" : paymentMethod) + "-" + System.currentTimeMillis());
+            tx.setPaymentReference(invoice.getPaymentReference());
+            tx.setProvider(paymentMethod == null ? "CASH" : paymentMethod);
+            tx.setPaymentMethod(paymentMethod);
+            tx.setAmount(amountToCollect);
+            tx.setReceivedAt(java.time.LocalDateTime.now());
+            tx.setStatus("SUCCESS");
+            tx.setRawPayload("{\"source\":\"cashier\"}");
+            tx.setInvoice(invoice);
+            if (invoice.getAppointment() != null) {
+                tx.setAppointment(invoice.getAppointment());
+            }
+            paymentTransactionRepository.save(tx);
+
+            // Lưu ngay phương thức thanh toán hỗn hợp để dòng hóa đơn tự phản ánh cả giao
+            // dịch chuyển khoản ban đầu và khoản thu của nhân viên thu ngân.
+            invoice.setPaymentMethod(mergePaymentMethod(invoice.getPaymentMethod(), paymentMethod));
+            invoiceRepository.save(invoice);
+
+            // Cập nhật hóa đơn tạm ứng và số dư còn lại
+            invoice.setAdvanceAmount(existingAdvance.add(amountToCollect));
+            invoice.setGrandTotal(payableTotalAmount);
+            BigDecimal remaining = payableTotalAmount.subtract(defaultAmount(invoice.getAdvanceAmount()));
+            invoice.setRemainingAmount(remaining.signum() < 0 ? BigDecimal.ZERO : remaining);
+        } else {
+            // Không có khoản thanh toán mới nào được thu ngân ghi nhận; cập nhật tổng số
+            // tiền/giảm giá nhưng giữ nguyên
+            // ứng trước
+            invoice.setGrandTotal(payableTotalAmount);
+            invoice.setAdvanceAmount(existingAdvance);
+            BigDecimal remaining = payableTotalAmount.subtract(existingAdvance);
+            invoice.setRemainingAmount(remaining.signum() < 0 ? BigDecimal.ZERO : remaining);
+        }
 
         if (medicalRecord != null && medicalRecord.getId() != null) {
             deductMedicineStockOnPayment(medicalRecord.getId());
         }
 
-        Invoice savedInvoice = markInvoiceAsPaidAndCloseSession(invoice, paymentMethod);
+        Invoice savedInvoice;
+        // Nếu đã thanh toán đầy đủ sau khi ghi hình, hãy đánh dấu đã thanh toán và đóng
+        // phiên.
+        if (defaultAmount(invoice.getRemainingAmount()).compareTo(BigDecimal.ZERO) <= 0) {
+            savedInvoice = markInvoiceAsPaidAndCloseSession(invoice, paymentMethod);
+        } else {
+            savedInvoice = invoiceRepository.save(invoice);
+        }
+        notifyCashierDashboardRefresh(savedInvoice);
         LocalDateTime paidAt = savedInvoice.getPaidAt();
         boolean exportInvoice = Boolean.TRUE.equals(request.getExportInvoice());
 
@@ -680,6 +752,126 @@ public class InvoiceService {
         return price.multiply(quantity);
     }
 
+    private boolean isConsultationServiceName(String serviceName) {
+        if (serviceName == null) {
+            return false;
+        }
+
+        String normalized = normalizeServiceName(serviceName);
+        for (String keyword : CONSULTATION_KEYWORDS) {
+            if (normalized.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeServiceName(String value) {
+        return value == null ? ""
+                : Normalizer.normalize(value, Normalizer.Form.NFD)
+                        .replaceAll("\\p{M}+", "")
+                        .toLowerCase(Locale.ROOT)
+                        .trim();
+    }
+
+    private ServicePaymentBreakdown calculateServicePaymentBreakdown(
+            List<CashierServiceLineItemResponse> services,
+            BigDecimal advanceAmount) {
+        List<CashierServiceLineItemResponse> consultationServices = services.stream()
+                .filter(service -> isConsultationServiceName(service.getServiceName()))
+                .toList();
+        List<CashierServiceLineItemResponse> additionalServices = services.stream()
+                .filter(service -> !isConsultationServiceName(service.getServiceName()))
+                .toList();
+
+        BigDecimal consultationFee = sumServiceLines(consultationServices);
+        BigDecimal additionalServiceFee = sumServiceLines(additionalServices);
+
+        BigDecimal remainingAdvance = defaultAmount(advanceAmount);
+        BigDecimal consultationCoveredAmount = minAmount(consultationFee, remainingAdvance);
+        remainingAdvance = remainingAdvance.subtract(consultationCoveredAmount);
+        if (remainingAdvance.signum() < 0) {
+            remainingAdvance = BigDecimal.ZERO;
+        }
+
+        BigDecimal additionalCoveredAmount = minAmount(additionalServiceFee, remainingAdvance);
+        BigDecimal consultationOutstandingAmount = consultationFee.subtract(consultationCoveredAmount);
+        BigDecimal additionalOutstandingAmount = additionalServiceFee.subtract(additionalCoveredAmount);
+
+        if (consultationOutstandingAmount.signum() < 0) {
+            consultationOutstandingAmount = BigDecimal.ZERO;
+        }
+        if (additionalOutstandingAmount.signum() < 0) {
+            additionalOutstandingAmount = BigDecimal.ZERO;
+        }
+
+        List<CashierServicePaymentBreakdownLineResponse> breakdownLines = new ArrayList<>();
+        BigDecimal remainingConsultationCoverage = consultationCoveredAmount;
+        for (CashierServiceLineItemResponse service : consultationServices) {
+            BigDecimal lineTotal = defaultAmount(service.getLineTotal());
+            BigDecimal coveredAmount = minAmount(lineTotal, remainingConsultationCoverage);
+            remainingConsultationCoverage = remainingConsultationCoverage.subtract(coveredAmount);
+            if (remainingConsultationCoverage.signum() < 0) {
+                remainingConsultationCoverage = BigDecimal.ZERO;
+            }
+            breakdownLines.add(new CashierServicePaymentBreakdownLineResponse(
+                    service.getServiceId(),
+                    service.getServiceName(),
+                    service.getQuantity(),
+                    service.getUnitPrice(),
+                    lineTotal,
+                    coveredAmount,
+                    lineTotal.subtract(coveredAmount)));
+        }
+
+        BigDecimal remainingAdditionalCoverage = additionalCoveredAmount;
+        for (CashierServiceLineItemResponse service : additionalServices) {
+            BigDecimal lineTotal = defaultAmount(service.getLineTotal());
+            BigDecimal coveredAmount = minAmount(lineTotal, remainingAdditionalCoverage);
+            remainingAdditionalCoverage = remainingAdditionalCoverage.subtract(coveredAmount);
+            if (remainingAdditionalCoverage.signum() < 0) {
+                remainingAdditionalCoverage = BigDecimal.ZERO;
+            }
+            breakdownLines.add(new CashierServicePaymentBreakdownLineResponse(
+                    service.getServiceId(),
+                    service.getServiceName(),
+                    service.getQuantity(),
+                    service.getUnitPrice(),
+                    lineTotal,
+                    coveredAmount,
+                    lineTotal.subtract(coveredAmount)));
+        }
+
+        return new ServicePaymentBreakdown(
+                consultationFee,
+                consultationCoveredAmount,
+                consultationOutstandingAmount,
+                additionalServiceFee,
+                additionalCoveredAmount,
+                additionalOutstandingAmount,
+                breakdownLines);
+    }
+
+    private BigDecimal sumServiceLines(List<CashierServiceLineItemResponse> services) {
+        return services.stream()
+                .map(service -> defaultAmount(service.getLineTotal()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal minAmount(BigDecimal left, BigDecimal right) {
+        return defaultAmount(left).min(defaultAmount(right));
+    }
+
+    private record ServicePaymentBreakdown(
+            BigDecimal consultationFee,
+            BigDecimal consultationCoveredAmount,
+            BigDecimal consultationOutstandingAmount,
+            BigDecimal additionalServiceFee,
+            BigDecimal additionalCoveredAmount,
+            BigDecimal additionalOutstandingAmount,
+            List<CashierServicePaymentBreakdownLineResponse> lines) {
+    }
+
     // Chức năng: xử lý tổng số thuốc.
     @SuppressWarnings("unused")
     private BigDecimal medicineLineTotal(PrescriptionDetail detail) {
@@ -763,6 +955,8 @@ public class InvoiceService {
                                 BigDecimal.ZERO))
                         .toList();
 
+        ServicePaymentBreakdown breakdown = calculateServicePaymentBreakdown(services, advanceAmount);
+
         return new CashierPaymentRecordDetailResponse(
                 invoice.getId(),
                 appointment == null ? null : appointment.getId(),
@@ -777,7 +971,14 @@ public class InvoiceService {
                 invoice.getGrandTotal(),
                 advanceAmount,
                 remainingAmount,
+                breakdown.consultationFee(),
+                breakdown.consultationCoveredAmount(),
+                breakdown.consultationOutstandingAmount(),
+                breakdown.additionalServiceFee(),
+                breakdown.additionalCoveredAmount(),
+                breakdown.additionalOutstandingAmount(),
                 services,
+                breakdown.lines(),
                 medicines);
     }
 
@@ -903,7 +1104,8 @@ public class InvoiceService {
     private Invoice markInvoiceAsPaidAndCloseSession(Invoice invoice, String paymentMethod) {
         LocalDateTime paidAt = LocalDateTime.now();
         invoice.setPaidAt(paidAt);
-        invoice.setPaymentMethod(paymentMethod);
+        invoice.setPaymentMethod(
+                mergePaymentMethod(resolveInvoicePaymentMethod(invoice, paymentMethod), paymentMethod));
         invoice.setIsPaid(Boolean.TRUE);
         invoice.setRemainingAmount(BigDecimal.ZERO);
 
@@ -924,10 +1126,13 @@ public class InvoiceService {
             appointmentRepository.save(appointment);
         }
 
-        return invoiceRepository.save(invoice);
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        backfillUnlinkedTransactionsByReference(savedInvoice);
+        return savedInvoice;
     }
 
-    // Chức năng: đánh dấu hóa đơn chuyển khoản đã thanh toán nhưng chưa đổi trạng thái khám.
+    // Chức năng: đánh dấu hóa đơn chuyển khoản đã thanh toán nhưng chưa đổi trạng
+    // thái khám.
     public Invoice markTransferInvoiceAsPaid(Long invoiceId, String paymentMethod) {
         if (invoiceId == null) {
             throw AppException.of(HttpStatus.BAD_REQUEST, "invoiceId là bắt buộc");
@@ -937,12 +1142,14 @@ public class InvoiceService {
                 .orElseThrow(() -> AppException.of(HttpStatus.NOT_FOUND, "Không tìm thấy hóa đơn"));
 
         if (Boolean.TRUE.equals(invoice.getIsPaid())) {
+            backfillUnlinkedTransactionsByReference(invoice);
             return invoice;
         }
 
         LocalDateTime paidAt = LocalDateTime.now();
         invoice.setPaidAt(paidAt);
-        invoice.setPaymentMethod(paymentMethod);
+        invoice.setPaymentMethod(
+                mergePaymentMethod(resolveInvoicePaymentMethod(invoice, paymentMethod), paymentMethod));
         invoice.setIsPaid(Boolean.TRUE);
         invoice.setRemainingAmount(BigDecimal.ZERO);
         invoice.setAdvanceAmount(defaultAmount(invoice.getGrandTotal()));
@@ -954,12 +1161,106 @@ public class InvoiceService {
             MedicalRecord medicalRecord = resolveMedicalRecord(invoice);
             boolean hasCompletedExam = medicalRecord != null && medicalRecord.getCompletedAt() != null;
             appointment.setStatus(AppointmentStatus.WAITING_CASHIER.equals(appointment.getStatus())
-                ? (hasCompletedExam ? AppointmentStatus.COMPLETED : AppointmentStatus.IN_ROOM)
-                : appointment.getStatus());
+                    ? (hasCompletedExam ? AppointmentStatus.COMPLETED : AppointmentStatus.IN_ROOM)
+                    : appointment.getStatus());
             appointmentRepository.save(appointment);
         }
 
-        return invoiceRepository.save(invoice);
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        backfillUnlinkedTransactionsByReference(savedInvoice);
+        notifyCashierDashboardRefresh(savedInvoice);
+        return savedInvoice;
+    }
+
+    private void backfillUnlinkedTransactionsByReference(Invoice invoice) {
+        if (invoice == null || invoice.getId() == null) {
+            return;
+        }
+
+        String paymentReference = invoice.getPaymentReference();
+        if (paymentReference == null || paymentReference.isBlank()) {
+            return;
+        }
+
+        List<com.example.demo.entity.PaymentTransaction> dangling = paymentTransactionRepository
+                .findByPaymentReferenceAndInvoiceIsNullOrderByIdAsc(paymentReference);
+        if (dangling == null || dangling.isEmpty()) {
+            return;
+        }
+
+        Appointment appointment = invoice.getAppointment();
+        for (com.example.demo.entity.PaymentTransaction tx : dangling) {
+            if (tx == null) {
+                continue;
+            }
+            tx.setInvoice(invoice);
+            if (appointment != null) {
+                tx.setAppointment(appointment);
+            }
+            paymentTransactionRepository.save(tx);
+        }
+    }
+
+    private void notifyCashierDashboardRefresh(Invoice invoice) {
+        if (invoice == null || invoice.getId() == null) {
+            return;
+        }
+        try {
+            messagingTemplate.convertAndSend("/topic/cashier/refresh", String.valueOf(invoice.getId()));
+        } catch (Exception ex) {
+            log.warn("Không thể phát tín hiệu refresh cho trang thu ngân: invoiceId={}, reason={}", invoice.getId(),
+                    ex.getMessage());
+        }
+    }
+
+    private String resolveInvoicePaymentMethod(Invoice invoice, String... additionalMethods) {
+        java.util.LinkedHashSet<String> methods = new java.util.LinkedHashSet<>();
+
+        if (invoice != null) {
+            addPaymentMethods(methods, invoice.getPaymentMethod());
+            Long invoiceId = invoice.getId();
+            if (invoiceId != null) {
+                List<com.example.demo.entity.PaymentTransaction> transactions = paymentTransactionRepository
+                        .findByInvoice_IdOrderByIdAsc(invoiceId);
+                for (com.example.demo.entity.PaymentTransaction transaction : transactions) {
+                    if (transaction == null) {
+                        continue;
+                    }
+                    if (!"SUCCESS".equalsIgnoreCase(transaction.getStatus())) {
+                        continue;
+                    }
+                    addPaymentMethods(methods, transaction.getPaymentMethod());
+                }
+            }
+        }
+
+        if (additionalMethods != null) {
+            for (String method : additionalMethods) {
+                addPaymentMethods(methods, method);
+            }
+        }
+
+        return methods.isEmpty() ? null : String.join("|", methods);
+    }
+
+    private String mergePaymentMethod(String currentValue, String newValue) {
+        java.util.LinkedHashSet<String> methods = new java.util.LinkedHashSet<>();
+        addPaymentMethods(methods, currentValue);
+        addPaymentMethods(methods, newValue);
+        return methods.isEmpty() ? null : String.join("|", methods);
+    }
+
+    private void addPaymentMethods(java.util.LinkedHashSet<String> methods, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        String[] parts = value.split("\\|");
+        for (String part : parts) {
+            if (part != null && !part.isBlank()) {
+                methods.add(part.trim());
+            }
+        }
     }
 
     // Chức năng: xử lý chuẩn hóa bộ lọc phương thức thanh toán tùy chọn.

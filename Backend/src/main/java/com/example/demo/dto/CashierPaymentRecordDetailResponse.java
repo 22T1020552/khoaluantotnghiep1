@@ -24,6 +24,13 @@ public class CashierPaymentRecordDetailResponse {
     private BigDecimal grandTotal;
     private BigDecimal advanceAmount;
     private BigDecimal remainingAmount;
+    private BigDecimal consultationFee;
+    private BigDecimal consultationCoveredAmount;
+    private BigDecimal consultationOutstandingAmount;
+    private BigDecimal additionalServiceFee;
+    private BigDecimal additionalCoveredAmount;
+    private BigDecimal additionalOutstandingAmount;
     private List<CashierServiceLineItemResponse> services;
+    private List<CashierServicePaymentBreakdownLineResponse> serviceBreakdown;
     private List<CashierMedicineLineItemResponse> medicines;
 }

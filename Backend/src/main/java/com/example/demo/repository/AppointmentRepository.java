@@ -86,6 +86,13 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
         List<Appointment> findByPatient_IdAndStatusNotInOrderByAppointmentTimeDesc(Long patientId,
                         Collection<String> statuses);
 
+        List<Appointment> findByStatusAndPaymentStatusAndAppointmentTimeBetweenAndCancellationReason(
+                        String status,
+                        String paymentStatus,
+                        LocalDateTime from,
+                        LocalDateTime to,
+                        String cancellationReason);
+
         List<Appointment> findByAppointmentTimeBetweenOrderByAppointmentTimeAsc(LocalDateTime from, LocalDateTime to);
 
         long countByAppointmentTimeBetween(LocalDateTime from, LocalDateTime to);
