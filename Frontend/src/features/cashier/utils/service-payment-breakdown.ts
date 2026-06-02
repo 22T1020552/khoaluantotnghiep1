@@ -71,8 +71,30 @@ export const getServicePaymentBreakdown = (
     source.additionalCoveredAmount !== undefined &&
     source.additionalOutstandingAmount !== undefined
   ) {
-    const consultationServices = source.serviceItems?.filter((item) => isConsultationServiceName(item.serviceName)) ?? [];
-    const additionalServices = source.serviceItems?.filter((item) => !isConsultationServiceName(item.serviceName)) ?? [];
+    const getLineCoverage = (item: CashierServiceLine) => {
+      const matched = source.serviceBreakdown?.find((line) => line.serviceId === item.serviceId);
+      const coveredLineTotal = Number(matched?.coveredAmount ?? 0);
+      const unpaidLineTotal = Number(matched?.unpaidAmount ?? Math.max(0, Number(item.lineTotal || 0) - coveredLineTotal));
+      return {
+        coveredLineTotal,
+        unpaidLineTotal,
+      };
+    };
+
+    const consultationServices =
+      source.serviceItems
+        ?.filter((item) => isConsultationServiceName(item.serviceName))
+        .map((item) => ({
+          ...item,
+          ...getLineCoverage(item),
+        })) ?? [];
+    const additionalServices =
+      source.serviceItems
+        ?.filter((item) => !isConsultationServiceName(item.serviceName))
+        .map((item) => ({
+          ...item,
+          ...getLineCoverage(item),
+        })) ?? [];
     const unpaidAdditionalServices = source.serviceBreakdown
       .filter((item) => item.unpaidAmount > 0 && !isConsultationServiceName(item.serviceName))
       .map((item) => ({

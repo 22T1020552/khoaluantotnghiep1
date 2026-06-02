@@ -187,6 +187,7 @@ export function PatientInvoices() {
                   title="Mã chuyển khoản hóa đơn"
                   subtitle="Dùng mã này để ngân hàng/SePay đối soát đúng hóa đơn của bạn."
                   paidAt={invoice.paidAt ? toLocaleDateTime(invoice.paidAt) : undefined}
+                  hideQr
                 />
               </article>
             ))}

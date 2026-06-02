@@ -128,10 +128,6 @@
 }
 
 .mobileLogoutButton {
-  position: fixed;
-  left: 12px;
-  top: 12px;
-  z-index: 9999;
   border: 1px solid #fecaca;
   background: #fff1f2;
   color: #b91c1c;
@@ -168,11 +164,7 @@
 }
 
 .logoutButton {
-  position: fixed;
-  left: 12px;
-  top: 56px;
-  z-index: 9999;
-  width: auto;
+  width: 100%;
   border: none;
   background: #ffffff;
   color: #dc2626;
@@ -641,6 +633,12 @@
   gap: 0.75rem;
 }
 
+.diagnosisTemplateScrollArea {
+  max-height: 440px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
 .templateCard {
   border: 1px solid #e2e8f0;
   background: #ffffff;
@@ -966,6 +964,10 @@
 
 @media (max-width: 900px) {
   .pageLayout {
+
+  .diagnosisTemplateScrollArea {
+    max-height: 320px;
+  }
     flex-direction: column;
   }
 

@@ -1150,17 +1150,52 @@ public class InvoiceService {
         invoice.setPaidAt(paidAt);
         invoice.setPaymentMethod(
                 mergePaymentMethod(resolveInvoicePaymentMethod(invoice, paymentMethod), paymentMethod));
-        invoice.setIsPaid(Boolean.TRUE);
-        invoice.setRemainingAmount(BigDecimal.ZERO);
-        invoice.setAdvanceAmount(defaultAmount(invoice.getGrandTotal()));
+
+        // Determine total amount actually received for this invoice (including dangling txns by reference).
+        BigDecimal totalReceived = BigDecimal.ZERO;
+        try {
+            // Sum transactions already linked to this invoice
+            List<com.example.demo.entity.PaymentTransaction> linked = paymentTransactionRepository.findByInvoice_IdOrderByIdAsc(invoice.getId());
+            if (linked != null && !linked.isEmpty()) {
+                for (com.example.demo.entity.PaymentTransaction t : linked) {
+                    if (t == null) continue;
+                    if (!"SUCCESS".equalsIgnoreCase(t.getStatus())) continue;
+                    totalReceived = totalReceived.add(defaultAmount(t.getAmount()));
+                }
+            }
+
+            // Also include any dangling transactions that match the paymentReference but are not yet linked
+            String paymentReference = invoice.getPaymentReference();
+            if (paymentReference != null && !paymentReference.isBlank()) {
+                List<com.example.demo.entity.PaymentTransaction> dangling = paymentTransactionRepository
+                        .findByPaymentReferenceAndInvoiceIsNullOrderByIdAsc(paymentReference);
+                if (dangling != null && !dangling.isEmpty()) {
+                    for (com.example.demo.entity.PaymentTransaction t : dangling) {
+                        if (t == null) continue;
+                        if (!"SUCCESS".equalsIgnoreCase(t.getStatus())) continue;
+                        totalReceived = totalReceived.add(defaultAmount(t.getAmount()));
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Could not compute totalReceived for invoice {}: {}", invoice.getId(), ex.getMessage());
+        }
+
+        // Save advanceAmount as actual received (capped between 0 and grandTotal)
+        BigDecimal grandTotal = defaultAmount(invoice.getGrandTotal());
+        BigDecimal advanceAmount = totalReceived.max(BigDecimal.ZERO).min(grandTotal);
+        invoice.setAdvanceAmount(advanceAmount);
+        BigDecimal remaining = grandTotal.subtract(advanceAmount);
+        invoice.setRemainingAmount(remaining);
+        invoice.setIsPaid(remaining.compareTo(BigDecimal.ZERO) <= 0);
 
         Appointment appointment = invoice.getAppointment();
         if (appointment != null) {
-            appointment.setPaymentStatus(PaymentStatus.FULLY_PAID);
-            appointment.setAdvancePayment(defaultAmount(invoice.getGrandTotal()));
+            appointment.setAdvancePayment(defaultAmount(invoice.getAdvanceAmount()));
+            appointment.setPaymentStatus(Boolean.TRUE.equals(invoice.getIsPaid()) ? PaymentStatus.FULLY_PAID : PaymentStatus.PENDING_TRANSFER);
             MedicalRecord medicalRecord = resolveMedicalRecord(invoice);
             boolean hasCompletedExam = medicalRecord != null && medicalRecord.getCompletedAt() != null;
-            appointment.setStatus(AppointmentStatus.WAITING_CASHIER.equals(appointment.getStatus())
+                appointment.setStatus(AppointmentStatus.WAITING_CASHIER.equals(appointment.getStatus())
                     ? (hasCompletedExam ? AppointmentStatus.COMPLETED : AppointmentStatus.IN_ROOM)
                     : appointment.getStatus());
             appointmentRepository.save(appointment);

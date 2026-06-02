@@ -169,6 +169,7 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
         const resolvedPaymentReference = paymentReferenceForRequest || createdAppointment.paymentReference || '';
         setPaymentReference(resolvedPaymentReference);
         if (source === 'after-payment') {
+          setTransferRequested(false);
           setBookingFlow('success');
           setPaymentStatusMessage('Đã nộp tiền và tự động đặt lịch thành công');
           toast.success('Đã nộp tiền và tự động đặt lịch thành công');
@@ -322,6 +323,10 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
       return;
     }
 
+    if (bookingFlow === 'success' || bookingFlow === 'failed') {
+      return;
+    }
+
     if (!isTransferBookingReady) {
       setBookingFlow('form');
       setPaymentStatusMessage('');
@@ -336,7 +341,7 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
         transferTrackingStartedRef.current = true;
         transferStartedAtRef.current = Date.now();
       }
-      setBookingFlow('waiting-transfer');
+      setBookingFlow((prev) => (prev === 'form' ? 'waiting-transfer' : prev));
       if (!paymentStatusMessage) {
         setPaymentStatusMessage('Chưa nộp tiền. Quét QR và hệ thống sẽ kiểm tra lại sau 1 phút.');
       }
@@ -344,7 +349,7 @@ export function BookingForm({ onSuccess }: BookingFormProps) {
     }
 
     setPaymentReference((prev) => prev || generatePaymentReference());
-  }, [generatePaymentReference, isTransferBookingReady, paymentMethod, paymentReference, paymentStatusMessage]);
+  }, [bookingFlow, generatePaymentReference, isTransferBookingReady, paymentMethod, paymentReference, paymentStatusMessage, transferRequested]);
 
   useEffect(() => {
     if (selectedSymptomIds.length === 0 || selectedCategoryId == null) {

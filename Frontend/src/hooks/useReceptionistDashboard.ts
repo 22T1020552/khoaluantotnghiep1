@@ -11,8 +11,11 @@ export function useReceptionistDashboard() {
   const [doctorOptions, setDoctorOptions] = useState<ReceptionistDoctorOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadDashboardData = useCallback(async () => {
-    setIsLoading(true);
+  const loadDashboardData = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = Boolean(options?.silent);
+    if (!silent) {
+      setIsLoading(true);
+    }
     try {
       const [pendingData, confirmedData, cancelledData, doctors] = await Promise.all([
         receptionistService.getPendingAppointments(),
@@ -26,7 +29,9 @@ export function useReceptionistDashboard() {
       setCancelledAppointments(cancelledData);
       setDoctorOptions(doctors);
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }, []);
 

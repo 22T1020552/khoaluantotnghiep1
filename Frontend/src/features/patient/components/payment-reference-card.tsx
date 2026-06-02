@@ -14,6 +14,7 @@ interface PaymentReferenceCardProps {
   title?: string;
   subtitle?: string;
   paidAt?: string | null;
+  hideQr?: boolean;
 }
 
 const formatCurrency = (amount: number) =>
@@ -25,6 +26,7 @@ export function PaymentReferenceCard({
   title = "Mã chuyển khoản / QR thanh toán",
   subtitle = "Dùng nội dung này để SePay tự động đối soát với hóa đơn.",
   paidAt,
+  hideQr = false,
 }: PaymentReferenceCardProps) {
   const bankBin = process.env.NEXT_PUBLIC_CLINIC_BANK_BIN?.trim();
   const bankAccount = process.env.NEXT_PUBLIC_CLINIC_BANK_ACCOUNT?.trim();
@@ -82,25 +84,27 @@ export function PaymentReferenceCard({
         <span className={styles.meta}>{bankName}</span>
       </div>
 
-      <div className={styles.qrBox}>
-        <div className={styles.qrTitle}>
-          <QrCode size={15} style={{ display: "inline", marginRight: 6 }} />
-          QR thanh toán
-        </div>
+      {!hideQr ? (
+        <div className={styles.qrBox}>
+          <div className={styles.qrTitle}>
+            <QrCode size={15} style={{ display: "inline", marginRight: 6 }} />
+            QR thanh toán
+          </div>
 
-        {qrReady ? (
-          <>
-            <img src={qrUrl} alt="QR thanh toán SePay" className={styles.qrImage} />
-            <div className={styles.meta}>
-              {bankAccount} {accountName ? `• ${accountName}` : ""}
-            </div>
-          </>
-        ) : (
-          <p className={styles.error}>
-            Thiếu cấu hình QR trong `.env`. Cần đủ: `NEXT_PUBLIC_CLINIC_BANK_BIN`, `NEXT_PUBLIC_CLINIC_BANK_ACCOUNT`, `NEXT_PUBLIC_CLINIC_ACCOUNT_NAME`.
-          </p>
-        )}
-      </div>
+          {qrReady ? (
+            <>
+              <img src={qrUrl} alt="QR thanh toán SePay" className={styles.qrImage} />
+              <div className={styles.meta}>
+                {bankAccount} {accountName ? `• ${accountName}` : ""}
+              </div>
+            </>
+          ) : (
+            <p className={styles.error}>
+              Thiếu cấu hình QR trong `.env`. Cần đủ: `NEXT_PUBLIC_CLINIC_BANK_BIN`, `NEXT_PUBLIC_CLINIC_BANK_ACCOUNT`, `NEXT_PUBLIC_CLINIC_ACCOUNT_NAME`.
+            </p>
+          )}
+        </div>
+      ) : null}
     </Card>
   );
 }

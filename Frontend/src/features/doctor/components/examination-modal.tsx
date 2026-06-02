@@ -141,26 +141,28 @@ export function ExaminationModal(props: ExaminationModalProps) {
                   ))}
                 </div>
 
-                <div className={styles.diagnosisTemplateGrid}>
-                  {filteredDiagnosis.map((template) => (
-                    <button
-                      key={template.id}
-                      type="button"
-                      className={`${styles.templateCard} ${template.id === props.selectedDiagnosisId ? styles.templateCardActive : ""}`}
-                      onClick={() => props.onDiagnosisSelect(template.id)}
-                    >
-                      <div className={styles.templateHeader}>
-                        <span className={styles.templateTitle}>{template.diagnosisName}</span>
-                        <span className={styles.templateCategory}>{template.categoryName || "Khác"}</span>
-                      </div>
-                      <p className={styles.templateAdvice}>
-                        {template.defaultAdvice || "Chưa có lời khuyên mẫu"}
-                      </p>
-                    </button>
-                  ))}
-                  {filteredDiagnosis.length === 0 && (
-                    <div className={styles.emptyBox}>Chưa có gợi ý chẩn đoán cho nhóm này.</div>
-                  )}
+                <div className={styles.diagnosisTemplateScrollArea}>
+                  <div className={styles.diagnosisTemplateGrid}>
+                    {filteredDiagnosis.map((template) => (
+                      <button
+                        key={template.id}
+                        type="button"
+                        className={`${styles.templateCard} ${template.id === props.selectedDiagnosisId ? styles.templateCardActive : ""}`}
+                        onClick={() => props.onDiagnosisSelect(template.id)}
+                      >
+                        <div className={styles.templateHeader}>
+                          <span className={styles.templateTitle}>{template.diagnosisName}</span>
+                          <span className={styles.templateCategory}>{template.categoryName || "Khác"}</span>
+                        </div>
+                        <p className={styles.templateAdvice}>
+                          {template.defaultAdvice || "Chưa có lời khuyên mẫu"}
+                        </p>
+                      </button>
+                    ))}
+                    {filteredDiagnosis.length === 0 && (
+                      <div className={styles.emptyBox}>Chưa có gợi ý chẩn đoán cho nhóm này.</div>
+                    )}
+                  </div>
                 </div>
 
                 {selectedTemplate && (

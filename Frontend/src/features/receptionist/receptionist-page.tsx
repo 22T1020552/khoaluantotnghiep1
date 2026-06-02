@@ -115,7 +115,9 @@ export function ReceptionistDashboard() {
     void refresh(true);
 
     const intervalId = window.setInterval(() => {
-      void refresh(false);
+      void loadDashboardData({ silent: true }).catch(() => {
+        // Ignore background refresh errors to avoid noisy toasts every 30s.
+      });
     }, 30000);
 
     return () => {
@@ -174,7 +176,9 @@ export function ReceptionistDashboard() {
         specialty,
       );
       setApprovalMessage(result.message || "Xác nhận lịch hẹn thành công");
-      await loadDashboardData();
+      void loadDashboardData({ silent: true }).catch((refreshError) => {
+        toast.error(getApiErrorMessage(refreshError, "Đã duyệt nhưng chưa thể làm mới danh sách"));
+      });
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Không thể xác nhận lịch hẹn"));
     } finally {
@@ -198,7 +202,9 @@ export function ReceptionistDashboard() {
       await receptionistService.cancelAppointment(cancelTarget.id, reason);
       toast.success("Đã hủy lịch hẹn");
       setCancelTarget(null);
-      await loadDashboardData();
+      void loadDashboardData({ silent: true }).catch((refreshError) => {
+        toast.error(getApiErrorMessage(refreshError, "Đã hủy nhưng chưa thể làm mới danh sách"));
+      });
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Không thể hủy lịch hẹn"));
     } finally {

@@ -44,8 +44,9 @@ public class DoctorSeeder {
         // default password; please change after first login
         user.setPasswordHash(passwordEncoder.encode("ChangeMe123!"));
         user.setFullName("Bác sĩ phòng 202");
-        user.setPhoneNumber(null);
-        user.setEmail(null);
+        // Provide default contact info to satisfy NOT NULL DB constraints
+        user.setPhoneNumber("0900000002");
+        user.setEmail("doctor202@clinic.local");
         user.setRole(Role.DOCTOR);
         user.setIsActive(Boolean.TRUE);
 

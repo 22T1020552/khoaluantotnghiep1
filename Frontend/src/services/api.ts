@@ -199,6 +199,7 @@ export const getApiErrorMessage = (error: unknown, fallback = "Không thể kế
   if (axios.isAxiosError(error)) {
     const status = error.response?.status;
     const messageText = String(error.message ?? "").toLowerCase();
+    const requestUrl = String(error.config?.url ?? "");
 
     if (!error.response) {
       if (messageText.includes("timeout") || error.code === "ECONNABORTED") {
@@ -209,7 +210,20 @@ export const getApiErrorMessage = (error: unknown, fallback = "Không thể kế
     }
 
     if (status === 401) {
-      return "Tên đăng nhập hoặc mật khẩu không đúng.";
+      if (requestUrl.includes("/api/auth/login")) {
+        return "Tên đăng nhập hoặc mật khẩu không đúng.";
+      }
+
+      if (requestUrl.includes("/api/auth/refresh") || requestUrl.includes("/api/auth/logout")) {
+        return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+      }
+
+      const storedSession = getStoredAuthSession();
+      if (storedSession?.refreshToken) {
+        return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+      }
+
+      return "Bạn chưa đăng nhập hoặc phiên đã hết hạn.";
     }
 
     if (status === 403) {

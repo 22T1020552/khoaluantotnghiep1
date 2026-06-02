@@ -220,16 +220,6 @@ export function PatientHistory() {
               </div>
             </div>
 
-            {record.paid && (
-              <PaymentReferenceCard
-                paymentReference={paymentReference}
-                amount={totalCost}
-                title="Mã chuyển khoản của hóa đơn"
-                subtitle="Bệnh nhân có thể dùng mã này để đối soát hoặc mở lại QR khi cần."
-                paidAt={record.paidAt ? formatDateTime(record.paidAt) : undefined}
-              />
-            )}
-
             {/* Record Details */}
             <div className={styles.detailsContainer}>
               
